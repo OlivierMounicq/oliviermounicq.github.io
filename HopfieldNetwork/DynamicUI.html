@@ -1,0 +1,331 @@
+<html>
+
+<head>
+  <script src="jquery-3.2.1.min.js"></script>
+  <script src="CreateConfigurationSet.js"></script>
+  <script src="HopfieldFramework.js"></script>
+  <script src="HopfieldMemoryRecording.js"></script>
+  <script src="HopfieldMemoryRecovering.js"></script>
+  <script src="HopfieldUI.js"></script>
+  <script src="HopfieldWorkflow.js"></script>
+
+</head>
+
+<style type="text/css">
+table {
+  border-collapse: collapse;
+}
+
+td {
+  border: 1px solid #FF0000;
+  width:20px;
+  height:20px;
+  background-color: #FFFFFF;
+}
+
+.noBorder{
+  border: none;
+}
+
+#addPatternDiv{
+  display: none;
+}
+</style>
+
+<script type="text/javascript">
+
+var patternDictionary = new Object();
+var Dimension = new Object();
+var CurrentMatrix = null;
+var CurrentSelectedPatternName = "";
+var prefix = "neuron_";
+var degradedPrefix = "degraged_";
+var recoveredPrefix = "recovered_";
+var degradedMatrix = null;
+
+$( document ).ready(function() {
+    //button Clean patern
+    $("#btnClean").click(function(){
+      cleanPattern();
+      setAllMatrixElement(CurrentMatrix, -1);
+    });
+
+    //button Create pattern
+    $("#SetUpForm").submit(function(evt){
+      evt.preventDefault();
+
+      var rowNumber = $("#SetUpForm input:first").val();
+      var columnNumber = $("#SetUpForm input:nth-child(2)").val();
+
+      Dimension['Rows'] = rowNumber;
+      Dimension['Column'] = columnNumber;
+
+      innerTable = createTable(prefix,rowNumber,columnNumber);
+      $("#pattern").html(innerTable);
+
+      innerTableD = createTable(degradedPrefix,rowNumber,columnNumber);
+      $("#degradedPattern").html(innerTableD);
+      degradedMatrix = createPatternMatrix(Dimension['Rows'],Dimension['Column']);
+
+      $("#addPatternDiv").css("display","inline");
+      $("#btnStart").attr('disabled','disabled');
+      $("#SetUpForm input:first").attr('disabled','disabled');
+      $("#SetUpForm input:nth-child(2)").attr('disabled','disabled');
+    });
+
+  //Button SAVE
+    $("#btnSave").click(function(){
+      cleanPattern();
+
+      var patternName = $("#patternNameTxBx").val();
+      var matrix = createPatternMatrix(Dimension['Rows'],Dimension['Column']);
+      patternDictionary[patternName] = matrix;
+
+      CurrentMatrix = matrix;
+      displayMatrix(CurrentMatrix);
+
+      //Add the pattern in the drop down list
+      $("#patternDDL").append(new Option(patternName, patternName));
+
+      str = "#patternDDL option[value='" + patternName + "']";
+      $(str).prop('selected', true);
+      CurrentSelectedPatternName = patternName;
+
+      $("#patternNameTxBx").val("");
+    });
+
+    $("#pattern").on('click','td', function(e){
+      e.preventDefault();
+      var id = this.id.substring(prefix.length);
+      var arr = id.split(',');
+
+      if($(this).css("background-color") == "rgb(255, 255, 255)"){
+        $(this).css("background-color","#000000");
+        CurrentMatrix[arr[0]][arr[1]] = 1;
+      }
+      else{
+        $(this).css("background-color","#FFFFFF");
+        CurrentMatrix[arr[0]][arr[1]] = -1;
+      }
+      //display raw matrix (only the value)
+      displayMatrix(CurrentMatrix);
+    });
+
+    $("#degradedPattern").on('click','td', function(e){
+      e.preventDefault();
+      var id = this.id.substring(degradedPrefix.length);
+      var arr = id.split(',');
+
+      if($(this).css("background-color") == "rgb(255, 255, 255)"){
+        $(this).css("background-color","#000000");
+        degradedMatrix[arr[0]][arr[1]] = 1;
+      }
+      else{
+        $(this).css("background-color","#FFFFFF");
+        degradedMatrix[arr[0]][arr[1]] = -1;
+      }
+      //display raw matrix (only the value)
+      displayMatrix(degradedMatrix);
+    });
+
+    //the drop down list
+    $("#patternDDL").change(function(){
+      var selectedOptionText = "";
+      $("#patternDDL option:selected").each(function(){
+        selectedOptionText = $(this).text();
+      });
+      var matrixToDisplay = patternDictionary[selectedOptionText];
+      displayPattern(matrixToDisplay);
+      displayMatrix(matrixToDisplay);
+      CurrentMatrix = matrixToDisplay;
+      CurrentSelectedPatternName = selectedOptionText;
+    });
+
+    //The DELETE button
+    $("#btnDelete").click(function(){
+      patternDictionary[CurrentSelectedPatternName] = null;
+      delete patternDictionary[CurrentSelectedPatternName];
+      str = "#patternDDL option[value='" + CurrentSelectedPatternName +"']"
+      $(str).remove();
+
+      var selectedOptionText = "";
+      $("#patternDDL option:selected").each(function(){
+        selectedOptionText = $(this).text();
+      });
+
+      CurrentSelectedPatternName = selectedOptionText;
+
+      if(CurrentSelectedPatternName == ""){
+        cleanPattern();
+      }
+      else{
+        tmpM = patternDictionary[CurrentSelectedPatternName];
+        displayPattern(tmpM);
+        displayMatrix(tmpM);
+        }
+    });
+
+    //Th RESET button
+    $('#idBtnReset').click(function(){
+      $("#addPatternDiv").css("display","none");
+      $("#btnStart").removeAttr('disabled');
+      $("#SetUpForm input:first").removeAttr('disabled');
+      $("#SetUpForm input:nth-child(2)").removeAttr('disabled');
+      $("#patternDDL").children().remove();
+      patternDictionary = null;
+      patternDictionary = Object;
+      $("#pattern").children().remove();
+    });
+
+    $("#btnStartProcess").click(function(){
+	  cleanTable("recoveredPattern");
+      resultInnerTable = createTable(recoveredPrefix,Dimension['Rows'],Dimension['Column']);
+      $("#recoveredPattern").html(resultInnerTable);
+      data = getArrayFromObject(patternDictionary);
+      Start(recoveredPrefix, data, degradedMatrix);
+    });
+});
+
+function getArrayFromObject(obj){
+  var v = [];
+  for(var prop in obj){
+    v.push(obj[prop]);
+  }
+
+  return v;
+}
+
+function createTable(prefix, rowQuantity,colQuantity){
+  innerHtml = "";
+  for(var iRow = 0; iRow < rowQuantity; iRow++){
+    innerHtml += "<tr>";
+    for(var iCol = 0; iCol < colQuantity; iCol++){
+      idCell = prefix + iRow.toString() + "," + iCol.toString();
+      innerHtml+= "<td id='" + idCell + "'></td>"
+    }
+    innerHtml += "</tr>";
+  }
+  return innerHtml;
+}
+
+function createPatternMatrix(rowQuantity,colQuantity)
+{
+  var matrix = [];
+  for(var iRow = 0; iRow < rowQuantity; iRow++){
+    matrix[iRow] = [];
+    for(var iCol = 0; iCol < colQuantity; iCol++){
+      matrix[iRow][iCol] = -1;
+    }
+  }
+  return matrix;
+}
+
+function setAllMatrixElement(matrix, value)
+{
+  for(var iRow = 0; iRow < matrix.length; iRow++){
+    matrix[iRow] = [];
+    for(var iCol = 0; iCol < matrix[0].length; iCol++){
+      matrix[iRow][iCol] = value;
+    }
+  }
+}
+
+function displayPattern(matrix){
+  cleanPattern();
+
+  for(var a=0; a < matrix.length; a++){
+    for (var b = 0; b < matrix[0].length; b++) {
+      tmpId = "neuron_" + a.toString() + "," + b.toString();
+      var elt = document.getElementById(tmpId);
+      if(matrix[a][b] == 1){
+        elt.style.backgroundColor = "000000";
+        //$(tmpId).css("background-color","#000000");
+      }
+      else{
+        elt.style.backgroundColor = "FFFFFF";
+        //$(tmpId).css("background-color","#FFFFFF");
+      }
+    }
+  }
+}
+
+function cleanPattern(){
+  $("#pattern td").css("background-color","#FFFFFF");
+}
+
+function cleanTable(idTable){
+  id = "#" + idTable + " td";
+  $(id).css("background-color","#FFFFFF");
+}
+
+function displayMatrix(mat){
+  htmlCode = "<table>";
+  for(var a=0; a < mat.length; a++){
+    htmlCode += "<tr>";
+    for(var b=0; b < mat[0].length; b++){
+      htmlCode += "<td align='right' class='noBorder'>" + mat[a][b] + "</td>";
+    }
+    htmlCode += "</tr>";
+  }
+  htmlCode += "</table>"
+  $("#divMatrix").html(htmlCode);
+}
+
+</script>
+
+<body>
+
+<form id="SetUpForm">
+  Row quantity : <input type="text" />
+  &nbsp;&nbsp;
+  Column quantity : <input type="text" />
+  &nbsp;&nbsp;
+  <input type="submit" value="Start" id="btnStart" />
+</form>
+
+<input type="button" value="Reset" id="idBtnReset" />
+
+<hr/>
+
+
+<span id="addPatternDiv">
+  Pattern name : <input type="text" id="patternNameTxBx"/>
+  &nbsp;&nbsp;
+  <input type="submit" value="Save" id="btnSave" />
+  <br/><br/>
+
+
+  <select id="patternDDL"></select>
+  &nbsp;&nbsp;
+  <input type="button" value="clear pattern" id="btnClean" />
+  &nbsp;&nbsp;
+  <input type="button" value="delete pattern" id="btnDelete" />
+</span>
+
+<hr/>
+
+<table id="pattern"></table>
+
+<hr/>
+
+<div id="divMatrix"></div>
+
+<hr />
+
+<table id="degradedPattern"></table>
+
+<hr />
+
+<input type="button" value="Process" id="btnStartProcess"/>
+
+<hr />
+
+<div id="recoveredPattern"></div>
+
+<hr />
+
+<div id="divWeightMatrix"></div>
+
+</body>
+
+</html>
