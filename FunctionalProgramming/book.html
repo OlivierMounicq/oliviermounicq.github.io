@@ -175,7 +175,7 @@
         }
     </style>
     <body>
-        <p width="70%" align="center">
+        <div width="70%" align="center">
         <h1>Local function</h1>
         <p>C# 7.0 introduces local function, which allows defining and calling a named, inline function inside a function member&rsquo;s body. Unlike a local variable, which has to be used after being defined, a local function can be called before or after it is defined:</p>
         <pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Functions
@@ -480,6 +480,6 @@
             </span><span style="color: black;">}
         }</span></pre>
         <p>The large temp array, accessed as a outer variable, becomes a filed of the display structure, and the local function becomes a method of the display structure. When the local function is stored, actually it is a member of the display structure instance stored. So the display structure or its field cannot be garbage collected by runtime. As a result, this extended the shortLife variable&rsquo;s life to the longLife static field&rsquo;s life. Implicit reference problem exists in C#. Other languages supporting closure, like VB, F#, JavaScript, etc., have the same pitfall too. Closure must be used with caution.</p>
-        </p>
+        </div>
     </body>
 </html>
