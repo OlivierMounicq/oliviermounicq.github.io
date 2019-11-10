@@ -1,304 +1,482 @@
-<h1>Local function</h1>
-<p>C# 7.0 introduces local function, which allows defining and calling a named, inline function inside a function member&rsquo;s body. Unlike a local variable, which has to be used after being defined, a local function can be called before or after it is defined:</p>
-<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Functions
-</span><span style="color: black;">{
-    </span><span style="color: blue;">internal static void </span><span style="color: black;">MethodWithLocalFunction()
-    {
-        </span><span style="color: blue;">void </span><span style="color: black;">LocalFunction() </span><span style="color: green;">// Define local function.
-        </span><span style="color: black;">{
-            </span><span style="color: blue;">nameof</span><span style="color: black;">(LocalFunction).WriteLine();
+<html>
+    <head>
+        <title>C# & Functional Programming</title>
+    </head>
+        <style type="text/css">
+        ul.blog-posts li .blog-post header h2 a,
+        ul.blog-posts li .blog-post header h2 a:link,
+        ul.blog-posts li .blog-post header h2 a:visited {
+            color: #157ab5;
         }
-        LocalFunction(); </span><span style="color: green;">// Call local function.
-    </span><span style="color: black;">}
 
-    </span><span style="color: blue;">internal static int </span><span style="color: black;">PropertyWithLocalFunction
-    {
-        </span><span style="color: blue;">get
-        </span><span style="color: black;">{
-            LocalFunction(); </span><span style="color: green;">// Call local function.
-            </span><span style="color: blue;">void </span><span style="color: black;">LocalFunction() </span><span style="color: green;">// Define local function.
-            </span><span style="color: black;">{
-                </span><span style="color: blue;">nameof</span><span style="color: black;">(LocalFunction).WriteLine();
+            ul.blog-posts li .blog-post header h2 a:hover,
+            ul.blog-posts li .blog-post header h2 a:active {
+                color: #2fa4e7;
             }
-            LocalFunction(); </span><span style="color: green;">// Call local function.
-            </span><span style="color: blue;">return </span><span style="color: black;">0;
+
+        /* Chrome */
+        h1,
+        h2,
+        h3,
+        h4 {
+            font-weight: 300;
         }
-    }
-}</span></pre>
-<p>Besides function members, local function can also have local function:</p>
-<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">FunctionMember()
-{
-    </span><span style="color: blue;">void </span><span style="color: black;">LocalFunction()
-    {
-        </span><span style="color: blue;">void </span><span style="color: black;">LocalFunctionInLocalFunction() { }
-    }
-}</span></pre>
-<p>Unlike other named methods, local function does not support ad hoc polymorphism (overload). The following code cannot be compiled:</p>
-<pre class="code"><span style="color: green;">// Cannot be compiled.
-</span><span style="color: blue;">internal static void </span><span style="color: black;">LocalFunctionOverload()
-{
-    </span><span style="color: blue;">void </span><span style="color: black;">LocalFunction() { }
-    </span><span style="color: blue;">void </span><span style="color: black;">LocalFunction(</span><span style="color: blue;">int </span><span style="color: black;">int32) { } <span style="color: green;">// Cannot be compiled.</span>
-}</span></pre>
-<p>This syntax is useful when a function is only used by another specific function. For example, the following binary search function wraps the algorithm in a helper function to for recursion:</p>
-<pre class="code"><span style="color: blue;">internal static int </span><span style="color: black;">BinarySearch&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">T </span><span style="color: black;">value, </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; comparer = </span><span style="color: blue;">null</span><span style="color: black;">)
-{
-    </span><span style="color: blue;">return </span><span style="color: black;">BinarySearch(source, value, comparer ?? </span><span style="color: #2b91af;">Comparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;.Default, 0, source.Count - 1);
-}
 
-</span><span style="color: blue;">private static int </span><span style="color: black;">BinarySearch&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">T </span><span style="color: black;">value, </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; comparer, </span><span style="color: blue;">int </span><span style="color: black;">startIndex, </span><span style="color: blue;">int </span><span style="color: black;">endIndex)
-{
-    </span><span style="color: blue;">if </span><span style="color: black;">(startIndex &gt; endIndex) { </span><span style="color: blue;">return </span><span style="color: black;">-1; }
-    </span><span style="color: blue;">int </span><span style="color: black;">middleIndex = startIndex + (endIndex - startIndex) / 2;
-    </span><span style="color: blue;">int </span><span style="color: black;">compare = comparer.Compare(source[middleIndex], value);
-    </span><span style="color: blue;">if </span><span style="color: black;">(compare == 0) { </span><span style="color: blue;">return </span><span style="color: black;">middleIndex; }
-    </span><span style="color: blue;">return </span><span style="color: black;">compare &gt; 0
-        ? BinarySearch(source, value, comparer, startIndex, middleIndex - 1)
-        : BinarySearch(source, value, comparer, middleIndex + 1, endIndex);
-}</span></pre>
-<p>The helper function is only used by this binary search function, so it can be defined locally:</p>
-<pre class="code"><span style="color: blue;">internal static int </span><span style="color: black;">BinarySearchWithLocalFunction&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">T </span><span style="color: black;">value, </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; comparer = </span><span style="color: blue;">null</span><span style="color: black;">)
-{
-    </span><span style="color: blue;">int </span><span style="color: black;">BinarySearch(
-        </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; localSource, </span><span style="color: #2b91af;">T </span><span style="color: black;">localValue, </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; localComparer, </span><span style="color: blue;">int </span><span style="color: black;">startIndex, </span><span style="color: blue;">int </span><span style="color: black;">endIndex)
-    {
-        </span><span style="color: blue;">if </span><span style="color: black;">(startIndex &gt; endIndex) { </span><span style="color: blue;">return </span><span style="color: black;">-1; }
-        </span><span style="color: blue;">int </span><span style="color: black;">middleIndex = startIndex + (endIndex - startIndex) / 2;
-        </span><span style="color: blue;">int </span><span style="color: black;">compare = localComparer.Compare(localSource[middleIndex], localValue);
-        </span><span style="color: blue;">if </span><span style="color: black;">(compare == 0) { </span><span style="color: blue;">return </span><span style="color: black;">middleIndex; }
-        </span><span style="color: blue;">return </span><span style="color: black;">compare &gt; 0
-            ? BinarySearch(localSource, localValue, localComparer, startIndex, middleIndex - 1)
-            : BinarySearch(localSource, localValue, localComparer, middleIndex + 1, endIndex);
-    }
-    </span><span style="color: blue;">return </span><span style="color: black;">BinarySearch(source, value, comparer ?? </span><span style="color: #2b91af;">Comparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;.Default, 0, source.Count - 1);
-}</span></pre>
-<p>Local function is just a syntactic sugar. The above code is compiled to the previous implementation, where the local function is compiled to a normal method. C# local function supports closure, so above local function can be further simplified.</p>
-<h1>Closure</h1>
-<p>In object-oriented programming, it is <a href="http://www.bbc.co.uk/films/2003/08/08/american_pie_the_wedding_2003_review.shtml" target="_blank">perfectly nature normal thing</a> for a method to access data inside or outside its body:</p>
-<pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">Display
-</span><span style="color: black;">{
-    </span><span style="color: blue;">int </span><span style="color: black;">outer = 1; </span><span style="color: green;">// Outside the scope of method Add.
-
-    </span><span style="color: blue;">internal void </span><span style="color: black;">Add()
-    {
-        </span><span style="color: blue;">int </span><span style="color: black;">local = 2; </span><span style="color: green;">// Inside the scope of method Add.
-        </span><span style="color: black;">(local + outer)<span style="color: #2b91af;"></span><span style="color: black;">.WriteLine()</span>; </span><span style="color: green;">// this.outer field.
-    </span><span style="color: black;">}
-}</span></pre>
-<p>Here in Display type, a field is defined outside the scope of the method, so that it can be viewed as an outer variable accessed by the method, in contrast of the local variable defined inside method scope. Outer variable is also called <a href="https://en.wikipedia.org/wiki/Non-local_variable" target="_blank">non-local variable</a> or <a href="https://msdn.microsoft.com/en-us/library/0yw3tz5k.aspx" target="_blank">captured variable</a>.</p>
-<p>Local function supports accessing outer variable too:</p>
-<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">LocalFunctionClosure()
-{
-    </span><span style="color: blue;">int </span><span style="color: black;">outer = 1; </span><span style="color: green;">// Outside the scope of function Add.
-    </span><span style="color: blue;">void </span><span style="color: black;">Add()
-    {
-        </span><span style="color: blue;">int </span><span style="color: black;">local = 2; </span><span style="color: green;">// Inside the scope of function Add.
-        </span><span style="color: black;">(local + outer)<span style="color: #2b91af;"></span><span style="color: black;">.WriteLine()</span>;
-    }
-    Add(); </span><span style="color: green;">// 3
-</span><span style="color: black;">}</span></pre>
-<p>This capability for a function or method to access an outer value, is called <a href="http://en.wikipedia.org/wiki/Closure_(computer_programming)" target="_blank">closure</a>. C# closure is a syntactic sugar. Above local function example is compiled to:</p>
-<pre class="code"><span style="color: black;">[</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
-[</span><span style="color: #2b91af;">StructLayout</span><span style="color: black;">(</span><span style="color: #2b91af;">LayoutKind</span><span style="color: black;">.Auto)]
-</span><span style="color: blue;">private struct </span><span style="color: #2b91af;">Display0
-</span><span style="color: black;">{
-    </span><span style="color: blue;">public int </span><span style="color: black;">Outer;
-}
-
-</span><span style="color: blue;">private static void </span><span style="color: black;">Add(</span><span style="color: blue;">ref </span><span style="color: #2b91af;">Display0 </span><span style="color: black;">display)
-{
-    </span><span style="color: blue;">int </span><span style="color: black;">local = 2;
-    </span><span style="color: black;">(local + display.Outer)<span style="color: #2b91af;"></span><span style="color: black;">.WriteLine()</span>;
-}
-
-</span><span style="color: blue;">internal static void </span><span style="color: black;">CompiledLocalFunctionClosure()
-{
-    </span><span style="color: blue;">int </span><span style="color: black;">outer = 1; </span><span style="color: green;">// Outside the scope of function Add.
-    </span><span style="color: #2b91af;">Display0 </span><span style="color: black;">display = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Display0</span><span style="color: black;">() { Outer = outer };
-    Add(</span><span style="color: blue;">ref </span><span style="color: black;">display); </span><span style="color: green;">// 3
-</span><span style="color: black;">}</span></pre>
-<p>C# compiler generates:</p>
-<ul>
-    <li>A Display0 structure as a container. It has filed to store the outer variables; if there are more local functions accessing outer variables, more display structures Display1, Display2, &hellip; are generated for each of those local functions.</li>
-    <li>A normal named method to represent the local function</li>
-    <li>A display structure parameter to the generated method, so that the accessed outer variables are stored in the display structure and passed to the method. In the method body, the reference to outer variable is compiled to reference to the display structure parameter&rsquo;s field.</li>
-</ul>
-<p>So C# compiler implements closure, a functional feature, by generating object-oriented code.</p>
-<p>With closure, the above binary search&rsquo;s local function can be simplified as:</p>
-<pre class="code"><span style="color: blue;">internal static int </span><span style="color: black;">BinarySearchWithClosure&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">T </span><span style="color: black;">value, </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; comparer = </span><span style="color: blue;">null</span><span style="color: black;">)
-{
-    </span><span style="color: blue;">int </span><span style="color: black;">BinarySearch(</span><span style="color: blue;">int </span><span style="color: black;">startIndex, </span><span style="color: blue;">int </span><span style="color: black;">endIndex)
-    {
-        </span><span style="color: blue;">if </span><span style="color: black;">(startIndex &gt; endIndex) { </span><span style="color: blue;">return </span><span style="color: black;">-1; }
-        </span><span style="color: blue;">int </span><span style="color: black;">middleIndex = startIndex + (endIndex - startIndex) / 2;
-        </span><span style="color: blue;">int </span><span style="color: black;">compare = comparer.Compare(source[middleIndex], value);
-        </span><span style="color: blue;">if </span><span style="color: black;">(compare == 0) { </span><span style="color: blue;">return </span><span style="color: black;">middleIndex; }
-        </span><span style="color: blue;">return </span><span style="color: black;">compare &gt; 0
-            ? BinarySearch(startIndex, middleIndex - 1)
-            : BinarySearch(middleIndex + 1, endIndex);
-    }
-    comparer = comparer ?? </span><span style="color: #2b91af;">Comparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;.Default;
-    </span><span style="color: blue;">return </span><span style="color: black;">BinarySearch(0, source.Count - 1);
-}</span></pre>
-<p>It is compiled to the same display structure and named method pattern:</p>
-<pre class="code"><span style="color: black;">[</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
-[</span><span style="color: #2b91af;">StructLayout</span><span style="color: black;">(</span><span style="color: #2b91af;">LayoutKind</span><span style="color: black;">.Auto)]
-</span><span style="color: blue;">private struct </span><span style="color: #2b91af;">Display1</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
-{
-    </span><span style="color: blue;">public </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; Comparer;
-
-    </span><span style="color: blue;">public </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; Source;
-
-    </span><span style="color: blue;">public </span><span style="color: #2b91af;">T </span><span style="color: black;">Value;
-}
-
-[</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
-</span><span style="color: blue;">private static int </span><span style="color: black;">CompiledLocalBinarySearch&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">int </span><span style="color: black;">startIndex, </span><span style="color: blue;">int </span><span style="color: black;">endIndex, </span><span style="color: blue;">ref </span><span style="color: #2b91af;">Display1</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; display)
-{
-    </span><span style="color: blue;">if </span><span style="color: black;">(startIndex &gt; endIndex) { </span><span style="color: blue;">return </span><span style="color: black;">-1; }
-    </span><span style="color: blue;">int </span><span style="color: black;">middleIndex = startIndex + (endIndex - startIndex) / 2;
-    </span><span style="color: blue;">int </span><span style="color: black;">compare = display.Comparer.Compare(display.Source[middleIndex], display.Value);
-    </span><span style="color: blue;">if </span><span style="color: black;">(compare == 0) { </span><span style="color: blue;">return </span><span style="color: black;">middleIndex; }
-    </span><span style="color: blue;">return </span><span style="color: black;">compare &lt;= 0
-        ? C<span style="color: black;">ompiledL</span>ocalBinarySearch(middleIndex + 1, endIndex, </span><span style="color: blue;">ref </span><span style="color: black;">display)
-        : <span style="color: black;">CompiledL</span>ocalBinarySearch(startIndex, middleIndex - 1, </span><span style="color: blue;">ref </span><span style="color: black;">display);
-}
-
-</span><span style="color: blue;">internal static int </span><span style="color: black;">CompiledBinarySearchWithClosure&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">T </span><span style="color: black;">value, </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; comparer = </span><span style="color: blue;">null</span><span style="color: black;">)
-{
-    </span><span style="color: #2b91af;">Display1</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; display = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Display1</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;()
-    {
-        Source = source,
-        Value = value,
-        Comparer = comparer
-    };
-    </span><span style="color: blue;">return </span><span style="color: black;"><span style="color: black;">CompiledL</span>ocalBinarySearch(0, source.Count - 1, </span><span style="color: blue;">ref </span><span style="color: black;">display);
-}</span></pre>
-<h2>Outer variable</h2>
-<p>Apparently, outer variable can change, when this happens, the accessing local functions can be impacted. In the previous example, if the outer variable changes, the sum of outer variable and local variable is apparently different:</p>
-<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Outer()
-{
-    </span><span style="color: blue;">int </span><span style="color: black;">outer = 1; </span><span style="color: green;">// Outside the scope of function Add.
-    </span><span style="color: blue;">void </span><span style="color: black;">Add()
-    {
-        </span><span style="color: blue;">int </span><span style="color: black;">local = 2; </span><span style="color: green;">// Inside the scope of function Add.
-        </span><span style="color: black;">(local + outer)<span style="color: #2b91af;"></span><span style="color: black;">.WriteLine()</span>;
-    }
-    Add(); </span><span style="color: green;">// 3
-    </span><span style="color: black;">outer = 3; </span><span style="color: green;">// Outer variable can change.
-    </span><span style="color: black;">Add(); </span><span style="color: green;">// 5
-</span><span style="color: black;">}</span></pre>
-<p>Sometimes, this can be source of problems:</p>
-<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">OuterReference()
-{
-    </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Action</span><span style="color: black;">&gt; localFunctions = </span><span style="color: blue;">new </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Action</span><span style="color: black;">&gt;();
-    </span><span style="color: blue;">for </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">outer = 0; outer &lt; 3; outer++)
-    {
-        </span><span style="color: blue;">void </span><span style="color: black;">LocalFunction()
-        {
-            </span><span style="color: black;">(outer)<span style="color: #2b91af;"></span><span style="color: black;">.WriteLine()</span>; </span><span style="color: green;">// outer is 0, 1, 2.
-        </span><span style="color: black;">}
-        localFunctions.Add(LocalFunction);
-    } </span><span style="color: green;">// outer is 3.
-    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">Action </span><span style="color: black;">localFunction </span><span style="color: blue;">in </span><span style="color: black;">localFunctions)
-    {
-        localFunction(); </span><span style="color: green;">// 3 3 3 (instead of 0 1 2)
-    </span><span style="color: black;">}
-}</span></pre>
-<p>In this case, the for loop has 3 iterations. In the first iteration, outer is 0, a local function is defined to write this value, and stored in a function list. In the second iteration, outer is 1, a local function is repeatedly defined to write that value and stored, and so on. Later, when calling these 3 functions, they do not output 0, 1, 2, but 3, 3, 3, because the 3 iterations of for loop share the same outer variable, when the for loop is done, the value of outer becomes 3. Calling these 3 functions outputs the latest value of outer for 3 times, so it is 3, 3, 3.</p>
-<p>This can be resolved by taking a snapshot of shared outer variable&rsquo;s current value, and store it in another variable that does not change:</p>
-<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CopyOuterReference()
-{
-    </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Action</span><span style="color: black;">&gt; localFunctions = </span><span style="color: blue;">new </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Action</span><span style="color: black;">&gt;();
-    </span><span style="color: blue;">for </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">outer = 0; outer &lt; 3; outer++)
-    {
-        </span><span style="color: blue;">int </span><span style="color: black;">copyOfOuter = outer; </span><span style="color: green;">// outer is 0, 1, 2.
-        // When outer changes, copyOfOuter does not change.
-        </span><span style="color: blue;">void </span><span style="color: black;">LocalFunction()
-        {
-            </span><span style="color: black;">copyOfOuter<span style="color: #2b91af;"></span><span style="color: black;">.WriteLine()</span>;
+        .navbar {
+            margin-bottom: 0;
         }
-        localFunctions.Add(LocalFunction);
-    } </span><span style="color: green;">// copyOfOuter is 0, 1, 2.
-    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">Action </span><span style="color: black;">localFunction </span><span style="color: blue;">in </span><span style="color: black;">localFunctions)
-    {
-        localFunction(); </span><span style="color: green;">// 0 1 2
-    </span><span style="color: black;">}
-}</span></pre>
-<p>In each iteration of for loop, outer variable changes, but each iteration copies its current value to a variable that is not shared cross local functions, and does not change value. When the for loop is done, 3 local function calls write the values of 3 independent variables, so it is 0, 1, 2 this time. Above code is compiled to:</p>
-<pre class="code"><span style="color: black;">[</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
-</span><span style="color: blue;">private sealed class </span><span style="color: #2b91af;">Display2
-</span><span style="color: black;">{
-    </span><span style="color: blue;">public int </span><span style="color: black;">CopyOfOuter;
 
-    </span><span style="color: blue;">internal void </span><span style="color: black;">LocalFunction()
-    {
-        </span><span style="color: blue;">this</span><span style="color: black;">.CopyOfOuter.<span style="color: #2b91af;"></span><span style="color: black;">.WriteLine()</span>;
-    }
-}
+        .layout-navigation {
+            margin-bottom: 30px;
+        }
 
-</span><span style="color: blue;">internal static void </span><span style="color: black;">CompiledCopyOuterReference()
-{
-    </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Action</span><span style="color: black;">&gt; localFunctions = </span><span style="color: blue;">new </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Action</span><span style="color: black;">&gt;();
-    </span><span style="color: blue;">for </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">outer = 0; outer &lt; 3; outer++)
-    {
-        </span><span style="color: #2b91af;">Display2 </span><span style="color: black;">display = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Display2</span><span style="color: black;">() { CopyOfOuter = outer }; </span><span style="color: green;">// outer is 0, 1, 2.
-        // When outer changes, display.CopyOfOuter does not change.
-        </span><span style="color: black;">localFunctions.Add(display.LocalFunction);
-    } </span><span style="color: green;">// display.CcopyOfOuter is 0, 1, 2.
-    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">Action </span><span style="color: black;">localFunction </span><span style="color: blue;">in </span><span style="color: black;">localFunctions)
-    {
-        localFunction(); </span><span style="color: green;">// 0 1 2
-    </span><span style="color: black;">}
-}</span></pre>
-<p>As expected, copyOfOuter variable becomes the field of display structure. And this time the local function is compiled to be a instance method of the display structure to access that field. In 3 iterations of the for loop, 3 independent instances of the display structure are constructed. When the for loop is done, each structure&rsquo;s instance methods is called to write its own field value.</p>
-<h2>Implicit reference</h2>
-<p>C# closure is a powerful syntactic sugar to enable local function to directly access outer variable. However, it comes with a price. Closure can also be performance pitfall, because a hidden reference is persisted by the generated display structure&rsquo;s field. As a result, closure extends the outer variable&rsquo;s lifetime to the display structure&rsquo; lifetime, but the display structure is invisible at design time, so its life time is not intuitive. In the last example, copyOfOuter is a temporary variable inside the for loop block, but its value is persisted after for loop finishes executing all iterations. After 3 iterations, in total there are 3 copyOfOuter values still persisted as field by 3 structure instances. The following is another example of implicit reference:</p>
-<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Functions
-</span><span style="color: black;">{
-</span><span style="color: black;">
-    </span><span style="color: blue;">internal static void </span><span style="color: black;">Reference()
-    {</span><span style="color: green;">
-        </span><span style="color: blue;">byte</span><span style="color: black;">[] shortLife = </span><span style="color: blue;">new byte</span><span style="color: black;">[0X7FFFFFC7]; </span><span style="color: green;">// Local variable of large array (Array.MaxByteArrayLength).
-        // ...
-        </span><span style="color: blue;">void </span><span style="color: black;">LocalFunction()
+        /* Title */
+        article.blog.content-item header h1 {
+            color: #000000;
+            font-size: 50px;
+            line-height: 1em;
+        }
+
+        /* Description */
+        div.blog-description p,
+        .widget-blogtitle p {
+            font-size: 20px;
+            font-weight: 300;
+        }
+
+        /* Homepage article title */
+        ul.blog-posts li .blog-post header {
+            border-top: 1px solid #CCCCCC;
+            margin-top: 25px;
+        }
+
+            ul.blog-posts li .blog-post header h2 {
+                font-size: 30px;
+                font-weight: 300;
+                line-height: 1.5em;
+                margin: 0.5em 0;
+            }
+
+        /* Homepage article content */
+        ul.blog-posts li .blog-post h1,
+        ul.blog-posts li .blog-post h2,
+        ul.blog-posts li .blog-post h3 {
+            color: rgb(80, 81, 81);
+            font-size: 20px;
+            line-height: 22px;
+            margin: 0 0 1em 0;
+            font-weight: normal;
+            font-family: wf_segoe-ui_normal, 'Segoe UI', Segoe, 'Segoe WP', Tahoma, Verdana, Arial, sans-serif;
+        }
+
+        /* Article title */
+        article.blog-post header h1 {
+            color: #000000;
+            font-size: 50px;
+            line-height: 1.5em;
+            margin: 0.5em 0;
+        }
+
+        .tags:before, .metadata:after {
+            height: 0;
+        }
+
+        /* Article content*/
+        .blog-post h1 {
+            font-size: 40px;
+        }
+
+        .blog-post h2 {
+            font-size: 30px;
+        }
+
+        .blog-post h3 {
+            font-size: 20px;
+        }
+
+        article.blog-post h1,
+        article.blog-post h2,
+        article.blog-post h3 {
+            color: rgb(49, 126, 172);
+            margin: 1em 0 0.5em 0;
+            line-height: 1.5em;
+        }
+
+        .blog-post blockquote {
+            background: url(https://aspblogs.blob.core.windows.net/media/dixin/Media/Blog/quote.gif) 8px 10px no-repeat;
+            padding: 50px 0 0 0px;
+            border: 1px solid #CCCCCC;
+            border-radius: 4px;
+        }
+
+        .blog-post blockquote p, .blog-post blockquote ul, .blog-post blockquote ol {
+            padding: 0px 9.5px;
+        }
+
+        .blog-post blockquote ul, .blog-post blockquote ol {
+            padding-left: 40px;
+        }
+
+        .label {
+            padding-left: 8px;
+            padding-right: 8px;
+        }
+
+        article.blog-post ul {
+            margin-bottom: 10px;
+        }
+
+        article.blog-post table,
+        article.blog-post td {
+            border-color: rgb(80, 81, 81);
+            border-style: solid;
+        }
+
+        article.blog-post table {
+            border-width: 0 0 1px 1px;
+            border-spacing: 0;
+            border-collapse: collapse;
+            font-family: wf_segoe-ui_normal, 'Segoe UI', Segoe, 'Segoe WP', Tahoma, Verdana, Arial, sans-serif;
+            font-size: 16px;
+            margin-bottom: 16px;
+        }
+
+        article.blog-post td {
+            border-width: 1px 1px 0 0;
+            padding: 2px 4px;
+        }
+
+        pre.code {
+            border: none;
+            border-radius: 0px;
+        }
+
+        @media (max-width:768px) {
+            ul.blog-posts, article.blog-post, ul.comments { 
+                word-wrap: break-word;
+            }
+
+            article.blog-post header h1 {
+                font-size: 30px;
+            }
+        }
+
+        @media (min-width: 992px) {
+            article.widget-headerpicture {
+                display: none;
+            }
+        }
+
+        @media (max-width: 992px) {
+            article.blog-post pre.code {
+                overflow-x: auto;
+            }
+        }
+    </style>
+    <body>
+        <h1>Local function</h1>
+        <p>C# 7.0 introduces local function, which allows defining and calling a named, inline function inside a function member&rsquo;s body. Unlike a local variable, which has to be used after being defined, a local function can be called before or after it is defined:</p>
+        <pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Functions
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">internal static void </span><span style="color: black;">MethodWithLocalFunction()
+            {
+                </span><span style="color: blue;">void </span><span style="color: black;">LocalFunction() </span><span style="color: green;">// Define local function.
+                </span><span style="color: black;">{
+                    </span><span style="color: blue;">nameof</span><span style="color: black;">(LocalFunction).WriteLine();
+                }
+                LocalFunction(); </span><span style="color: green;">// Call local function.
+            </span><span style="color: black;">}
+
+            </span><span style="color: blue;">internal static int </span><span style="color: black;">PropertyWithLocalFunction
+            {
+                </span><span style="color: blue;">get
+                </span><span style="color: black;">{
+                    LocalFunction(); </span><span style="color: green;">// Call local function.
+                    </span><span style="color: blue;">void </span><span style="color: black;">LocalFunction() </span><span style="color: green;">// Define local function.
+                    </span><span style="color: black;">{
+                        </span><span style="color: blue;">nameof</span><span style="color: black;">(LocalFunction).WriteLine();
+                    }
+                    LocalFunction(); </span><span style="color: green;">// Call local function.
+                    </span><span style="color: blue;">return </span><span style="color: black;">0;
+                }
+            }
+        }</span></pre>
+        <p>Besides function members, local function can also have local function:</p>
+        <pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">FunctionMember()
         {
-            </span><span style="color: green;">// ...
-            </span><span style="color: blue;">byte </span><span style="color: black;">@byte = shortLife[0]; </span><span style="color: green;">// Closure.
-            // ...
-        </span><span style="color: black;">}
-        // ...
-        LocalFunction();
-        </span><span style="color: green;">// ...
-        </span><span style="color: black;">longLife = LocalFunction; </span><span style="color: green;">// Reference from longLife to shortLife.
-    </span><span style="color: black;">}
-}</span></pre>
-<p>The large byte array is a temp variable supposed to have a short life, but it is accessed by local function as an outer variable, and the local function is stored with a static field with a long life. The compiler generates a display structure:</p>
-<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Functions
-</span><span style="color: black;">{
-    [</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
-    </span><span style="color: blue;">private sealed class </span><span style="color: #2b91af;">Display3
-    </span><span style="color: black;">{
-        </span><span style="color: blue;">public byte</span><span style="color: black;">[] ShortLife;
-
-        </span><span style="color: blue;">internal void </span><span style="color: black;">LocalFunction()
+            </span><span style="color: blue;">void </span><span style="color: black;">LocalFunction()
+            {
+                </span><span style="color: blue;">void </span><span style="color: black;">LocalFunctionInLocalFunction() { }
+            }
+        }</span></pre>
+        <p>Unlike other named methods, local function does not support ad hoc polymorphism (overload). The following code cannot be compiled:</p>
+        <pre class="code"><span style="color: green;">// Cannot be compiled.
+        </span><span style="color: blue;">internal static void </span><span style="color: black;">LocalFunctionOverload()
         {
-            </span><span style="color: green;">// ...
-            </span><span style="color: blue;">byte </span><span style="color: black;">@byte = </span><span style="color: blue;">this</span><span style="color: black;">.ShortLife[0];
-            </span><span style="color: green;">// ...
-        </span><span style="color: black;">}
-    }
+            </span><span style="color: blue;">void </span><span style="color: black;">LocalFunction() { }
+            </span><span style="color: blue;">void </span><span style="color: black;">LocalFunction(</span><span style="color: blue;">int </span><span style="color: black;">int32) { } <span style="color: green;">// Cannot be compiled.</span>
+        }</span></pre>
+        <p>This syntax is useful when a function is only used by another specific function. For example, the following binary search function wraps the algorithm in a helper function to for recursion:</p>
+        <pre class="code"><span style="color: blue;">internal static int </span><span style="color: black;">BinarySearch&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">T </span><span style="color: black;">value, </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; comparer = </span><span style="color: blue;">null</span><span style="color: black;">)
+        {
+            </span><span style="color: blue;">return </span><span style="color: black;">BinarySearch(source, value, comparer ?? </span><span style="color: #2b91af;">Comparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;.Default, 0, source.Count - 1);
+        }
 
-    </span><span style="color: blue;">internal static void </span><span style="color: black;">CompiledReference()
-    {
-        </span><span style="color: blue;">byte</span><span style="color: black;">[] shortLife = </span><span style="color: blue;">new byte</span><span style="color: black;">[0X7FFFFFC7]; </span><span style="color: green;">// Local variable of large array (Array.MaxByteArrayLength).
-        // ...
-        </span><span style="color: #2b91af;">Display3 </span><span style="color: black;">display = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Display3</span><span style="color: black;">();
-        display.ShortLife = shortLife;
-        display.LocalFunction();
-        </span><span style="color: green;">// ...
-        </span><span style="color: black;">longLife = display.LocalFunction;
-        </span><span style="color: green;">// Now longLife.ShortLife holds the reference to the huge large array.
-    </span><span style="color: black;">}
-}</span></pre>
-<p>The large temp array, accessed as a outer variable, becomes a filed of the display structure, and the local function becomes a method of the display structure. When the local function is stored, actually it is a member of the display structure instance stored. So the display structure or its field cannot be garbage collected by runtime. As a result, this extended the shortLife variable&rsquo;s life to the longLife static field&rsquo;s life. Implicit reference problem exists in C#. Other languages supporting closure, like VB, F#, JavaScript, etc., have the same pitfall too. Closure must be used with caution.</p>
+        </span><span style="color: blue;">private static int </span><span style="color: black;">BinarySearch&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">T </span><span style="color: black;">value, </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; comparer, </span><span style="color: blue;">int </span><span style="color: black;">startIndex, </span><span style="color: blue;">int </span><span style="color: black;">endIndex)
+        {
+            </span><span style="color: blue;">if </span><span style="color: black;">(startIndex &gt; endIndex) { </span><span style="color: blue;">return </span><span style="color: black;">-1; }
+            </span><span style="color: blue;">int </span><span style="color: black;">middleIndex = startIndex + (endIndex - startIndex) / 2;
+            </span><span style="color: blue;">int </span><span style="color: black;">compare = comparer.Compare(source[middleIndex], value);
+            </span><span style="color: blue;">if </span><span style="color: black;">(compare == 0) { </span><span style="color: blue;">return </span><span style="color: black;">middleIndex; }
+            </span><span style="color: blue;">return </span><span style="color: black;">compare &gt; 0
+                ? BinarySearch(source, value, comparer, startIndex, middleIndex - 1)
+                : BinarySearch(source, value, comparer, middleIndex + 1, endIndex);
+        }</span></pre>
+        <p>The helper function is only used by this binary search function, so it can be defined locally:</p>
+        <pre class="code"><span style="color: blue;">internal static int </span><span style="color: black;">BinarySearchWithLocalFunction&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">T </span><span style="color: black;">value, </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; comparer = </span><span style="color: blue;">null</span><span style="color: black;">)
+        {
+            </span><span style="color: blue;">int </span><span style="color: black;">BinarySearch(
+                </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; localSource, </span><span style="color: #2b91af;">T </span><span style="color: black;">localValue, </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; localComparer, </span><span style="color: blue;">int </span><span style="color: black;">startIndex, </span><span style="color: blue;">int </span><span style="color: black;">endIndex)
+            {
+                </span><span style="color: blue;">if </span><span style="color: black;">(startIndex &gt; endIndex) { </span><span style="color: blue;">return </span><span style="color: black;">-1; }
+                </span><span style="color: blue;">int </span><span style="color: black;">middleIndex = startIndex + (endIndex - startIndex) / 2;
+                </span><span style="color: blue;">int </span><span style="color: black;">compare = localComparer.Compare(localSource[middleIndex], localValue);
+                </span><span style="color: blue;">if </span><span style="color: black;">(compare == 0) { </span><span style="color: blue;">return </span><span style="color: black;">middleIndex; }
+                </span><span style="color: blue;">return </span><span style="color: black;">compare &gt; 0
+                    ? BinarySearch(localSource, localValue, localComparer, startIndex, middleIndex - 1)
+                    : BinarySearch(localSource, localValue, localComparer, middleIndex + 1, endIndex);
+            }
+            </span><span style="color: blue;">return </span><span style="color: black;">BinarySearch(source, value, comparer ?? </span><span style="color: #2b91af;">Comparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;.Default, 0, source.Count - 1);
+        }</span></pre>
+        <p>Local function is just a syntactic sugar. The above code is compiled to the previous implementation, where the local function is compiled to a normal method. C# local function supports closure, so above local function can be further simplified.</p>
+        <h1>Closure</h1>
+        <p>In object-oriented programming, it is <a href="http://www.bbc.co.uk/films/2003/08/08/american_pie_the_wedding_2003_review.shtml" target="_blank">perfectly nature normal thing</a> for a method to access data inside or outside its body:</p>
+        <pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">Display
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">int </span><span style="color: black;">outer = 1; </span><span style="color: green;">// Outside the scope of method Add.
+
+            </span><span style="color: blue;">internal void </span><span style="color: black;">Add()
+            {
+                </span><span style="color: blue;">int </span><span style="color: black;">local = 2; </span><span style="color: green;">// Inside the scope of method Add.
+                </span><span style="color: black;">(local + outer)<span style="color: #2b91af;"></span><span style="color: black;">.WriteLine()</span>; </span><span style="color: green;">// this.outer field.
+            </span><span style="color: black;">}
+        }</span></pre>
+        <p>Here in Display type, a field is defined outside the scope of the method, so that it can be viewed as an outer variable accessed by the method, in contrast of the local variable defined inside method scope. Outer variable is also called <a href="https://en.wikipedia.org/wiki/Non-local_variable" target="_blank">non-local variable</a> or <a href="https://msdn.microsoft.com/en-us/library/0yw3tz5k.aspx" target="_blank">captured variable</a>.</p>
+        <p>Local function supports accessing outer variable too:</p>
+        <pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">LocalFunctionClosure()
+        {
+            </span><span style="color: blue;">int </span><span style="color: black;">outer = 1; </span><span style="color: green;">// Outside the scope of function Add.
+            </span><span style="color: blue;">void </span><span style="color: black;">Add()
+            {
+                </span><span style="color: blue;">int </span><span style="color: black;">local = 2; </span><span style="color: green;">// Inside the scope of function Add.
+                </span><span style="color: black;">(local + outer)<span style="color: #2b91af;"></span><span style="color: black;">.WriteLine()</span>;
+            }
+            Add(); </span><span style="color: green;">// 3
+        </span><span style="color: black;">}</span></pre>
+        <p>This capability for a function or method to access an outer value, is called <a href="http://en.wikipedia.org/wiki/Closure_(computer_programming)" target="_blank">closure</a>. C# closure is a syntactic sugar. Above local function example is compiled to:</p>
+        <pre class="code"><span style="color: black;">[</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
+        [</span><span style="color: #2b91af;">StructLayout</span><span style="color: black;">(</span><span style="color: #2b91af;">LayoutKind</span><span style="color: black;">.Auto)]
+        </span><span style="color: blue;">private struct </span><span style="color: #2b91af;">Display0
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">public int </span><span style="color: black;">Outer;
+        }
+
+        </span><span style="color: blue;">private static void </span><span style="color: black;">Add(</span><span style="color: blue;">ref </span><span style="color: #2b91af;">Display0 </span><span style="color: black;">display)
+        {
+            </span><span style="color: blue;">int </span><span style="color: black;">local = 2;
+            </span><span style="color: black;">(local + display.Outer)<span style="color: #2b91af;"></span><span style="color: black;">.WriteLine()</span>;
+        }
+
+        </span><span style="color: blue;">internal static void </span><span style="color: black;">CompiledLocalFunctionClosure()
+        {
+            </span><span style="color: blue;">int </span><span style="color: black;">outer = 1; </span><span style="color: green;">// Outside the scope of function Add.
+            </span><span style="color: #2b91af;">Display0 </span><span style="color: black;">display = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Display0</span><span style="color: black;">() { Outer = outer };
+            Add(</span><span style="color: blue;">ref </span><span style="color: black;">display); </span><span style="color: green;">// 3
+        </span><span style="color: black;">}</span></pre>
+        <p>C# compiler generates:</p>
+        <ul>
+            <li>A Display0 structure as a container. It has filed to store the outer variables; if there are more local functions accessing outer variables, more display structures Display1, Display2, &hellip; are generated for each of those local functions.</li>
+            <li>A normal named method to represent the local function</li>
+            <li>A display structure parameter to the generated method, so that the accessed outer variables are stored in the display structure and passed to the method. In the method body, the reference to outer variable is compiled to reference to the display structure parameter&rsquo;s field.</li>
+        </ul>
+        <p>So C# compiler implements closure, a functional feature, by generating object-oriented code.</p>
+        <p>With closure, the above binary search&rsquo;s local function can be simplified as:</p>
+        <pre class="code"><span style="color: blue;">internal static int </span><span style="color: black;">BinarySearchWithClosure&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">T </span><span style="color: black;">value, </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; comparer = </span><span style="color: blue;">null</span><span style="color: black;">)
+        {
+            </span><span style="color: blue;">int </span><span style="color: black;">BinarySearch(</span><span style="color: blue;">int </span><span style="color: black;">startIndex, </span><span style="color: blue;">int </span><span style="color: black;">endIndex)
+            {
+                </span><span style="color: blue;">if </span><span style="color: black;">(startIndex &gt; endIndex) { </span><span style="color: blue;">return </span><span style="color: black;">-1; }
+                </span><span style="color: blue;">int </span><span style="color: black;">middleIndex = startIndex + (endIndex - startIndex) / 2;
+                </span><span style="color: blue;">int </span><span style="color: black;">compare = comparer.Compare(source[middleIndex], value);
+                </span><span style="color: blue;">if </span><span style="color: black;">(compare == 0) { </span><span style="color: blue;">return </span><span style="color: black;">middleIndex; }
+                </span><span style="color: blue;">return </span><span style="color: black;">compare &gt; 0
+                    ? BinarySearch(startIndex, middleIndex - 1)
+                    : BinarySearch(middleIndex + 1, endIndex);
+            }
+            comparer = comparer ?? </span><span style="color: #2b91af;">Comparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;.Default;
+            </span><span style="color: blue;">return </span><span style="color: black;">BinarySearch(0, source.Count - 1);
+        }</span></pre>
+        <p>It is compiled to the same display structure and named method pattern:</p>
+        <pre class="code"><span style="color: black;">[</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
+        [</span><span style="color: #2b91af;">StructLayout</span><span style="color: black;">(</span><span style="color: #2b91af;">LayoutKind</span><span style="color: black;">.Auto)]
+        </span><span style="color: blue;">private struct </span><span style="color: #2b91af;">Display1</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+        {
+            </span><span style="color: blue;">public </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; Comparer;
+
+            </span><span style="color: blue;">public </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; Source;
+
+            </span><span style="color: blue;">public </span><span style="color: #2b91af;">T </span><span style="color: black;">Value;
+        }
+
+        [</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
+        </span><span style="color: blue;">private static int </span><span style="color: black;">CompiledLocalBinarySearch&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">int </span><span style="color: black;">startIndex, </span><span style="color: blue;">int </span><span style="color: black;">endIndex, </span><span style="color: blue;">ref </span><span style="color: #2b91af;">Display1</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; display)
+        {
+            </span><span style="color: blue;">if </span><span style="color: black;">(startIndex &gt; endIndex) { </span><span style="color: blue;">return </span><span style="color: black;">-1; }
+            </span><span style="color: blue;">int </span><span style="color: black;">middleIndex = startIndex + (endIndex - startIndex) / 2;
+            </span><span style="color: blue;">int </span><span style="color: black;">compare = display.Comparer.Compare(display.Source[middleIndex], display.Value);
+            </span><span style="color: blue;">if </span><span style="color: black;">(compare == 0) { </span><span style="color: blue;">return </span><span style="color: black;">middleIndex; }
+            </span><span style="color: blue;">return </span><span style="color: black;">compare &lt;= 0
+                ? C<span style="color: black;">ompiledL</span>ocalBinarySearch(middleIndex + 1, endIndex, </span><span style="color: blue;">ref </span><span style="color: black;">display)
+                : <span style="color: black;">CompiledL</span>ocalBinarySearch(startIndex, middleIndex - 1, </span><span style="color: blue;">ref </span><span style="color: black;">display);
+        }
+
+        </span><span style="color: blue;">internal static int </span><span style="color: black;">CompiledBinarySearchWithClosure&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">T </span><span style="color: black;">value, </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; comparer = </span><span style="color: blue;">null</span><span style="color: black;">)
+        {
+            </span><span style="color: #2b91af;">Display1</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; display = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Display1</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;()
+            {
+                Source = source,
+                Value = value,
+                Comparer = comparer
+            };
+            </span><span style="color: blue;">return </span><span style="color: black;"><span style="color: black;">CompiledL</span>ocalBinarySearch(0, source.Count - 1, </span><span style="color: blue;">ref </span><span style="color: black;">display);
+        }</span></pre>
+        <h2>Outer variable</h2>
+        <p>Apparently, outer variable can change, when this happens, the accessing local functions can be impacted. In the previous example, if the outer variable changes, the sum of outer variable and local variable is apparently different:</p>
+        <pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Outer()
+        {
+            </span><span style="color: blue;">int </span><span style="color: black;">outer = 1; </span><span style="color: green;">// Outside the scope of function Add.
+            </span><span style="color: blue;">void </span><span style="color: black;">Add()
+            {
+                </span><span style="color: blue;">int </span><span style="color: black;">local = 2; </span><span style="color: green;">// Inside the scope of function Add.
+                </span><span style="color: black;">(local + outer)<span style="color: #2b91af;"></span><span style="color: black;">.WriteLine()</span>;
+            }
+            Add(); </span><span style="color: green;">// 3
+            </span><span style="color: black;">outer = 3; </span><span style="color: green;">// Outer variable can change.
+            </span><span style="color: black;">Add(); </span><span style="color: green;">// 5
+        </span><span style="color: black;">}</span></pre>
+        <p>Sometimes, this can be source of problems:</p>
+        <pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">OuterReference()
+        {
+            </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Action</span><span style="color: black;">&gt; localFunctions = </span><span style="color: blue;">new </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Action</span><span style="color: black;">&gt;();
+            </span><span style="color: blue;">for </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">outer = 0; outer &lt; 3; outer++)
+            {
+                </span><span style="color: blue;">void </span><span style="color: black;">LocalFunction()
+                {
+                    </span><span style="color: black;">(outer)<span style="color: #2b91af;"></span><span style="color: black;">.WriteLine()</span>; </span><span style="color: green;">// outer is 0, 1, 2.
+                </span><span style="color: black;">}
+                localFunctions.Add(LocalFunction);
+            } </span><span style="color: green;">// outer is 3.
+            </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">Action </span><span style="color: black;">localFunction </span><span style="color: blue;">in </span><span style="color: black;">localFunctions)
+            {
+                localFunction(); </span><span style="color: green;">// 3 3 3 (instead of 0 1 2)
+            </span><span style="color: black;">}
+        }</span></pre>
+        <p>In this case, the for loop has 3 iterations. In the first iteration, outer is 0, a local function is defined to write this value, and stored in a function list. In the second iteration, outer is 1, a local function is repeatedly defined to write that value and stored, and so on. Later, when calling these 3 functions, they do not output 0, 1, 2, but 3, 3, 3, because the 3 iterations of for loop share the same outer variable, when the for loop is done, the value of outer becomes 3. Calling these 3 functions outputs the latest value of outer for 3 times, so it is 3, 3, 3.</p>
+        <p>This can be resolved by taking a snapshot of shared outer variable&rsquo;s current value, and store it in another variable that does not change:</p>
+        <pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CopyOuterReference()
+        {
+            </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Action</span><span style="color: black;">&gt; localFunctions = </span><span style="color: blue;">new </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Action</span><span style="color: black;">&gt;();
+            </span><span style="color: blue;">for </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">outer = 0; outer &lt; 3; outer++)
+            {
+                </span><span style="color: blue;">int </span><span style="color: black;">copyOfOuter = outer; </span><span style="color: green;">// outer is 0, 1, 2.
+                // When outer changes, copyOfOuter does not change.
+                </span><span style="color: blue;">void </span><span style="color: black;">LocalFunction()
+                {
+                    </span><span style="color: black;">copyOfOuter<span style="color: #2b91af;"></span><span style="color: black;">.WriteLine()</span>;
+                }
+                localFunctions.Add(LocalFunction);
+            } </span><span style="color: green;">// copyOfOuter is 0, 1, 2.
+            </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">Action </span><span style="color: black;">localFunction </span><span style="color: blue;">in </span><span style="color: black;">localFunctions)
+            {
+                localFunction(); </span><span style="color: green;">// 0 1 2
+            </span><span style="color: black;">}
+        }</span></pre>
+        <p>In each iteration of for loop, outer variable changes, but each iteration copies its current value to a variable that is not shared cross local functions, and does not change value. When the for loop is done, 3 local function calls write the values of 3 independent variables, so it is 0, 1, 2 this time. Above code is compiled to:</p>
+        <pre class="code"><span style="color: black;">[</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
+        </span><span style="color: blue;">private sealed class </span><span style="color: #2b91af;">Display2
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">public int </span><span style="color: black;">CopyOfOuter;
+
+            </span><span style="color: blue;">internal void </span><span style="color: black;">LocalFunction()
+            {
+                </span><span style="color: blue;">this</span><span style="color: black;">.CopyOfOuter.<span style="color: #2b91af;"></span><span style="color: black;">.WriteLine()</span>;
+            }
+        }
+
+        </span><span style="color: blue;">internal static void </span><span style="color: black;">CompiledCopyOuterReference()
+        {
+            </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Action</span><span style="color: black;">&gt; localFunctions = </span><span style="color: blue;">new </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Action</span><span style="color: black;">&gt;();
+            </span><span style="color: blue;">for </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">outer = 0; outer &lt; 3; outer++)
+            {
+                </span><span style="color: #2b91af;">Display2 </span><span style="color: black;">display = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Display2</span><span style="color: black;">() { CopyOfOuter = outer }; </span><span style="color: green;">// outer is 0, 1, 2.
+                // When outer changes, display.CopyOfOuter does not change.
+                </span><span style="color: black;">localFunctions.Add(display.LocalFunction);
+            } </span><span style="color: green;">// display.CcopyOfOuter is 0, 1, 2.
+            </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">Action </span><span style="color: black;">localFunction </span><span style="color: blue;">in </span><span style="color: black;">localFunctions)
+            {
+                localFunction(); </span><span style="color: green;">// 0 1 2
+            </span><span style="color: black;">}
+        }</span></pre>
+        <p>As expected, copyOfOuter variable becomes the field of display structure. And this time the local function is compiled to be a instance method of the display structure to access that field. In 3 iterations of the for loop, 3 independent instances of the display structure are constructed. When the for loop is done, each structure&rsquo;s instance methods is called to write its own field value.</p>
+        <h2>Implicit reference</h2>
+        <p>C# closure is a powerful syntactic sugar to enable local function to directly access outer variable. However, it comes with a price. Closure can also be performance pitfall, because a hidden reference is persisted by the generated display structure&rsquo;s field. As a result, closure extends the outer variable&rsquo;s lifetime to the display structure&rsquo; lifetime, but the display structure is invisible at design time, so its life time is not intuitive. In the last example, copyOfOuter is a temporary variable inside the for loop block, but its value is persisted after for loop finishes executing all iterations. After 3 iterations, in total there are 3 copyOfOuter values still persisted as field by 3 structure instances. The following is another example of implicit reference:</p>
+        <pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Functions
+        </span><span style="color: black;">{
+        </span><span style="color: black;">
+            </span><span style="color: blue;">internal static void </span><span style="color: black;">Reference()
+            {</span><span style="color: green;">
+                </span><span style="color: blue;">byte</span><span style="color: black;">[] shortLife = </span><span style="color: blue;">new byte</span><span style="color: black;">[0X7FFFFFC7]; </span><span style="color: green;">// Local variable of large array (Array.MaxByteArrayLength).
+                // ...
+                </span><span style="color: blue;">void </span><span style="color: black;">LocalFunction()
+                {
+                    </span><span style="color: green;">// ...
+                    </span><span style="color: blue;">byte </span><span style="color: black;">@byte = shortLife[0]; </span><span style="color: green;">// Closure.
+                    // ...
+                </span><span style="color: black;">}
+                // ...
+                LocalFunction();
+                </span><span style="color: green;">// ...
+                </span><span style="color: black;">longLife = LocalFunction; </span><span style="color: green;">// Reference from longLife to shortLife.
+            </span><span style="color: black;">}
+        }</span></pre>
+        <p>The large byte array is a temp variable supposed to have a short life, but it is accessed by local function as an outer variable, and the local function is stored with a static field with a long life. The compiler generates a display structure:</p>
+        <pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Functions
+        </span><span style="color: black;">{
+            [</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
+            </span><span style="color: blue;">private sealed class </span><span style="color: #2b91af;">Display3
+            </span><span style="color: black;">{
+                </span><span style="color: blue;">public byte</span><span style="color: black;">[] ShortLife;
+
+                </span><span style="color: blue;">internal void </span><span style="color: black;">LocalFunction()
+                {
+                    </span><span style="color: green;">// ...
+                    </span><span style="color: blue;">byte </span><span style="color: black;">@byte = </span><span style="color: blue;">this</span><span style="color: black;">.ShortLife[0];
+                    </span><span style="color: green;">// ...
+                </span><span style="color: black;">}
+            }
+
+            </span><span style="color: blue;">internal static void </span><span style="color: black;">CompiledReference()
+            {
+                </span><span style="color: blue;">byte</span><span style="color: black;">[] shortLife = </span><span style="color: blue;">new byte</span><span style="color: black;">[0X7FFFFFC7]; </span><span style="color: green;">// Local variable of large array (Array.MaxByteArrayLength).
+                // ...
+                </span><span style="color: #2b91af;">Display3 </span><span style="color: black;">display = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Display3</span><span style="color: black;">();
+                display.ShortLife = shortLife;
+                display.LocalFunction();
+                </span><span style="color: green;">// ...
+                </span><span style="color: black;">longLife = display.LocalFunction;
+                </span><span style="color: green;">// Now longLife.ShortLife holds the reference to the huge large array.
+            </span><span style="color: black;">}
+        }</span></pre>
+        <p>The large temp array, accessed as a outer variable, becomes a filed of the display structure, and the local function becomes a method of the display structure. When the local function is stored, actually it is a member of the display structure instance stored. So the display structure or its field cannot be garbage collected by runtime. As a result, this extended the shortLife variable&rsquo;s life to the longLife static field&rsquo;s life. Implicit reference problem exists in C#. Other languages supporting closure, like VB, F#, JavaScript, etc., have the same pitfall too. Closure must be used with caution.</p>
+    </body>
+</html>
