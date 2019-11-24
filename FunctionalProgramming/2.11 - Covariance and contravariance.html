@@ -1,0 +1,457 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+<h1>C# Functional Programming In-Depth (11) Covariance and Contravariance</h1>
+
+<p>In <a href="https://en.wikipedia.org/wiki/Covariance_and_contravariance_(computer_science)" target="_blank">covariance and contravariance</a>, variance means the capability to substitute a type with a more derived&nbsp; type or less derived type in a context. The following is a simple <a href="https://msdn.microsoft.com/en-us/library/27db6csx.aspx" target="_blank">inheritance hierarchy</a>:</p>
+<pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">Base </span><span style="color: black;">{ }
+
+</span><span style="color: blue;">internal class </span><span style="color: #2b91af;">Derived </span><span style="color: black;">: </span><span style="color: #2b91af;">Base </span><span style="color: black;">{ }</span></pre>
+<p>Base is a less derived type, and Derived is a more derived type. So a Derived instance “<a href="https://en.wikipedia.org/wiki/Is-a" target="_blank">is a</a>” Base instance, or in another words, a Derived instance can substitute a Base instance:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Variances
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Substitute()
+    {
+        </span><span style="color: #2b91af;">Base </span><span style="color: black;">@base = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Base</span><span style="color: black;">();
+        @base = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Derived</span><span style="color: black;">();
+    }
+}</span></pre>
+<p>Here covariance and contravariance discusses the “is a” or substitution relationship of functions and generic interfaces. C# 2.0 introduces variances for functions, and C# 4.0 introduces variances for generic delegate types and generic interfaces. C# covariance/contravariance only applies to reference types, not value types. So the above Base and Derived types are defined as classes, and they are used to demonstrate the variances.</p>
+<h1>Variances of non-generic function type</h1>
+<p>By using above Base and Derived as input and output type of function, there are 4 combinations:</p>
+<pre class="code"><span style="color: green;">// Derived -&gt; Base
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">Base </span><span style="color: black;">DerivedToBase(</span><span style="color: #2b91af;">Derived </span><span style="color: black;">input) =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Base</span><span style="color: black;">();
+
+</span><span style="color: green;">// Derived -&gt; Derived
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">Derived </span><span style="color: black;">DerivedToDerived(</span><span style="color: #2b91af;">Derived </span><span style="color: black;">input) =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Derived</span><span style="color: black;">();
+
+</span><span style="color: green;">// Base -&gt; Base
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">Base </span><span style="color: black;">BaseToBase(</span><span style="color: #2b91af;">Base </span><span style="color: black;">input) =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Base</span><span style="color: black;">();
+
+</span><span style="color: green;">// Base -&gt; Derived
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">Derived </span><span style="color: black;">BaseToDerived(</span><span style="color: #2b91af;">Base </span><span style="color: black;">input) =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Derived</span><span style="color: black;">();</span></pre>
+<p>They are of 4 different function types:</p>
+<pre class="code"><span style="color: blue;">internal delegate </span><span style="color: #2b91af;">Base DerivedToBase</span><span style="color: black;">(</span><span style="color: #2b91af;">Derived </span><span style="color: black;">input); </span><span style="color: green;">// Derived -&gt; Base
+
+</span><span style="color: blue;">internal delegate </span><span style="color: #2b91af;">Derived DerivedToDerived</span><span style="color: black;">(</span><span style="color: #2b91af;">Derived </span><span style="color: black;">input); </span><span style="color: green;">// Derived -&gt; Derived
+
+</span><span style="color: blue;">internal delegate </span><span style="color: #2b91af;">Base BaseToBase</span><span style="color: black;">(</span><span style="color: #2b91af;">Base </span><span style="color: black;">input); </span><span style="color: green;">// Base -&gt; Base
+
+</span><span style="color: blue;">internal delegate </span><span style="color: #2b91af;">Derived BaseToDerived</span><span style="color: black;">(</span><span style="color: #2b91af;">Base </span><span style="color: black;">input); </span><span style="color: green;">// Base -&gt; Derived</span></pre>
+<p>Take the second function DerivedToDerived as example, naturally, it is of the second function type DerivedToDerived:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">NonGeneric()
+{
+    </span><span style="color: #2b91af;">DerivedToDerived </span><span style="color: black;">derivedToDerived = DerivedToDerived;
+    </span><span style="color: #2b91af;">Derived </span><span style="color: black;">output = derivedToDerived(input: </span><span style="color: blue;">new </span><span style="color: #2b91af;">Derived</span><span style="color: black;">());
+}</span></pre>
+<p>Since C# 2.0, it seems of the first function type DerivedToBase too:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">NonGenericCovariance()
+{
+    </span><span style="color: #2b91af;">DerivedToBase </span><span style="color: black;">derivedToBase = DerivedToBase; </span><span style="color: green;">// Derived -&gt; Base
+
+    // Covariance: Derived is Base, so that DerivedToDerived is DerivedToBase.
+    </span><span style="color: black;">derivedToBase = DerivedToDerived; </span><span style="color: green;">// Derived -&gt; Derived
+
+    // When calling derivedToBase, DerivedToDerived executes.
+    // derivedToBase should output Base, while DerivedToDerived outputs Derived.
+    // The actual Derived output is the required Base output. This always works.
+    </span><span style="color: #2b91af;">Base </span><span style="color: black;">output = derivedToBase(input: </span><span style="color: blue;">new </span><span style="color: #2b91af;">Derived</span><span style="color: black;">());
+}</span></pre>
+<p>So function instance’s actual output can be more derived than function type’s required output. Therefore, function with more derived output “is a” function with less derived output, or in another word, function with more derived output can substitute function with less derived output. This is called covariance. Similarly, function instance’s input can be less derived than function type input:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">NonGenericContravariance()
+{
+    </span><span style="color: #2b91af;">DerivedToBase </span><span style="color: black;">derivedToBase = DerivedToBase; </span><span style="color: green;">// Derived -&gt; Base
+
+    // Contravariance: Derived is Base, so that BaseToBase is DerivedToBase.
+    </span><span style="color: black;">derivedToBase = BaseToBase; </span><span style="color: green;">// Base -&gt; Base
+
+    // When calling derivedToBase, BaseToBase executes.
+    // derivedToBase should accept Derived input, while BaseToBase accepts Base input.
+    // The required Derived input is the accepted Base input. This always works.
+    </span><span style="color: #2b91af;">Base </span><span style="color: black;">output = derivedToBase(input: </span><span style="color: blue;">new </span><span style="color: #2b91af;">Derived</span><span style="color: black;">());
+}</span></pre>
+<p>Therefore, function with less derived input “is a” function with more derived input, or in another word, function with less derived input can substitute function with more derived input. This is called contravariance. Covariance and contravariance can happen at the same time:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">NonGenericeCovarianceAndContravariance()
+{
+    </span><span style="color: #2b91af;">DerivedToBase </span><span style="color: black;">derivedToBase = DerivedToBase; </span><span style="color: green;">// Derived -&gt; Base
+
+    // Covariance and contravariance: Derived is Base, so that BaseToDerived is DerivedToBase.
+    </span><span style="color: black;">derivedToBase = BaseToDerived; </span><span style="color: green;">// Base -&gt; Derived
+
+    // When calling derivedToBase, BaseToDerived executes.
+    // derivedToBase should accept Derived input, while BaseToDerived accepts Base input.
+    // The required Derived input is the accepted Base input.
+    // derivedToBase should output Base, while BaseToDerived outputs Derived.
+    // The actual Derived output is the required Base output. This always works.
+    </span><span style="color: #2b91af;">Base </span><span style="color: black;">output = derivedToBase(input: </span><span style="color: blue;">new </span><span style="color: #2b91af;">Derived</span><span style="color: black;">());
+}</span></pre>
+<p>Apparently, function instance output cannot be less derived than function type output, and function input cannot be more derived than function type input. The following code cannot be compiled:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">NonGenericInvalidVariance()
+{
+    </span><span style="color: green;">// baseToDerived should output Derived, while BaseToBase outputs Base.
+    // The actual Base output is not the required Derived output. This cannot be compiled.
+    </span><span style="color: #2b91af;">BaseToDerived </span><span style="color: black;">baseToDerived = BaseToBase; </span><span style="color: green;">// Base -&gt; Derived
+
+    // baseToDerived should accept Base input, while DerivedToDerived accepts Derived input.
+    // The required Base input is not the accepted Derived input. This cannot be compiled.
+    </span><span style="color: black;">baseToDerived = DerivedToDerived; </span><span style="color: green;">// Derived -&gt; Derived
+
+    // baseToDerived should accept Base input, while DerivedToBase accepts Derived input.
+    // The required Base input is not the expected Derived input.
+    // baseToDerived should output Derived, while DerivedToBase outputs Base.
+    // The actual Base output is not the required Derived output. This cannot be compiled.
+    </span><span style="color: black;">baseToDerived = DerivedToBase; </span><span style="color: green;">// Derived -&gt; Base
+</span><span style="color: black;">}</span></pre>
+<h1>Variances of generic function type</h1>
+<p>With generic delegate type, all the above function types can be represented by:</p>
+<pre class="code"><span style="color: blue;">internal delegate </span><span style="color: #2b91af;">TOutput GenericFunc</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TInput</span><span style="color: black;">, </span><span style="color: #2b91af;">TOutput</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TInput </span><span style="color: black;">input);</span></pre>
+<p>Then the above variances can be represented as:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Generic()
+{
+    </span><span style="color: #2b91af;">GenericFunc</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Derived</span><span style="color: black;">, </span><span style="color: #2b91af;">Base</span><span style="color: black;">&gt; derivedToBase = DerivedToBase; </span><span style="color: green;">// GenericFunc&lt;Derived, Base&gt;: no variances.
+    </span><span style="color: black;">derivedToBase = DerivedToDerived; </span><span style="color: green;">// GenericFunc&lt;Derived, Derived&gt;: covariance.
+    </span><span style="color: black;">derivedToBase = BaseToBase; </span><span style="color: green;">// GenericFunc&lt;Base, Base&gt;: contravariance.
+    </span><span style="color: black;">derivedToBase = BaseToDerived; </span><span style="color: green;">// GenericFunc&lt;Base, Derived&gt;: covariance and contravariance.
+</span><span style="color: black;">}</span></pre>
+<p>For functions of GenericFunc&lt;TInput, TOutput&gt; type, covariance can happen when TOutput is substituted by more derived type, and contravariance can happen when TInput is substituted by less derived type. So TOutput is called covariant type parameter for this generic delegate type, and TInput is called contravariant type parameter. C# 4.0 introduces the out/in modifiers for the covariant/contravariant type parameter:</p>
+<pre class="code"><span style="color: blue;">internal delegate </span><span style="color: #2b91af;">TOutput GenericFuncWithVariances</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">TInput</span><span style="color: black;">, </span><span style="color: blue;">out </span><span style="color: #2b91af;">TOutput</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TInput </span><span style="color: black;">input);</span></pre>
+<p>These modifiers enable the implicit conversion/substitution between functions:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">FunctionImplicitConversion()
+{
+    </span><span style="color: #2b91af;">GenericFuncWithVariances</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Derived</span><span style="color: black;">, </span><span style="color: #2b91af;">Base</span><span style="color: black;">&gt; derivedToBase = DerivedToBase; </span><span style="color: green;">// Derived -&gt; Base
+    </span><span style="color: #2b91af;">GenericFuncWithVariances</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Derived</span><span style="color: black;">, </span><span style="color: #2b91af;">Derived</span><span style="color: black;">&gt; derivedToDerived = DerivedToDerived; </span><span style="color: green;">// Derived -&gt; Derived
+    </span><span style="color: #2b91af;">GenericFuncWithVariances</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Base</span><span style="color: black;">, </span><span style="color: #2b91af;">Base</span><span style="color: black;">&gt; baseToBase = BaseToBase; </span><span style="color: green;">// Base -&gt; Base
+    </span><span style="color: #2b91af;">GenericFuncWithVariances</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Base</span><span style="color: black;">, </span><span style="color: #2b91af;">Derived</span><span style="color: black;">&gt; baseToDerived = BaseToDerived; </span><span style="color: green;">// Base -&gt; Derived
+
+    // Cannot be compiled without the out/in modifiers.
+    </span><span style="color: black;">derivedToBase = derivedToDerived; </span><span style="color: green;">// Covariance.
+    </span><span style="color: black;">derivedToBase = baseToBase; </span><span style="color: green;">// Contravariance.
+    </span><span style="color: black;">derivedToBase = baseToDerived; </span><span style="color: green;">// Covariance and contravariance.
+</span><span style="color: black;">}</span></pre>
+<p>As fore mentioned, unified Func and Action generic delegate types are provided to represent all function types. Since .NET Framework 4.0, all their type parameters have the out/in modifiers:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{
+    </span><span style="color: blue;">public delegate </span><span style="color: #2b91af;">TResult Func</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;();
+
+    </span><span style="color: blue;">public delegate </span><span style="color: #2b91af;">TResult Func</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: blue;">out </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T </span><span style="color: black;">arg);
+
+    </span><span style="color: blue;">public delegate </span><span style="color: #2b91af;">TResult Func</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: blue;">out </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T1 </span><span style="color: black;">arg1, </span><span style="color: #2b91af;">T2 </span><span style="color: black;">arg2);
+
+    </span><span style="color: green;">// ...
+
+    </span><span style="color: blue;">public delegate void </span><span style="color: #2b91af;">Action</span><span style="color: black;">();
+
+    </span><span style="color: blue;">public delegate void </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T </span><span style="color: black;">obj);
+
+    </span><span style="color: blue;">public delegate void </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T1 </span><span style="color: black;">arg1, </span><span style="color: #2b91af;">T2 </span><span style="color: black;">arg2);
+
+    </span><span style="color: green;">// ...
+</span><span style="color: black;">}</span></pre>
+<p>Variant type parameter is not syntactic sugar. The out/in modifiers are compiled to CIL +/– flags in CIL:</p>
+<pre class="code"><span style="color: blue;">.class public auto ansi sealed </span><span style="color: #008b8b;">Func</span><span style="color: black;">&lt;-</span><span style="color: #008b8b;">T</span><span style="color: black;">, +</span><span style="color: #008b8b;">TResult</span><span style="color: black;">&gt; </span><span style="color: blue;">extends </span><span style="color: #00008b;">System.MulticastDelegate
+</span><span style="color: black;">{
+    </span><span style="color: blue;">.method public hidebysig newslot virtual instance </span><span style="color: black;">!</span><span style="color: #008b8b;">TResult Invoke</span><span style="color: black;">(!</span><span style="color: #008b8b;">T arg</span><span style="color: black;">) </span><span style="color: blue;">runtime managed
+    </span><span style="color: black;">{
+    }
+
+    </span><span style="color: green;">// Other members.
+</span><span style="color: black;">}</span></pre>
+<h1>Variances of generic interface</h1>
+<p>Besides generic delegate types, C# 4.0 also introduces variances for generic interfaces. An interface can be viewed as a set of function members’ signatures to indicate their function types, without implementations. For example:</p>
+<pre class="code"><span style="color: blue;">internal interface </span><span style="color: #2b91af;">IOutput</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">TOutput</span><span style="color: black;">&gt; </span><span style="color: green;">// TOutput is covariant for all members using TOutput.
+</span><span style="color: black;">{
+    </span><span style="color: #2b91af;">TOutput </span><span style="color: black;">ToOutput(); </span><span style="color: green;">// () -&gt; TOutput
+
+    </span><span style="color: #2b91af;">TOutput </span><span style="color: black;">Output { </span><span style="color: blue;">get</span><span style="color: black;">; } </span><span style="color: green;">// get_Output: () -&gt; TOutput
+
+    </span><span style="color: blue;">void </span><span style="color: black;">TypeParameterNotUsed();
+}</span></pre>
+<p>In the above generic interface, there are 2 function members using the type parameter, and the type parameter is covariant for these 2 functions’ function types. Therefore, the type parameter is covariant for the interface, and the out modifier can be used to enable the implicit conversion:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">GenericInterfaceCovariance(</span><span style="color: #2b91af;">IOutput</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Base</span><span style="color: black;">&gt; outputBase, </span><span style="color: #2b91af;">IOutput</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Derived</span><span style="color: black;">&gt; outputDerived)
+{
+    </span><span style="color: green;">// Covariance: Derived is Base, so that IOutput&lt;Derived&gt; is IOutput&lt;Base&gt;.
+    </span><span style="color: black;">outputBase = outputDerived;
+
+    </span><span style="color: green;">// When calling outputBase.ToOutput, outputDerived.ToOutput executes.
+    // outputBase.ToOutput should output Base, outputDerived.ToOutput outputs Derived.
+    // The actual Derived output is the required Base output. This always works.
+    </span><span style="color: #2b91af;">Base </span><span style="color: black;">output1 = outputBase.ToOutput();
+
+    </span><span style="color: #2b91af;">Base </span><span style="color: black;">output2 = outputBase.Output; </span><span style="color: green;">// outputBase.get_Output().
+</span><span style="color: black;">}</span></pre>
+<p>IOutput&lt;Derived&gt; interface does not inherit IOutput&lt;Base&gt; interface, but it seems a IOutput&lt;Derived&gt; interface “is an” IOutput&lt;Base&gt; interface, or in another word, IOutput&lt;TOutput&gt; interface with more derived type argument can substitute IOutput&lt;TOutput&gt; with less derived type argument. This is the covariance of generic interface. Similarly, generic interface can also have contravariant type parameter, and the in modifier can enable the implicit conversion:</p>
+<pre class="code"><span style="color: blue;">internal interface </span><span style="color: #2b91af;">IInput</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">TInput</span><span style="color: black;">&gt; </span><span style="color: green;">// TInput is contravariant for all members using TInput.
+</span><span style="color: black;">{
+    </span><span style="color: blue;">void </span><span style="color: black;">InputToVoid(</span><span style="color: #2b91af;">TInput </span><span style="color: black;">input); </span><span style="color: green;">// TInput -&gt; void
+
+    </span><span style="color: #2b91af;">TInput </span><span style="color: black;">Input { </span><span style="color: blue;">set</span><span style="color: black;">; } </span><span style="color: green;">// set_Input: TInput -&gt; void
+
+    </span><span style="color: blue;">void </span><span style="color: black;">TypeParameterNotUsed();
+}</span></pre>
+<p>IInput&lt;Base&gt; interface does not inherit IInput&lt;Derived&gt; interface, but it seems a IInput&lt;Base&gt; interface “is an” IInput&lt;Derived&gt; interface, or in another word, IInput&lt;TInput&gt; interface with more derived type argument can substitute IInput&lt;TInput&gt; with less derived type argument. This is the contravariance of generic interface:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">GenericInterfaceContravariance(</span><span style="color: #2b91af;">IInput</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Derived</span><span style="color: black;">&gt; inputDerived, </span><span style="color: #2b91af;">IInput</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Base</span><span style="color: black;">&gt; inputBase)
+{
+    </span><span style="color: green;">// Contravariance: Derived is Base, so that IInput&lt;Base&gt; is IInput&lt;Derived&gt;.
+    </span><span style="color: black;">inputDerived = inputBase;
+
+    </span><span style="color: green;">// When calling inputDerived.Input, inputBase.Input executes.
+    // inputDerived.Input should accept Derived input, while inputBase.Input accepts Base input.
+    // The required Derived output is the accepted Base input. This always works.
+    </span><span style="color: black;">inputDerived.InputToVoid(input: </span><span style="color: blue;">new </span><span style="color: #2b91af;">Derived</span><span style="color: black;">());
+
+    inputDerived.Input = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Derived</span><span style="color: black;">();
+}</span></pre>
+<p>Similar to generic delegate type, generic interface can have covariant type parameter and contravariant type parameter at the same time:</p>
+<pre class="code"><span style="color: blue;">internal interface </span><span style="color: #2b91af;">IInputOutput</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">TInput</span><span style="color: black;">, </span><span style="color: blue;">out </span><span style="color: #2b91af;">TOutput</span><span style="color: black;">&gt; </span><span style="color: green;">// TInput/TOutput is contravariant/covariant for all members using TInput/TOutput.
+</span><span style="color: black;">{
+    </span><span style="color: blue;">void </span><span style="color: black;">InputToVoid(</span><span style="color: #2b91af;">TInput </span><span style="color: black;">input); </span><span style="color: green;">// TInput -&gt; void
+
+    </span><span style="color: #2b91af;">TInput </span><span style="color: black;">Input { </span><span style="color: blue;">set</span><span style="color: black;">; } </span><span style="color: green;">// set_Input: TInput -&gt; void
+
+    </span><span style="color: #2b91af;">TOutput </span><span style="color: black;">ToOutput(); </span><span style="color: green;">// () -&gt; TOutput
+
+    </span><span style="color: #2b91af;">TOutput </span><span style="color: black;">Output { </span><span style="color: blue;">get</span><span style="color: black;">; } </span><span style="color: green;">// get_Output: () -&gt; TOutput
+
+    </span><span style="color: blue;">void </span><span style="color: black;">TypeParameterNotUsed();
+}</span></pre>
+<p>The following example demonstrates the covariance and contravariance:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">GenericInterfaceCovarianceAndContravariance(
+    </span><span style="color: #2b91af;">IInputOutput</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Derived</span><span style="color: black;">, </span><span style="color: #2b91af;">Base</span><span style="color: black;">&gt; inputDerivedOutputBase, </span><span style="color: #2b91af;">IInputOutput</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Base</span><span style="color: black;">, </span><span style="color: #2b91af;">Derived</span><span style="color: black;">&gt; inputBaseOutputDerived)
+{
+    </span><span style="color: green;">// Covariance and contravariance: Derived is Base, so that IInputOutput&lt;Base, Derived&gt; is IInputOutput&lt;Derived, Base&gt;.
+    </span><span style="color: black;">inputDerivedOutputBase = inputBaseOutputDerived;
+
+    inputDerivedOutputBase.InputToVoid(</span><span style="color: blue;">new </span><span style="color: #2b91af;">Derived</span><span style="color: black;">());
+    inputDerivedOutputBase.Input = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Derived</span><span style="color: black;">();
+    </span><span style="color: #2b91af;">Base </span><span style="color: black;">output1 = inputDerivedOutputBase.ToOutput();
+    </span><span style="color: #2b91af;">Base </span><span style="color: black;">output2 = inputDerivedOutputBase.Output;
+}</span></pre>
+<p>Not all type parameters can be variant for generic interface. For example:</p>
+<pre class="code"><span style="color: blue;">internal interface </span><span style="color: #2b91af;">IInvariant</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: #2b91af;">T </span><span style="color: black;">Output(); </span><span style="color: green;">// T is covariant for Output: () -&gt; T.
+
+    </span><span style="color: blue;">void </span><span style="color: black;">Input(</span><span style="color: #2b91af;">T </span><span style="color: black;">input); </span><span style="color: green;">// T is contravariant for Input: T -&gt; void.
+</span><span style="color: black;">}</span></pre>
+<p>The type parameter T is neither covariant for all function members using T, nor contravariant for all function members using T, so T cannot be covariant or contravariant for the interface.</p>
+<h1>Variances of generic higher-order function</h1>
+<p>So far covariance and the out modifier are all about output, and contravariance and the in modifier are all about input. The variances are interesting for generic higher-order function types. For example, the following function type is higher-order, because it returns a function:</p>
+<pre class="code"><span style="color: blue;">internal delegate </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TOutput</span><span style="color: black;">&gt; </span><span style="color: #2b91af;">ToFunc</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">TOutput</span><span style="color: black;">&gt;(); </span><span style="color: green;">// Covariant output type.</span></pre>
+<p>The type parameter is used by output function type, where it is still covariant. The following example demonstrate how this works:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">OutputVariance()
+{
+    </span><span style="color: green;">// First order functions.
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Base</span><span style="color: black;">&gt; toBase = () =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Base</span><span style="color: black;">();
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Derived</span><span style="color: black;">&gt; toDerived = () =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Derived</span><span style="color: black;">();
+
+    </span><span style="color: green;">// Higher-order functions.
+    </span><span style="color: #2b91af;">ToFunc</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Base</span><span style="color: black;">&gt; toToBase = () =&gt; toBase;
+    </span><span style="color: #2b91af;">ToFunc</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Derived</span><span style="color: black;">&gt; toToDerived = () =&gt; toDerived;
+
+    </span><span style="color: green;">// Covariance: Derived is Base, so that ToFunc&lt;Derived&gt; is ToFunc&lt;Base&gt;.
+    </span><span style="color: black;">toToBase = toToDerived;
+
+    </span><span style="color: green;">// When calling toToBase, toToDerived executes.
+    // toToBase should output Func&lt;Base&gt;, while toToDerived outputs Func&lt;Derived&gt;.
+    // The actual Func&lt;Derived&gt; output is the required Func&lt;Base&gt; output. This always works.
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Base</span><span style="color: black;">&gt; output = toToBase();
+}</span></pre>
+<p>For higher-order function types, when type parameter is used in output function type, it always covariant:</p>
+<pre class="code"><span style="color: green;">// () -&gt; T:
+</span><span style="color: blue;">internal delegate </span><span style="color: #2b91af;">TOutput Func</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">TOutput</span><span style="color: black;">&gt;(); </span><span style="color: green;">// Covariant output type.
+
+// () -&gt; () -&gt; T, equivalent to Func&lt;Func&lt;T&gt;&gt;:
+</span><span style="color: blue;">internal delegate </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TOutput</span><span style="color: black;">&gt; </span><span style="color: #2b91af;">ToFunc</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">TOutput</span><span style="color: black;">&gt;(); </span><span style="color: green;">// Covariant output type.
+
+// () -&gt; () -&gt; () -&gt; T: Equivalent to Func&lt;Func&lt;Func&lt;T&gt;&gt;&gt;:
+</span><span style="color: blue;">internal delegate </span><span style="color: #2b91af;">ToFunc</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TOutput</span><span style="color: black;">&gt; </span><span style="color: #2b91af;">ToToFunc</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">TOutput</span><span style="color: black;">&gt;(); </span><span style="color: green;">// Covariant output type.
+
+// () -&gt; () -&gt; () -&gt; () -&gt; T: Equivalent to Func&lt;Func&lt;Func&lt;Func&lt;T&gt;&gt;&gt;&gt;:
+</span><span style="color: blue;">internal delegate </span><span style="color: #2b91af;">ToToFunc</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TOutput</span><span style="color: black;">&gt; </span><span style="color: #2b91af;">ToToToFunc</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">TOutput</span><span style="color: black;">&gt;(); </span><span style="color: green;">// Covariant output type.
+
+// ...</span></pre>
+<p>Similarly, higher-order function type can be defined by accepting function as input:</p>
+<pre class="code"><span style="color: blue;">internal delegate void </span><span style="color: #2b91af;">ActionToVoid</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">TTInput</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TTInput</span><span style="color: black;">&gt; action); </span><span style="color: green;">// Cannot be compiled.
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">InputVariance()
+{
+    </span><span style="color: #2b91af;">ActionToVoid</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Derived</span><span style="color: black;">&gt; derivedToVoidToVoid = (</span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Derived</span><span style="color: black;">&gt; derivedToVoid) =&gt; { };
+    </span><span style="color: #2b91af;">ActionToVoid</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Base</span><span style="color: black;">&gt; baseToVoidToVoid = (</span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Base</span><span style="color: black;">&gt; baseToVoid) =&gt; { };
+    derivedToVoidToVoid = baseToVoidToVoid;
+}</span></pre>
+<p>However, the above code cannot be compiled. The reason is, when type parameter is used by input function type, it can be covariant or contravariant. In this case, it becomes contravariant:</p>
+<pre class="code"><span style="color: blue;">internal delegate void </span><span style="color: #2b91af;">ActionToVoid</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">TInput</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TInput</span><span style="color: black;">&gt; action);</span></pre>
+<p>And this is how it works:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">InputVariance()
+{
+    </span><span style="color: green;">// Higher-order functions.
+    </span><span style="color: #2b91af;">ActionToVoid</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Derived</span><span style="color: black;">&gt; derivedToVoidToVoid = (</span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Derived</span><span style="color: black;">&gt; derivedToVoid) =&gt; { };
+    </span><span style="color: #2b91af;">ActionToVoid</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Base</span><span style="color: black;">&gt; baseToVoidToVoid = (</span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Base</span><span style="color: black;">&gt; baseToVoid) =&gt; { };
+
+    </span><span style="color: green;">// Covariance: Derived is Base, so that ActionToVoid&lt;Derived&gt; is ActionToVoid&lt;Base&gt;.
+    </span><span style="color: black;">baseToVoidToVoid = derivedToVoidToVoid;
+
+    </span><span style="color: green;">// When calling baseToVoidToVoid, derivedToVoidToVoid executes.
+    // baseToVoidToVoid should accept Action&lt;Base&gt; input, while derivedToVoidToVoid accepts Action&lt;Derived&gt; input.
+    // The required Action&lt;Derived&gt; input is the accepted Action&lt;Base&gt; input. This always works.
+    </span><span style="color: black;">baseToVoidToVoid(</span><span style="color: blue;">default</span><span style="color: black;">(</span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Base</span><span style="color: black;">&gt;));
+}</span></pre>
+<p>For higher-order function types, when type parameter is used in input function type, here are its variances:</p>
+<pre class="code"><span style="color: green;">// () -&gt; void:
+</span><span style="color: blue;">internal delegate void </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">TInput</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TInput </span><span style="color: black;">input); </span><span style="color: green;">// Contravariant input type.
+
+// (() -&gt; void) -&gt; void, equivalent to Action&lt;Action&lt;T&gt;&gt;:
+</span><span style="color: blue;">internal delegate void </span><span style="color: #2b91af;">ActionToVoid</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">TTInput</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TTInput</span><span style="color: black;">&gt; action); </span><span style="color: green;">// Covariant input type.
+
+// ((() -&gt; void) -&gt; void) -&gt; void, equivalent to Action&lt;Action&lt;Action&lt;T&gt;&gt;&gt;:
+</span><span style="color: blue;">internal delegate void </span><span style="color: #2b91af;">ActionToVoidToVoid</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">TTInput</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">ActionToVoid</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TTInput</span><span style="color: black;">&gt; actionToVoid); </span><span style="color: green;">// Contravariant input type.
+
+// (((() -&gt; void) -&gt; void) -&gt; void) -&gt; void, equivalent to Action&lt;Action&lt;Action&lt;Action&lt;T&gt;&gt;&gt;&gt;:
+</span><span style="color: blue;">internal delegate void </span><span style="color: #2b91af;">ActionToVoidToVoidToVoid</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">TTInput</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">ActionToVoidToVoid</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TTInput</span><span style="color: black;">&gt; actionToVoidToVoid); </span><span style="color: green;">// Covariant input type.
+
+// ...</span></pre>
+<h1>Covariance of array</h1>
+<p>As fore mentioned, an array T[] implements IList&lt;T&gt;:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Collections.Generic
+{
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">ICollection</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable
+    </span><span style="color: black;">{
+        </span><span style="color: #2b91af;">T </span><span style="color: blue;">this</span><span style="color: black;">[</span><span style="color: blue;">int </span><span style="color: black;">index] { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+        </span><span style="color: green;">// T is covariant for get_Item: int -&gt; T.
+        // T is contravariant for set_Item: (int, T) -&gt; void.
+
+        // Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>For IList&lt;T&gt;, T is not covariant for its indexer setter, and T is not contravariant for its indexer getter. So T should be invariant for IList&lt;T&gt; and array T[]. However, C# compiler and CLR/CoreCLR unexpectedly supports covariance for array. The following example can be compiled but throws ArrayTypeMismatchException at runtime, which can be a source of bugs:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ArrayCovariance()
+{
+    </span><span style="color: #2b91af;">Base</span><span style="color: black;">[] baseArray = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Base</span><span style="color: black;">[3];
+    </span><span style="color: #2b91af;">Derived</span><span style="color: black;">[] derivedArray = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Derived</span><span style="color: black;">[3];
+
+    baseArray = derivedArray; </span><span style="color: green;">// Array covariance at compile time, baseArray refers to a Derived array at runtime.
+    </span><span style="color: #2b91af;">Base </span><span style="color: black;">value = baseArray[0];
+    baseArray[1] = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Derived</span><span style="color: black;">();
+    baseArray[2] = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Base</span><span style="color: black;">(); </span><span style="color: green;">// ArrayTypeMismatchException at runtime, Base cannot be in Derived array.
+</span><span style="color: black;">}</span></pre>
+<p>Here are some background information for array covariance:</p>
+<ul>
+<li><a href="http://www.infoq.com/news/2008/08/GenericVariance" target="_blank" mce_href="http://www.infoq.com/news/2008/08/GenericVariance">Jonathan Allen said</a>,
+<blockquote>On a historical note, C# and VB both support array covariance (<a href="http://www.cnblogs.com/dixin/archive/2009/09/01/understanding-csharp-covariance-and-contravariance-6-typing-issues.html" target="_blank" mce_href="http://www.cnblogs.com/dixin/archive/2009/09/01/understanding-csharp-covariance-and-contravariance-6-typing-issues.html">out/IEnumerable scenario</a>) even though it can lead to runtime errors in contravariant situations (in/IWriter scenario). This was done in order to make C# more compatible with Java. This is generally considered a poor decision, but it cannot be undone at this time.</blockquote>
+</li>
+<li>In the book “<a href="http://www.amazon.com/exec/obidos/tg/detail/-/0321154932" target="_blank" mce_href="http://www.amazon.com/exec/obidos/tg/detail/-/0321154932">The Common Language Infrastructure Annotated Standard</a>”, Jim Miller said,
+<blockquote>The decision to support covariant arrays was primarily to allow Java to run on the VES.&nbsp; The covariant design is not thought to be the best design in general, but it was chosen in the interest of broad reach.</blockquote>
+</li>
+<li><a href="http://blogs.msdn.com/rmbyers/archive/2005/02/16/375079.aspx" target="_blank" mce_href="http://blogs.msdn.com/rmbyers/archive/2005/02/16/375079.aspx">Rick Byers said</a>,
+<blockquote>I've heard that Bill Joy, one of the original Java designers, has since said that he tried to remove array covariance in 1995 but wasn't able to do it in time, and has regretted having it in Java ever since.</blockquote>
+</li>
+<li>Anders Hejlsberg (<a href="http://en.wikipedia.org/wiki/Anders_Hejlsberg" target="_blank" mce_href="http://en.wikipedia.org/wiki/Anders_Hejlsberg">chief architect</a> of C#) <a href="http://channel9.msdn.com/shows/Going+Deep/Expert-to-Expert-Anders-Hejlsberg-The-Future-of-C/" target="_blank" mce_href="http://channel9.msdn.com/shows/Going+Deep/Expert-to-Expert-Anders-Hejlsberg-The-Future-of-C/">said in this video</a>,
+<blockquote>This isn't type safe. A lot of people maybe don't even realize that there's a hole there.</blockquote>
+</li>
+<li><a href="http://ericlippert.com/" target="_blank">Eric Lippert</a> (member of C# design team) <a href="http://www.informit.com/articles/article.aspx?p=2425867" target="_blank">put array covariance the top 1 of 10 worst C# features</a>
+<blockquote>C# 1.0 has unsafe array covariance not because the designers of C# thought that the scenario was particularly compelling, but rather because the Common Language Runtime (CLR) has the feature in its type system, so C# gets it "for free." The CLR has it because Java has this feature; the CLR team wanted to design a runtime that could implement Java efficiently, should that become necessary.</blockquote>
+</li>
+</ul>
+<p>This is a C# language feature that should never be used.</p>
+<h1>Variances in .NET and LINQ</h1>
+<p>The following LINQ query finds the generic delegate types and interfaces with variant type parameters in .NET core library:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">TypesWithVariance()
+{
+    </span><span style="color: #2b91af;">Assembly </span><span style="color: black;">coreLibrary = </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: blue;">object</span><span style="color: black;">).Assembly;
+    coreLibrary.GetExportedTypes()
+        .Where(type =&gt; type.GetGenericArguments().Any(typeArgument =&gt;
+        {
+            </span><span style="color: #2b91af;">GenericParameterAttributes </span><span style="color: black;">attributes = typeArgument.GenericParameterAttributes;
+            </span><span style="color: blue;">return </span><span style="color: black;">attributes.HasFlag(</span><span style="color: #2b91af;">GenericParameterAttributes</span><span style="color: black;">.Covariant)
+                || attributes.HasFlag(</span><span style="color: #2b91af;">GenericParameterAttributes</span><span style="color: black;">.Contravariant);
+        }))
+        .OrderBy(type =&gt; type.FullName)
+        .WriteLines();
+        </span><span style="color: green;">// System.Action`1[T]
+        // System.Action`2[T1,T2]
+        // System.Action`3[T1,T2,T3]
+        // System.Action`4[T1,T2,T3,T4]
+        // System.Action`5[T1,T2,T3,T4,T5]
+        // System.Action`6[T1,T2,T3,T4,T5,T6]
+        // System.Action`7[T1,T2,T3,T4,T5,T6,T7]
+        // System.Action`8[T1,T2,T3,T4,T5,T6,T7,T8]
+        // System.Collections.Generic.IComparer`1[T]
+        // System.Collections.Generic.IEnumerable`1[T]
+        // System.Collections.Generic.IEnumerator`1[T]
+        // System.Collections.Generic.IEqualityComparer`1[T]
+        // System.Collections.Generic.IReadOnlyCollection`1[T]
+        // System.Collections.Generic.IReadOnlyList`1[T]
+        // System.Comparison`1[T]
+        // System.Converter`2[TInput,TOutput]
+        // System.Func`1[TResult]
+        // System.Func`2[T,TResult]
+        // System.Func`3[T1,T2,TResult]
+        // System.Func`4[T1,T2,T3,TResult]
+        // System.Func`5[T1,T2,T3,T4,TResult]
+        // System.Func`6[T1,T2,T3,T4,T5,TResult]
+        // System.Func`7[T1,T2,T3,T4,T5,T6,TResult]
+        // System.Func`8[T1,T2,T3,T4,T5,T6,T7,TResult]
+        // System.Func`9[T1,T2,T3,T4,T5,T6,T7,T8,TResult]
+        // System.IComparable`1[T]
+        // System.IObservable`1[T]
+        // System.IObserver`1[T]
+        // System.IProgress`1[T]
+        // System.Predicate`1[T]
+</span><span style="color: black;">}</span></pre>
+<p>Under System.Linq namespace, there are also a number of generic interfaces with variance: IGrouping&lt;out TKey, out TElement&gt;, IQueryable&lt;out T&gt;, IOrderedQueryable&lt;out T&gt;. MSDN has a <a href="https://msdn.microsoft.com/en-us/library/dd799517#VariantList" target="_blank">List of Variant Generic Interface and Delegate Types</a>, but it is inaccurate. For example, it says TElement is covariant for IOrderedEnumerable&lt;TElement&gt;, but actually not:</p>
+<pre class="code"><span style="background: #f5f5f5; color: blue;">namespace </span><span style="background: #f5f5f5; color: black;">System.Linq
+{
+</span><span style="background: #f5f5f5; color: green;">    </span><span style="background: #f5f5f5; color: blue;">public interface </span><span style="background: #f5f5f5; color: #2b91af;">IOrderedEnumerable</span><span style="background: #f5f5f5; color: black;">&lt;</span><span style="background: #f5f5f5; color: #2b91af;">TElement</span><span style="background: #f5f5f5; color: black;">&gt; : </span><span style="background: #f5f5f5; color: #2b91af;">IEnumerable</span><span style="background: #f5f5f5; color: black;">&lt;</span><span style="background: #f5f5f5; color: #2b91af;">TElement</span><span style="background: #f5f5f5; color: black;">&gt;, </span><span style="background: #f5f5f5; color: #2b91af;">IEnumerable
+    </span><span style="background: #f5f5f5; color: black;">{
+</span><span style="background: #f5f5f5; color: green;">        </span><span style="background: #f5f5f5; color: #2b91af;">IOrderedEnumerable</span><span style="background: #f5f5f5; color: black;">&lt;</span><span style="background: #f5f5f5; color: #2b91af;">TElement</span><span style="background: #f5f5f5; color: black;">&gt; CreateOrderedEnumerable&lt;</span><span style="background: #f5f5f5; color: #2b91af;">TKey</span><span style="background: #f5f5f5; color: black;">&gt;(</span><span style="background: #f5f5f5; color: #2b91af;">Func</span><span style="background: #f5f5f5; color: black;">&lt;</span><span style="background: #f5f5f5; color: #2b91af;">TElement</span><span style="background: #f5f5f5; color: black;">, </span><span style="background: #f5f5f5; color: #2b91af;">TKey</span><span style="background: #f5f5f5; color: black;">&gt; keySelector, </span><span style="background: #f5f5f5; color: #2b91af;">IComparer</span><span style="background: #f5f5f5; color: black;">&lt;</span><span style="background: #f5f5f5; color: #2b91af;">TKey</span><span style="background: #f5f5f5; color: black;">&gt; comparer, </span><span style="background: #f5f5f5; color: blue;">bool </span><span style="background: #f5f5f5; color: black;">descending);
+    }
+}</span></pre>
+<p>For local sequential LINQ, as fore mentioned, T is covariant for IEnumerable&lt;T&gt;. Here is the full story:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Collections.Generic
+{
+    </span><span style="color: gray;">/// &lt;summary&gt;</span><span style="color: green;">Exposes the enumerator, which supports a simple iteration over a collection of a specified type.</span><span style="color: gray;">&lt;/summary&gt;
+    /// &lt;typeparam name="</span><span style="color: #2b91af;">T</span><span style="color: gray;">"&gt;</span><span style="color: green;">The type of objects to enumerate.This type parameter is covariant. That is, you can use either the type you specified or any type that is more derived. For more information about covariance and contravariance, see Covariance and Contravariance in Generics.</span><span style="color: gray;">&lt;/typeparam&gt;
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IDisposable</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerator
+    </span><span style="color: black;">{
+        </span><span style="color: #2b91af;">T </span><span style="color: black;">Current { </span><span style="color: blue;">get</span><span style="color: black;">; } </span><span style="color: green;">// T is covariant for get_Current: () –&gt; T.
+    </span><span style="color: black;">}
+
+    </span><span style="color: gray;">/// &lt;summary&gt;</span><span style="color: green;">Exposes the enumerator, which supports a simple iteration over a collection of a specified type.</span><span style="color: gray;">&lt;/summary&gt;
+    /// &lt;typeparam name="</span><span style="color: #2b91af;">T</span><span style="color: gray;">"&gt;</span><span style="color: green;">The type of objects to enumerate.This type parameter is covariant. That is, you can use either the type you specified or any type that is more derived. For more information about covariance and contravariance, see Covariance and Contravariance in Generics.</span><span style="color: gray;">&lt;/typeparam&gt;
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IEnumerable
+    </span><span style="color: black;">{
+        </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; GetEnumerator(); </span><span style="color: green;">// T is covariant for IEnumerator&lt;T&gt;, so T is covariant for () -&gt; IEnumerator&lt;T&gt;.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>First, IEnumerator&lt;T&gt;’s type parameter is only used by its Current property’s getter, which can be viewed as a get_Current function of type () –&gt; T, and IEnumerator&lt;T&gt; can be viewed as a wrapper of () –&gt; T function. Since T is covariance for () –&gt; T function, T is also covariant for IEnumerator&lt;T&gt; wrapper. Then, in IEnumerable&lt;T&gt;, T is only used by GetEnumerator method returning IEnumerator&lt;T&gt;. Regarding IEnumerator&lt;T&gt; is a simple wrapper of () –&gt; T function, GetEnumerator can be virtually viewed as a higher-order function returning () –&gt; T function, Therefore, GetEnumerator’s function type () –&gt; IEnumerator&lt;T&gt; can be virtually viewed as higher-order function type () –&gt; () –&gt; T. And similarly, IEnumerable&lt;T&gt; can be viewed as a wrapper of this () –&gt; () –&gt; T function. Since T is still covariant for () –&gt; () –&gt; T, T is also covariance for IEnumerable&lt;T&gt; wrapper. This brings convenience to LINQ queries. For example, the following LINQ query method concatenates 2 IEnumerable&lt;T&gt; instances:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Linq
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Enumerable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Concat&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; first, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; second);
+    }
+}</span></pre>
+<p>The following code demonstrates the implicit conversion enabled by the out modifier in the IEnumerable&lt;T&gt; definition:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">LinqToObjects(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Base</span><span style="color: black;">&gt; enumerableOfBase, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Derived</span><span style="color: black;">&gt; enumerableOfDerived)
+{
+    enumerableOfBase = enumerableOfBase.Concat(enumerableOfDerived);
+}</span></pre>
+<p>For local Parallel LINQ, ParallelQuery&lt;T&gt; is a class instead of interface, so there T is not variant. Again, variance of type parameter is for function type, including non-generic delegate type, generic delegate type and generic interface. Class can have function implementation so variances do not apply.</p>
+<p>For remote LINQ, here is the definition of IQueryable&lt;T&gt;:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Linq
+{</span><span style="color: black;">
+    </span><span style="color: gray;">/// &lt;summary&gt;</span><span style="color: green;">Provides functionality to evaluate queries against a specific data source wherein the type of the data is known.</span><span style="color: gray;">&lt;/summary&gt;
+    /// &lt;typeparam name="</span><span style="color: #2b91af;">T</span><span style="color: gray;">"&gt;</span><span style="color: green;">The type of objects to enumerate.This type parameter is covariant. That is, you can use either the type you specified or any type that is more derived. For more information about covariance and contravariance, see Covariance and Contravariance in Generics.</span><span style="color: gray;">&lt;/typeparam&gt;
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">, </span><span style="color: #2b91af;">IQueryable </span><span style="color: black;">{ }
+}</span></pre>
+<p>Here T is only used for the member inherited from IEnumerable&lt;T&gt;, so apparently, T remains covariant for IQueryable&lt;T&gt;.</p>
+
+
+</div>
+</body>
+</html>

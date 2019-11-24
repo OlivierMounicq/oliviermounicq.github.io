@@ -1,0 +1,227 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+
+<h1>C# Functional Programming In-Depth (15) Pattern matching</h1>
+
+<p>Pattern matching is a common feature in functional languages. C# 7.0 introduces basic pattern matching, including constant value as pattern and type as pattern, and C# 7.1 supports generics in pattern matching.</p>
+<h1>Pattern matching with is expression</h1>
+<p>Before C# 7.0, is keyword is used in the instance is Type expression to test whether the instance is compatible with the specified type. Since C# 7.0, is can test constant pattern, including null, constant value, enumeration:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">PatternMatching
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">IsConstantValue(</span><span style="color: blue;">object </span><span style="color: black;">@object)
+    {
+        </span><span style="color: green;">// Type test:
+        </span><span style="color: blue;">bool </span><span style="color: black;">test1 = @object </span><span style="color: blue;">is string</span><span style="color: black;">;
+        </span><span style="color: green;">// Constant pattern test:
+        </span><span style="color: blue;">bool </span><span style="color: black;">test5 = @object </span><span style="color: blue;">is null</span><span style="color: black;">; </span><span style="color: green;">// Compiled to: @object == null
+        </span><span style="color: blue;">bool </span><span style="color: black;">test6 = @object </span><span style="color: blue;">is default</span><span style="color: black;">; </span><span style="color: green;">// Compiled to: @object == null
+        </span><span style="color: blue;">bool </span><span style="color: black;">test2 = @object </span><span style="color: blue;">is int</span><span style="color: black;">.MinValue; </span><span style="color: green;">// Compiled to: object.Equals(int.MinValue, @object)
+        </span><span style="color: blue;">bool </span><span style="color: black;">test3 = @object </span><span style="color: blue;">is </span><span style="color: black;">DayOfWeek.Monday; </span><span style="color: green;">// Compiled to: object.Equals(DayOfWeek.Monday, @object)
+        </span><span style="color: blue;">bool </span><span style="color: black;">test4 = @object </span><span style="color: blue;">is </span><span style="color: #a31515;">"test"</span><span style="color: black;">; </span><span style="color: green;">// Compiled to: object.Equals("test", @object)
+    </span><span style="color: black;">}
+}</span></pre>
+<p>The is expressions for null test is simply compiled to null check. the other cases are compiled to object.Equal static method calls, where the constant value is the first argument, and the tested instance is the second argument. Internally, object.Equals first does a few checks, then it could call the first argument’s Equals instance method:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{</span><span style="color: black;">
+    [Serializable]
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">Object
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static bool </span><span style="color: black;">Equals(</span><span style="color: blue;">object </span><span style="color: black;">objA, </span><span style="color: blue;">object </span><span style="color: black;">objB) =&gt;
+            objA == objB || (objA != </span><span style="color: blue;">null </span><span style="color: black;">&amp;&amp; objB != </span><span style="color: blue;">null </span><span style="color: black;">&amp;&amp; objA.Equals(objB));
+
+        </span><span style="color: blue;">public virtual bool </span><span style="color: black;">Equals(</span><span style="color: blue;">object </span><span style="color: black;">obj) =&gt;
+            RuntimeHelpers.Equals(</span><span style="color: blue;">this</span><span style="color: black;">, obj);
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>The early versions of C# 7.0 compiler takes the tested instance as the first argument of object.Equals call, and the constant value as the second argument. This can have issues. In this way, the generated static object.Equals calls the tested instance’s Equals instance method. Since the tested instance can be any custom type, and its Equals instance method can be overridden with arbitrary custom implementation. In C# 7.0 GA release, this was <a href="https://github.com/dotnet/roslyn/issues/16710">fixed</a> by having the constant value becomes the first argument of object.Equals, so that calling the constant value’s Equals instance method, which has more predictable behavior, could be called.</p>
+<p>The pattern can also be a type, followed by a pattern variable of that type:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">IsReferenceType(</span><span style="color: blue;">object </span><span style="color: black;">@object)
+{
+    </span><span style="color: blue;">if </span><span style="color: black;">(@object </span><span style="color: blue;">is </span><span style="color: #2b91af;">Uri </span><span style="color: black;">uri)
+    {
+        uri.AbsoluteUri.WriteLine();
+    }
+}</span></pre>
+<p>The type in above pattern is a reference type (class), so the is expression is compiled to as type conversion and null check:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledIsReferenceType(</span><span style="color: blue;">object </span><span style="color: black;">@object)
+{
+    </span><span style="color: #2b91af;">Uri </span><span style="color: black;">uri = @object </span><span style="color: blue;">as </span><span style="color: #2b91af;">Uri</span><span style="color: black;">;
+    </span><span style="color: blue;">if </span><span style="color: black;">(uri != </span><span style="color: blue;">null</span><span style="color: black;">)
+    {
+        uri.AbsoluteUri.WriteLine();
+    }
+}</span></pre>
+<p>This syntactic sugar also works for value type:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">IsValueType(</span><span style="color: blue;">object </span><span style="color: black;">@object)
+{
+    </span><span style="color: blue;">if </span><span style="color: black;">(@object </span><span style="color: blue;">is </span><span style="color: #2b91af;">DateTime </span><span style="color: black;">dateTime)
+    {
+        dateTime.ToString(</span><span style="color: #a31515;">"o"</span><span style="color: black;">).WriteLine();
+    }
+}</span></pre>
+<p>The as operator cannot be used for value type. Type cast (ValueType)instance can work, but when the cast fails it throws exception. So pattern matching for value type is compiled to nullable value type conversion with as operator, and HasValue check:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledIsValueType(</span><span style="color: blue;">object </span><span style="color: black;">@object)
+{
+    </span><span style="color: #2b91af;">DateTime</span><span style="color: black;">? nullableDateTime = @object </span><span style="color: blue;">as </span><span style="color: #2b91af;">DateTime</span><span style="color: black;">?;
+    </span><span style="color: #2b91af;">DateTime </span><span style="color: black;">dateTime = nullableDateTime.GetValueOrDefault();
+    </span><span style="color: blue;">if </span><span style="color: black;">(nullableDateTime.HasValue</span><span style="color: black;">)</span><span style="color: green;">
+    </span><span style="color: black;">{
+        dateTime.ToString(</span><span style="color: #a31515;">"o"</span><span style="color: black;">).WriteLine();
+    }
+}</span></pre>
+<p>It is also common to use pattern matching with additional conditions:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">IsWithCondition(</span><span style="color: blue;">object </span><span style="color: black;">@object)
+{
+    </span><span style="color: blue;">if </span><span style="color: black;">(@object </span><span style="color: blue;">is string </span><span style="color: black;">@string &amp;&amp; </span><span style="color: #2b91af;">TimeSpan</span><span style="color: black;">.TryParse(@string, </span><span style="color: blue;">out </span><span style="color: #2b91af;">TimeSpan </span><span style="color: black;">timeSpan))
+    {
+        timeSpan.TotalMilliseconds.WriteLine();
+    }
+}</span></pre>
+<p>After compilation, the condition is additional to the null check:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledIsWithCondition(</span><span style="color: blue;">object </span><span style="color: black;">@object)
+{
+    </span><span style="color: blue;">string </span><span style="color: black;">@string = @object </span><span style="color: blue;">as string</span><span style="color: black;">;
+    </span><span style="color: blue;">if </span><span style="color: black;">(@string != </span><span style="color: blue;">null </span><span style="color: black;">&amp;&amp; </span><span style="color: #2b91af;">TimeSpan</span><span style="color: black;">.TryParse(@string, </span><span style="color: blue;">out </span><span style="color: #2b91af;">TimeSpan </span><span style="color: black;">timeSpan))
+    {
+        timeSpan.TotalMilliseconds.WriteLine();
+    }
+}</span></pre>
+<p>The previously discussed Data type override the Equals method of object:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">Data </span><span style="color: black;">: </span><span style="color: #2b91af;">IEquatable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Data</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">public override bool </span><span style="color: black;">Equals(</span><span style="color: blue;">object </span><span style="color: black;">obj)
+    {
+        </span><span style="color: blue;">return </span><span style="color: black;">obj </span><span style="color: blue;">is </span><span style="color: #2b91af;">Data </span><span style="color: black;">&amp;&amp; </span><span style="color: blue;">this</span><span style="color: black;">.Equals((</span><span style="color: #2b91af;">Data</span><span style="color: black;">)obj);
+    }
+
+    </span><span style="color: blue;">public bool </span><span style="color: black;">Equals(</span><span style="color: #2b91af;">Data </span><span style="color: black;">other) </span><span style="color: green;">// Member of IEquatable&lt;T&gt;.
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">return this</span><span style="color: black;">.value == other.value;
+    }
+}</span></pre>
+<p>With the traditional syntax, the object parameter’s type was detected twice. In .NET Framework, the Code Analysis tool issues warning CA1800 for this: 'obj', a parameter, is cast to type 'Data' multiple times in method 'Data.Equals(object)'. Cache the result of the 'as' operator or direct cast in order to eliminate the redundant castclass instruction. Now with the new syntax, this can be simplified as following without warning:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">Data </span><span style="color: black;">: </span><span style="color: #2b91af;">IEquatable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Data</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">public override bool </span><span style="color: black;">Equals(</span><span style="color: blue;">object </span><span style="color: black;">obj) =&gt;
+        obj </span><span style="color: blue;">is </span><span style="color: #2b91af;">Data </span><span style="color: black;">data &amp;&amp; </span><span style="color: blue;">this</span><span style="color: black;">.Equals(data);
+}</span></pre>
+<p>C# 7.1 supports generics open type in pattern matching:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">OpenType&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt;(</span><span style="color: blue;">object </span><span style="color: black;">@object, T1 open1)
+{
+    </span><span style="color: blue;">if </span><span style="color: black;">(@object </span><span style="color: blue;">is </span><span style="color: black;">T1 open) { }
+    </span><span style="color: blue;">if </span><span style="color: black;">(open1 </span><span style="color: blue;">is </span><span style="color: black;">Uri uri) { }
+    </span><span style="color: blue;">if </span><span style="color: black;">(open1 </span><span style="color: blue;">is </span><span style="color: black;">T2 open2) { }
+}</span></pre>
+<p>The var keyword can be the pattern of any type:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">IsType(</span><span style="color: blue;">object </span><span style="color: black;">@object)
+{
+    </span><span style="color: blue;">if </span><span style="color: black;">(@object </span><span style="color: blue;">is </span><span style="color: #2b91af;">var </span><span style="color: black;">match)
+    {
+        </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(@object, match).WriteLine();
+    }
+}</span></pre>
+<p>Since the var pattern matching always works, it is compiled to true in debug build:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledIsAnyType(</span><span style="color: blue;">object </span><span style="color: black;">@object)
+{
+    </span><span style="color: blue;">object </span><span style="color: black;">match = @object;
+    </span><span style="color: blue;">if </span><span style="color: black;">(</span><span style="color: blue;">true</span><span style="color: black;">)
+    {
+        </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(@object, match).WriteLine();
+    }
+}</span></pre>
+<p>In release build, the above if (true) test is simply removed.</p>
+<h1>Pattern matching with switch statement</h1>
+<p>Before C# 7.0, the switch statement only supports string, integral types (like bool, byte, char, int, long, etc.), and enumeration; and the case label only supports constant value. Since C# 7.0, switch supports any type and case label supports pattern matching for either constant value or type. The additional condition for the pattern matching can be specified with a when clause. The following example tries to convert object to DateTime:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">DateTime </span><span style="color: black;">ToDateTime(</span><span style="color: blue;">object </span><span style="color: black;">@object)
+{
+    </span><span style="color: blue;">switch </span><span style="color: black;">(@object)
+    {
+        </span><span style="color: green;">// Match constant @object.
+        </span><span style="color: blue;">case null</span><span style="color: black;">:
+            </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentNullException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(@object));
+        </span><span style="color: green;">// Match value type.
+        </span><span style="color: blue;">case </span><span style="color: #2b91af;">DateTime </span><span style="color: black;">dateTIme:
+            </span><span style="color: blue;">return </span><span style="color: black;">dateTIme;
+        </span><span style="color: green;">// Match value type with condition.
+        </span><span style="color: blue;">case long </span><span style="color: black;">ticks </span><span style="color: blue;">when </span><span style="color: black;">ticks &gt;= 0:
+            </span><span style="color: blue;">return new </span><span style="color: #2b91af;">DateTime</span><span style="color: black;">(ticks);
+        </span><span style="color: green;">// Match reference type with condition.
+        </span><span style="color: blue;">case string </span><span style="color: black;">@string </span><span style="color: blue;">when </span><span style="color: #2b91af;">DateTime</span><span style="color: black;">.TryParse(@string, </span><span style="color: blue;">out </span><span style="color: #2b91af;">DateTime </span><span style="color: black;">dateTime):
+            </span><span style="color: blue;">return </span><span style="color: black;">dateTime;
+        </span><span style="color: green;">// Match reference type with condition.
+        </span><span style="color: blue;">case int</span><span style="color: black;">[] date </span><span style="color: blue;">when </span><span style="color: black;">date.Length == 3 &amp;&amp; date[0] &gt; 0 &amp;&amp; date[1] &gt; 0 &amp;&amp; date[2] &gt; 0:
+            </span><span style="color: blue;">return new </span><span style="color: #2b91af;">DateTime</span><span style="color: black;">(year: date[0], month: date[1], day: date[2]);
+        </span><span style="color: green;">// Match reference type.
+        </span><span style="color: blue;">case </span><span style="color: #2b91af;">IConvertible </span><span style="color: black;">convertible:
+            </span><span style="color: blue;">return </span><span style="color: black;">convertible.ToDateTime(provider: </span><span style="color: blue;">null</span><span style="color: black;">);
+        </span><span style="color: blue;">case </span><span style="color: #2b91af;">var </span><span style="color: blue;">_</span><span style="color: black;">: </span><span style="color: green;">// default:
+            </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(@object));
+    }
+}</span></pre>
+<p>The last section with with any type pattern is equivalent to the default section, because it always matches. Each pattern matching is compiled in the similar ways as is expression:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">DateTime </span><span style="color: black;">CompiledToDateTime(</span><span style="color: blue;">object </span><span style="color: black;">@object)
+{
+    </span><span style="color: green;">// case null:
+    </span><span style="color: blue;">if </span><span style="color: black;">(@object == </span><span style="color: blue;">null</span><span style="color: black;">)
+    {
+        </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentNullException</span><span style="color: black;">(</span><span style="color: #a31515;">"@object"</span><span style="color: black;">);
+    }
+
+    </span><span style="color: green;">// case DateTime dateTIme:
+    </span><span style="color: #2b91af;">DateTime</span><span style="color: black;">? nullableDateTime = @object </span><span style="color: blue;">as </span><span style="color: #2b91af;">DateTime</span><span style="color: black;">?;
+    </span><span style="color: #2b91af;">DateTime </span><span style="color: black;">dateTime = nullableDateTime.GetValueOrDefault();
+    </span><span style="color: blue;">if </span><span style="color: black;">(nullableDateTime.HasValue)
+    {
+        </span><span style="color: blue;">return </span><span style="color: black;">dateTime;
+    }
+
+    </span><span style="color: green;">// case long ticks
+    </span><span style="color: blue;">long</span><span style="color: black;">? nullableInt64 = @object </span><span style="color: blue;">as long</span><span style="color: black;">?;
+    </span><span style="color: blue;">long </span><span style="color: black;">ticks = nullableInt64.GetValueOrDefault();
+    </span><span style="color: green;">// when ticks &gt;= 0:
+    </span><span style="color: blue;">if </span><span style="color: black;">(nullableInt64.HasValue &amp;&amp; ticks &gt;= 0L)
+    {
+        </span><span style="color: blue;">return new </span><span style="color: #2b91af;">DateTime</span><span style="color: black;">(ticks);
+    }
+
+    </span><span style="color: green;">// case string text
+    </span><span style="color: blue;">string </span><span style="color: black;">@string = @object </span><span style="color: blue;">as string</span><span style="color: black;">;
+    </span><span style="color: green;">// when DateTime.TryParse(text, out DateTime dateTime):
+    </span><span style="color: blue;">if </span><span style="color: black;">(@string != </span><span style="color: blue;">null </span><span style="color: black;">&amp;&amp; </span><span style="color: #2b91af;">DateTime</span><span style="color: black;">.TryParse(@string, </span><span style="color: blue;">out </span><span style="color: #2b91af;">DateTime </span><span style="color: black;">parsedDateTime))
+    {
+        </span><span style="color: blue;">return </span><span style="color: black;">parsedDateTime;
+    }
+
+    </span><span style="color: green;">// case int[] date
+    </span><span style="color: blue;">int</span><span style="color: black;">[] date = @object </span><span style="color: blue;">as int</span><span style="color: black;">[];
+    </span><span style="color: green;">// when date.Length == 3 &amp;&amp; date[0] &gt;= 0 &amp;&amp; date[1] &gt;= 0 &amp;&amp; date[2] &gt;= 0:
+    </span><span style="color: blue;">if </span><span style="color: black;">(date != </span><span style="color: blue;">null </span><span style="color: black;">&amp;&amp; date.Length == 3 &amp;&amp; date[0] &gt;= 0 &amp;&amp; date[1] &gt;= 0 &amp;&amp; date[2] &gt;= 0)
+    {
+        </span><span style="color: blue;">return new </span><span style="color: #2b91af;">DateTime</span><span style="color: black;">(date[0], date[1], date[2]);
+    }
+
+    </span><span style="color: green;">// case IConvertible convertible:
+    </span><span style="color: #2b91af;">IConvertible </span><span style="color: black;">convertible = @object </span><span style="color: blue;">as </span><span style="color: #2b91af;">IConvertible</span><span style="color: black;">;
+    </span><span style="color: blue;">if </span><span style="color: black;">(convertible != </span><span style="color: blue;">null</span><span style="color: black;">)
+    {
+        </span><span style="color: blue;">return </span><span style="color: black;">convertible.ToDateTime(</span><span style="color: blue;">null</span><span style="color: black;">);
+    }
+
+    </span><span style="color: green;">// case var _:
+    // or
+    // default:
+    </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(</span><span style="color: #a31515;">"@object"</span><span style="color: black;">);
+}</span>
+
+
+</div>
+</body>
+</html>

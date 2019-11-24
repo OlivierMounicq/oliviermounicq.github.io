@@ -1,0 +1,308 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+<h1>Lambda Calculus via C# (7) Fixed Point Combinator and Recursion</h1>
+
+<p>p is the <a href="http://en.wikipedia.org/wiki/Fixed_point_(mathematics)" target="_blank">fixed point</a> (aka invariant point) of function f <a href="http://en.wikipedia.org/wiki/If_and_only_if" target="_blank">if and only if</a>:</p>
+<pre class="code">  <span style="color: black;">p
+≡ f p</span></pre>
+<p>Take function Math.Sqrt as example, it has 2 fix point, 0 and 1, so that 0 ≡ Math.Sqrt(0) and 1 ≡ Math.Sqrt(1).</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Lambda-Calculus-via-C-7-Fixed-Point-Comb_DA7/FixedPoint.fw_thumb2_thumb_2.png"><img title="FixedPoint.fw_thumb2_thumb" style="border: 0px currentcolor; display: inline; background-image: none;" alt="FixedPoint.fw_thumb2_thumb" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Lambda-Calculus-via-C-7-Fixed-Point-Comb_DA7/FixedPoint.fw_thumb2_thumb_thumb.png" width="600" height="600" border="0"></a></p>
+<p>The above fixed point definition also leads to infinite substitution:</p>
+<pre class="code">  <span style="color: black;">p
+≡ f p
+≡ f (f p)
+≡ f (f (f p))
+≡ ...
+≡ f (f (f ... (f p) ...))</span></pre>
+<p>Similarly, the <a href="http://en.wikipedia.org/wiki/Fixed_point_combinator" target="_blank">fixed point combinator</a> Y is defined as if Y f is the fixed point of f:</p>
+<pre class="code">  <span style="color: black;">(Y f)
+≡ f (Y f)
+</span></pre>
+<h1>Normal order fixed point combinator (Y combinator) and recursion</h1>
+<p>The following <a href="http://en.wikipedia.org/wiki/Fixed-point_combinator#Fixed_point_combinators_in_lambda_calculus" target="_blank">Y combinator</a> is an implementation of fixed point combinator, discovered by Haskell Curry:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">Y := λf.(λg.f (g g)) (λg.f (g g))</span></pre>
+<p>It is called the normal order fixed point combinator:</p>
+<pre class="code">  <span style="color: black;">Y f
+≡ (λf.(λg.f (g g)) (λg.f (g g))) f
+≡ (λg.f (g g)) (λg.f (g g))
+≡ f ((λg.f (g g)) (λg.f (g g)))
+≡ f (Y f)</span></pre>
+<p><a href="http://matt.might.net/articles/compiling-up-to-lambda-calculus/"><img title="y_combinator" style="border-width: 0px; padding-top: 0px; padding-right: 0px; padding-left: 0px; display: inline; background-image: none;" alt="y_combinator" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/3c3b4cb86227_12489/y_combinator_1.jpg" width="640" height="480" border="0"></a></p>
+<p>The following is Y implemented in SKI:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">Y := S (K (S I I)) (S (S (K S) K) (K (S I I)))</span></pre>
+<p>And just in SK:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">Y := S S K (S (K (S S (S (S S K)))) K)</span></pre>
+<p>When Y f can also be substituted infinitely:</p>
+<pre class="code">  <span style="color: black;">(Y f)
+≡ f (Y f)
+≡ f (f (Y f))
+≡ f (f (f (Y f)))
+≡ ...
+≡ f (f (f ... (f (Y f)) ...))</span></pre>
+<p><a href="http://en.wikipedia.org/wiki/Knights_of_the_Lambda_Calculus" target="_blank"><img title="390px-Knights_of_the_Lambda_Calculus.svg" style="border-width: 0px; padding-top: 0px; padding-right: 0px; padding-left: 0px; display: inline; background-image: none;" alt="390px-Knights_of_the_Lambda_Calculus.svg" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/3c3b4cb86227_12489/390px-Knights_of_the_Lambda_Calculus.svg_3.png" width="390" height="390" border="0"></a></p>
+<p>So Y can be used to implement <a href="http://en.wikipedia.org/wiki/Recursion_(computer_science)" target="_blank">recursion</a>. As fore mentioned, in lambda calculus, a function cannot directly apply it self in its body. Take the factorial function as example, the factorial of n is defined recursively:</p>
+<ul>
+<li>If n is greater than 0, then factorial of n is the multiplication of n and factorial of n – 1</li>
+<li>if n is 0, then factorial of n is 1</li>
+</ul>
+<p>So naturally:</p>
+<pre class="code"><span style="color: black;">Factorial := λn.If (n == 0) (λx.1) (λx.n * (Factorial (n - 1)))</span></pre>
+<p>However, in lambda calculus the above definition is illegal, because the self reference does not work anonymously:</p>
+<pre class="code"><span style="color: black;">λn.If (n == 0) (λx.1) (λx.n * (? (n - 1)))</span></pre>
+<p>Now with the power of Y combinator, the recursion can be implemented, but still in the anonymous way. First, in above definition, just pass the reference of itself as an variable/argument:</p>
+<pre class="code"><span style="color: black;">λf.λn.If (n == 0) (λx.1) (λx.n * (f (n - 1)))</span></pre>
+<p>If the above function is called FactorialHelper, then the Factorial function can be implemented as:</p>
+<pre class="code"><span style="color: black;">FactorialHelper := λf.λn.If (n == 0) (λx.1) (λx.n * (f (n - 1)))
+Factorial := Y FactorialHelper</span></pre>
+<p>So the recursive Factorial is implemented anonymously:</p>
+<pre class="code">  <span style="color: black;">Factorial
+≡ Y FactorialHelper
+≡ (λf.(λg.f (g g)) (λg.f (g g))) FactorialHelper
+≡ (λf.(λg.f (g g)) (λg.f (g g))) (λf.λn.If (n == 0) (λx.1) (λx.n * (f (n - 1))))</span></pre>
+<p>When Factorial is applied, according to the definition of Factorial and Y:</p>
+<pre class="code">  <span style="color: black;">Factorial 3
+≡ Y FactorialHelper 3
+≡ FactorialHelper (Y FactorialHelper) 3</span></pre>
+<p>Here (Y FactorialHelper) can be substituted by Factorial, according to the definition. So FactorialHelper is called with Factorial and n, exactly as expected.</p>
+<p>The normal order Y combinator does not work with applicative order reduction. In applicative order, here FactorialHelper is applied with (Y FactorialHelper), so the right most argument Y FactorialHelper should be reduced first, which leads to infinite reduction:</p>
+<pre class="code">  <span style="color: black;">FactorialHelper (Y FactorialHelper) 3
+≡ FactorialHelper (FactorialHelper (Y FactorialHelper)) 3
+≡ FactorialHelper (FactorialHelper (FactorialHelper (Y FactorialHelper))) 3
+≡ ...</span></pre>
+<p>The normal order Y combinator only works with normal order. In normal order, here FactorialHelper is applied with (Y FactorialHelper), so the left most function FactorialHelper should be reduced first:</p>
+<pre class="code">  <span style="color: black;">FactorialHelper (Y FactorialHelper) 3
+≡ (λf.λn.If (n == 0) (λx.1) (λx.n * (f (n - 1)))) (Y FactorialHelper) 3
+≡ (λn.If (n == 0) (λx.1) (λx.n * (Y FactorialHelper (n - 1)))) 3
+≡ If (3 == 0) (λx.1) (λx.3 * (Y FactorialHelper (3 - 1)))
+≡ If (False) (λx.1) (λx.3 * (Y FactorialHelper (3 - 1))
+≡ 3 * (Y FactorialHelper (3 - 1))
+≡ 3 * (FactorialHelper (Y FactorialHelper) (3 - 1))
+≡ 3 * ((λf.λn.If (n == 0) (λx.1) (λx.n * (f (n - 1)))) (Y FactorialHelper) (3 - 1))
+≡ 3 * ((λn.If (n == 0) (λx.1) (λx.n * (Y FactorialHelper (n - 1)))) (3 - 1))
+≡ 3 * (If ((3 - 1) == 0) (λx.1) (λx.(3 - 1) * (Y FactorialHelper ((3 - 1) - 1))))
+≡ 3 * ((3 - 1) * (Y FactorialHelper ((3 - 1) - 1)))
+≡ 3 * (2 * (Y FactorialHelper ((3 - 1) - 1)))
+≡ 3 * (2 * (FactorialHelper (Y FactorialHelper) ((3 - 1) - 1)))
+≡ 3 * (2 * ((λf.λn.If (n == 0) (λx.1) (λx.n * (f (n - 1)))) (Y FactorialHelper) ((3 - 1) - 1)))
+≡ 3 * (2 * ((λn.If (n == 0) (λx.1) (λx.n * (Y FactorialHelper (n - 1)))) ((3 - 1) - 1)))
+≡ 3 * (2 * (If (((3 - 1) - 1) == 0) (λx.1) (λx.((3 - 1) - 1) * (Y FactorialHelper (((3 - 1) - 1) - 1)))))
+≡ 3 * (2 * (((3 - 1) - 1) * (Y FactorialHelper (((3 - 1) - 1) - 1))))
+≡ 3 * (2 * (1 * (Y FactorialHelper (((3 - 1) - 1) - 1))))
+≡ 3 * (2 * (1 * (FactorialHelper (Y FactorialHelper) (((3 - 1) - 1) - 1))))
+≡ 3 * (2 * (1 * ((f.λn.If (n == 0) (λx.1) (λx.n * (f (n - 1)))) (Y FactorialHelper) (((3 - 1) - 1) - 1))))
+≡ 3 * (2 * (1 * ((n.If (n == 0) (λx.1) (λx.n * (Y FactorialHelper (n - 1)))) (((3 - 1) - 1) - 1))))
+≡ 3 * (2 * (1 * (If ((((3 - 1) - 1) - 1) == 0) (λx.1) (λx.(((3 - 1) - 1) - 1) * (Y FactorialHelper ((((3 - 1) - 1) - 1) - 1))))))
+≡ 3 * (2 * (1 * 1))</span></pre>
+<p>So the Y f infinite reduction is blocked in in normal order reduction. First, Y f is reduced to f (Y f), then the next reduction is to reduce leftmost expression f, not the the rightmost (Y f). In the above example Y FactorialHelper n:</p>
+<ul>
+<li>If n is greater than 0, Y Factorial n is reduced to n * (Y Factorial (n - 1)), where Y Factorial can be further reduced, so the recursion continues.</li>
+<li>If n is 0, Y Factorial n is reduced to 1. The reduction ends, so the recursion terminates.</li>
+</ul>
+<p>Y combinator is easy to implement in C#. Generally, for a recursive function f of type T -&gt; TResult, its helper function accepts the T -&gt; TResult function and a T value, then return TResult, so its helper function is of type (T -&gt; TResult) –&gt; T -&gt; TResult. Y can be viewed as accepting helper function and returns f. so Y is of type ((T -&gt; TResult) –&gt; T -&gt; TResult) -&gt; (T -&gt; TResult). So:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">FixedPointCombinators</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;
+{
+    </span><span style="color: green;">// Y = (g =&gt; f(g(g)))(g =&gt; f(g(g)))
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt;, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt;
+        Y = f =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">SelfApplicableFunc</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt;(g =&gt; f(g(g)))(g =&gt; f(g(g)));
+}</span></pre>
+<p>Here are the types of the elements in above lambda expression:</p>
+<ul>
+<li>g: SelfApplicableFunc&lt;T -&gt; TResult&gt;</li>
+<li>g(g): T -&gt; TResult</li>
+<li>f: (T -&gt; TResult) –&gt; T -&gt; TResult</li>
+<li>f(g(g)): T =&gt; TResult</li>
+<li>g =&gt; f(g(g)): SelfApplicableFunc&lt;T -&gt; TResult&gt; –&gt; T -&gt; TResult, which is SelfApplicableFunc&lt;T -&gt; TResult&gt; by definition</li>
+<li>(g =&gt; f(g(g)))(g =&gt; f(g(g))): T -&gt; TResult</li>
+</ul>
+<p>For Factorial, apparently it is of function type Numeral -&gt; Numeral, so FactorialHelper is of function type (Numeral -&gt; Numeral) –&gt; Numeral -&gt; Numeral:</p>
+<pre class="code"><span style="color: blue;">using static </span><span style="color: #2b91af;">FixedPointCombinators</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;;
+</span><span style="color: black;">
+</span><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ChurchNumeral
+</span><span style="color: black;">{
+    </span><span style="color: green;">// FactorialHelper = factorial =&gt; n =&gt; If(n == 0)(_ =&gt; 1)(_ =&gt; n * factorial(n - 1))
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;&gt;
+        FactorialHelper = factorial =&gt; n =&gt;
+            If(n.IsZero())
+                (_ =&gt; One)
+                (_ =&gt; n.Multiply(factorial(n.Subtract(One))));
+
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;
+        Factorial = Y(FactorialHelper);
+}</span></pre>
+<p>Calling above Factorial always throws StackOverflowException, because in C# executes in applicative order. When Factorial is called, it calls normal order Y in applicative order, which causes infinite execution.</p>
+<h1>Applicative order fixed point combinator (Z combinator) and recursion</h1>
+<p>The above Y combinator does not work in C#. When reducing Y f in applicative order, the self application in expression f (g g) leads to infinite reduction, which need to be blocked. The solution is to eta convert f (g g) to λx.f (g g) x. So the applicative order fixed point combinator is:</p>
+<pre class="code"><span style="color: black;">Z := λf.(λg.λx.f (g g) x) (λg.λx.f (g g) x)</span></pre>
+<p>It is called Z combinator. Now reduce Z f in applicative order:</p>
+<pre class="code">  <span style="color: black;">Z f
+≡ (λf.(λg.λx.f (g g) x) (λg.λx.f (g g) x)) f
+≡ (λg.λx.f (g g) x) (λg.λx.f (g g) x)
+≡ λx.f ((λg.λx.f (g g) x) (λg.λx.f (g g) x)) x
+≡ λx.f (Z f) x</span></pre>
+<p>This time Z f is not reduced to f (Z f), but reduced to the eta expanded version λx.f (Z f) x, so any further reduction is blocked. Still take factorial as example:</p>
+<pre class="code">  <span style="color: black;">Factorial 3
+≡ Z FactorialHelper 3
+≡ (λx.FactorialHelper (Z FactorialHelper) x) 3
+≡ FactorialHelper (Z FactorialHelper) 3
+≡ FactorialHelper (λx.FactorialHelper (Z FactorialHelper) x) 3
+≡ (λf.λn.If (n == 0) (λx.1) (λx.n * (f (n - 1)))) (λx.FactorialHelper (Z FactorialHelper) x) 3
+≡ (λn.If (n == 0) (λx.1) (λx.n * ((λx.FactorialHelper (Z FactorialHelper) x) (n - 1)))) 3
+≡ If (3 == 0) (λx.1) (λx.3 * ((λx.FactorialHelper (Z FactorialHelper) x) (3 - 1)))
+≡ If (False) (λx.1) (λx.3 * ((λx.FactorialHelper (Z FactorialHelper) x) (3 - 1)))
+≡ 3 * ((λx.FactorialHelper (Z FactorialHelper) x) (3 - 1))
+≡ 3 * ((λx.FactorialHelper (Z FactorialHelper) x) 2)
+≡ 3 * (FactorialHelper (Z FactorialHelper) 2)
+≡ 3 * (FactorialHelper (λx.FactorialHelper (Z FactorialHelper) x) 2)
+≡ 3 * ((λf.λn.If (n == 0) (λx.1) (λx.n * (f (n - 1)))) (λx.FactorialHelper (Z FactorialHelper) x) 2)
+≡ 3 * ((λn.If (n == 0) (λx.1) (λx.n * ((λx.FactorialHelper (Z FactorialHelper) x) (n - 1)))) 2)
+≡ 3 * (If (2 == 0) (λx.1) (λx.2 * ((λx.FactorialHelper (Z FactorialHelper) x) (2 - 1))))
+≡ 3 * (If (False) (λx.1) (λx.2 * ((λx.FactorialHelper (Z FactorialHelper) x) (2 - 1))))
+≡ 3 * (2 * ((λx.FactorialHelper (Z FactorialHelper) x) (2 - 1)))
+≡ 3 * (2 * ((λx.FactorialHelper (Z FactorialHelper) x) 1))
+≡ 3 * (2 * (FactorialHelper (Z FactorialHelper) 1))
+≡ 3 * (2 * (FactorialHelper (λx.FactorialHelper (Z FactorialHelper) x) 1))
+≡ 3 * (2 * ((λf.λn.If (n == 0) (λx.1) (λx.n * (f (n - 1)))) (λx.FactorialHelper (Z FactorialHelper) x) 1))
+≡ 3 * (2 * ((λn.If (n == 0) (λx.1) (λx.n * ((λx.FactorialHelper (Z FactorialHelper) x) (n - 1)))) 1))
+≡ 3 * (2 * (If (1 == 0) (λx.1) (λx.1 * ((λx.FactorialHelper (Z FactorialHelper) x) (1 - 1)))))
+≡ 3 * (2 * (If (False) (λx.1) (λx.1 * ((λx.FactorialHelper (Z FactorialHelper) x) (1 - 1)))))
+≡ 3 * (2 * (1 * ((λx.FactorialHelper (Z FactorialHelper) x) (1 - 1))))
+≡ 3 * (2 * (1 * ((λx.FactorialHelper (Z FactorialHelper) x) 0)))
+≡ 3 * (2 * (1 * (FactorialHelper (Z FactorialHelper) 0)))
+≡ 3 * (2 * (1 * (FactorialHelper (λx.FactorialHelper (Z FactorialHelper) x) 0)))
+≡ 3 * (2 * (1 * ((λf.λn.If (n == 0) (λx.1) (λx.n * (f (n - 1)))) (λx.FactorialHelper (Z FactorialHelper) x) 0)))
+≡ 3 * (2 * (1 * ((λn.If (n == 0) (λx.1) (λx.n * ((λx.FactorialHelper (Z FactorialHelper) x) (n - 1)))) 0)))
+≡ 3 * (2 * (1 * (If (0 == 0) (λx.1) (λx.0 * ((λx.FactorialHelper (Z FactorialHelper) x) (n - 1))))))
+≡ 3 * (2 * (1 * (If (True) (λx.1) (λx.0 * ((λx.FactorialHelper (Z FactorialHelper) x) (n - 1))))))
+≡ 3 * (2 * (1 * 1))</span></pre>
+<p>In C#, Z combinator can be implemented in the same pattern. Just eta expand f(g(g)) to x =&gt; f(g(g))(x):</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">FixedPointCombinators</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;
+{
+    </span><span style="color: green;">// Z = (g =&gt; x =&gt; f(g(g))(x))(g =&gt; x =&gt; f(g(g))(x))
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt;, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt;
+        Z = f =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">SelfApplicableFunc</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt;(g =&gt; x =&gt; f(g(g))(x))(g =&gt; x =&gt; f(g(g))(x));
+}</span></pre>
+<p>The types of the elements in above lambda expression are the same as in Y combinator, and x is of type T.</p>
+<p>Now Factorial can be defined with Z and above FactorialHelper:</p>
+<pre class="code"><span style="color: blue;">using static </span><span style="color: #2b91af;">ChurchBoolean</span><span style="color: black;">;
+</span><span style="color: blue;">using static </span><span style="color: #2b91af;">FixedPointCombinators</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, System.</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;&gt;;
+
+</span><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ChurchNumeral
+</span><span style="color: black;">{
+    </span><span style="color: green;">// DivideByHelper = divideBy =&gt; dividend =&gt; divisor =&gt; If(dividend &gt;= divisor)(_ =&gt; 1 + divideBy(dividend - divisor)(divisor))(_ =&gt; 0)
+    </span><span style="color: blue;">private static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;&gt;, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;&gt;&gt; DivideByHelper = divideBy =&gt; dividend =&gt; divisor =&gt;
+            If(dividend.IsGreaterThanOrEqualTo(divisor))
+                (_ =&gt; One.Add(divideBy(dividend.Subtract(divisor))(divisor)))
+                (_ =&gt; Zero);
+
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;&gt;
+        DivideBy = Z(DivideByHelper);
+}</span></pre>
+<p>Another recursion example is <a href="http://en.wikipedia.org/wiki/Fibonacci_number" target="_blank">Fibonacci</a> number. The nth Fibonacci number is defined recursively:</p>
+<ul>
+<li>if n is greater than 1, then the nth Fibonacci number is the sum of the (n -1)th Fibonacci number and the (n -2)th Fibonacci number.</li>
+<li>if n is 1 or 0, then the nth Fibonacci number is n</li>
+</ul>
+<p>So naturally:</p>
+<pre class="code"><span style="color: black;">Fibonacci := λn.If (n &gt; 1) (λx.(Fibonacci (n - 1)) + (Fibonacci (n - 2))) (λx.n)</span></pre>
+<p>Again, the above recursive definition is illegal in lambda calculus, because the self reference does not work anonymously:</p>
+<pre class="code"><span style="color: black;">λn.If (n &gt; 1) (λx.(? (n - 1)) + (? (n - 2))) (λx.n)</span></pre>
+<p>Following the same helper function pattern as FactorialHelper, a FibonacciHelper can be defined to pass the Fibonacci function as a variable/argument, then Fibonacci can be defined with Z and FibonacciHelper:</p>
+<pre class="code"><span style="color: black;">FibonacciHelper := λf.λn.If (n &gt; 1) (λx.(f (n - 1)) + (f (n - 2))) (λx.n)
+Fibonacci := Z FibonacciHelper</span></pre>
+<p>Now Fibonacci is recursive but still can go anonymous, without any self reference:</p>
+<pre class="code">  <span style="color: black;">Fibonacci
+≡ Z FibonacciHelper
+≡ (λf.(λg.λx.f (g g) x) (λg.λx.f (g g) x)) FibonacciHelper
+≡ (λf.(λg.λx.f (g g) x) (λg.λx.f (g g) x)) (λf.λn.If (n &gt; 1) (λx.(f (n - 1)) + (f (n - 2))) (λx.n))</span></pre>
+<p>In C#:</p>
+<pre class="code"><span style="color: green;">// FibonacciHelper  = fibonacci  =&gt; n =&gt; If(n &gt; 1)(_ =&gt; fibonacci(n - 1) + fibonacci(n - 2))(_ =&gt; n)
+</span><span style="color: blue;">private static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;&gt;
+    FibonacciHelper = fibonacci =&gt; n =&gt;
+        If(n.IsGreaterThan(One))
+            (_ =&gt; fibonacci(n.Subtract(One)).Add(fibonacci(n.Subtract(Two))))
+            (_ =&gt; n);
+
+</span><span style="color: green;">// Fibonacci = Z(FibonacciHelper)
+</span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;
+    Fibonacci = Z(FibonacciHelper);</span></pre>
+<p>Previously, in the <a href="http://weblogs.asp.net/dixin/lambda-calculus-via-c-sharp-11-predicates-and-divide">Church numeral arithmetic</a>, the following illegal DivideBy with self reference was temporarily used:</p>
+<pre class="code"><span style="color: black;">DivideBy := λa.λb.If (a &gt;= b) (λx.1 + (DivideBy (a - b) b)) (λx.0)</span></pre>
+<p>Finally, with Z, an legal DivideBy in lambda calculus can be defined, following the same helper function pattern:</p>
+<pre class="code"><span style="color: black;">DivideByHelper := λf.λa.λb.If (a &gt;= b) (λx.1 + (f (a - b) b)) (λx.0)
+DivideBy := Z DivideByHelper</span></pre>
+<p>The following is the formal version of DivideBy:</p>
+<pre class="code">  <span style="color: black;">DivideBy
+≡ Z DivideByHelper
+≡ (λf.(λg.λx.f (g g) x) (λg.λx.f (g g) x)) DivideByHelper
+≡ (λf.(λg.λx.f (g g) x) (λg.λx.f (g g) x)) (λf.λa.λb.If (a &gt;= b) (λx.1 + (f (a - b) b)) (λx.0))</span></pre>
+<p>In C#:</p>
+<pre class="code"><span style="color: green;">// DivideByHelper = divideBy =&gt; dividend =&gt; divisor =&gt; If(dividend &gt;= divisor)(_ =&gt; 1 + divideBy(dividend - divisor)(divisor))(_ =&gt; 0)
+</span><span style="color: blue;">private static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;&gt;, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;&gt;&gt;
+    DivideByHelper = divideBy =&gt; dividend =&gt; divisor =&gt;
+        If(dividend.IsGreaterThanOrEqualTo(divisor))
+            (_ =&gt; One.Add(divideBy(dividend.Subtract(divisor))(divisor)))
+            (_ =&gt; Zero);
+
+</span><span style="color: green;">// DivideBy = Z(DivideByHelper)
+</span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;&gt;
+    DivideBy = Z(DivideByHelper);</span></pre>
+<p>The following are a few examples</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">NumeralExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">Factorial(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">n) =&gt; </span><span style="color: #2b91af;">ChurchNumeral</span><span style="color: black;">.Factorial(n);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">Fibonacci(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">n) =&gt; </span><span style="color: #2b91af;">ChurchNumeral</span><span style="color: black;">.Fibonacci(n);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">DivideBy(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">dividend, </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">divisor) =&gt;
+        </span><span style="color: #2b91af;">ChurchNumeral</span><span style="color: black;">.DivideBy(dividend)(divisor);
+}
+
+[</span><span style="color: #2b91af;">TestClass</span><span style="color: black;">]
+</span><span style="color: blue;">public partial class </span><span style="color: #2b91af;">FixedPointCombinatorTests
+</span><span style="color: black;">{
+    [</span><span style="color: #2b91af;">TestMethod</span><span style="color: black;">]
+    </span><span style="color: blue;">public void </span><span style="color: black;">FactorialTest()
+    {
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">uint</span><span style="color: black;">, </span><span style="color: blue;">uint</span><span style="color: black;">&gt; factorial = </span><span style="color: blue;">null</span><span style="color: black;">; </span><span style="color: green;">// Must have to be compiled.
+        </span><span style="color: black;">factorial = x =&gt; x == 0 ? 1U : x * factorial(x - 1U);
+
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(factorial(0U), 0U.Church().Factorial().Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(factorial(1U), 1U.Church().Factorial().Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(factorial(2U), 2U.Church().Factorial().Unchurch());</span><span style="color: black;">
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(factorial(8U), 8U.Church().Factorial().Unchurch());
+    }
+
+    [</span><span style="color: #2b91af;">TestMethod</span><span style="color: black;">]
+    </span><span style="color: blue;">public void </span><span style="color: black;">FibonacciTest()
+    {
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">uint</span><span style="color: black;">, </span><span style="color: blue;">uint</span><span style="color: black;">&gt; fibonacci = </span><span style="color: blue;">null</span><span style="color: black;">; </span><span style="color: green;">// Must have. So that fibonacci can recursively refer itself.
+        </span><span style="color: black;">fibonacci = x =&gt; x &gt; 1U ? fibonacci(x - 1) + fibonacci(x - 2) : x;
+
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(fibonacci(0U), 0U.Church().Fibonacci().Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(fibonacci(1U), 1U.Church().Fibonacci().Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(fibonacci(2U), 2U.Church().Fibonacci().Unchurch());</span><span style="color: black;">
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(fibonacci(8U), 8U.Church().Fibonacci().Unchurch());
+    }
+
+    [</span><span style="color: #2b91af;">TestMethod</span><span style="color: black;">]
+    </span><span style="color: blue;">public void </span><span style="color: black;">DivideByTest()
+    {
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(1U / 1U, 1U.Church().DivideBy(1U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(1U / 2U, 1U.Church().DivideBy(2U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(2U / 2U, 2U.Church().DivideBy(2U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(2U / 1U, 2U.Church().DivideBy(1U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(8U / 3U, 8U.Church().DivideBy(3U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(3U / 8U, 3U.Church().DivideBy(8U.Church()).Unchurch());
+    }
+}</span>
+
+
+
+</div>
+</body>
+</html>

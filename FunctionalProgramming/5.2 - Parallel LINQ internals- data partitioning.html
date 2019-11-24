@@ -1,0 +1,224 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+
+<h1>Parallel LINQ (2) Partitioning</h1>
+
+
+<p>The first step of Parallel LINQ is partitioning. The source values is split into several partitions, so that multiple threads can execute the query logic in parallel.</p>
+<h1>Partitioning algorithms and load balancing</h1>
+<p>In Parallel LINQ, there are 4 kinds of partitioning algorithms – range partitioning, chunk partitioning, strip partitioning, and hash partitioning.</p>
+<h2>Range partitioning</h2>
+<p>Range partitioning works with indexed source sequence has known length, like T[] arrays with a Length property, and IList&lt;T&gt; lists with a Count property. Assume on a quad core CPU, if there are 12 values in the source, by default Parallel LINQ splits these 12 values (at indexes 0, 1, 2, …, 11) into 4 partition A, B, C, D:</p>
+<pre class="code"><span style="color: black;">Index:     0  1  2  3  4  5  6  7  8  9 10 11
+Partition: A  A  A, B  B  B, C  C  C, D  D  D</span></pre>
+<p>If there are 13 source values, their are partitioned as: AAAA, BBB, CCC, DDD; 14 values are partitioned as AAAA, BBBB, CCC, DDD; 15 values are partitioned as AAAA, BBBB, CCCC, DDD; 16 values are partitioned as AAAA, BBBB, CCCC, DDDD; and so on.</p>
+<p>With the Visualize and ComputingWorkload methods defined previously, the following code can visualize how an array is partitioned by range of index:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Partitioning
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Range()
+    {
+        </span><span style="color: blue;">int</span><span style="color: black;">[] array = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 4).ToArray();
+        array.AsParallel().Visualize(value =&gt; <span style="color: blue;"></span><span style="color: black;">ComputingWorkload</span>(value), </span><span style="color: blue;">nameof</span><span style="color: black;">(Range));
+    }
+}</span></pre>
+<blockquote>
+<p>Execute this method with Concurrency Visualizer for Visual Studio, the following chart is generated:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-2-Partitioning_139D3/image_4.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-2-Partitioning_139D3/image_thumb_1.png" width="800" height="600" border="0"></a></p>
+<p>Here the timespan of value 12 is longer than the timespan of 15, because CPU was fully used at the beginning. Regarding there are also other processes and thread running on the device, when processing value 12, the query thread cannot ideally utilize 25% of CPU (100% of one core). It also shows the threads do not balance the load very well. For example, thread 19140 is done with a partition (0, 1, 2, 3) quickly, then it becomes idle and just waits for other threads to be done with other partitions.</p>
+</blockquote>
+<h2>Stripped partitioning</h2>
+<p>Stripped partitioning can work with non-indexed source. In this algorithm, each Parallel LINQ query thread pulls the first value from the source. when each thread is done with a done, it tried to pull the first value again, until the source becomes empty. Still assume a quad core CPU, and assume it costs about the same time for each thread to process each value, then the partitioning result is:</p>
+<pre class="code"><span style="color: black;">Index:     0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 ...
+Partition: A  B  C  D  A  B  C  D  A  B  C  D  A  B  C  D ...</span></pre>
+<p>Take a simple IEnumerable&lt;T&gt; source as example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Strip()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 4);
+    source.AsParallel().Visualize(</span><span style="color: #2b91af;">ParallelEnumerable</span><span style="color: black;">.Select, value =&gt; <span style="color: blue;"></span><span style="color: black;">ComputingWorkload</span>(value)).ForAll();
+}</span></pre>
+<blockquote>
+<p>The visualization is:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-2-Partitioning_139D3/image_6.png"><img title="image" style="border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-2-Partitioning_139D3/image_thumb_2.png" width="800" height="600" border="0"></a></p>
+</blockquote>
+<p>A benefit of stripped partitioning is that threads can balance the load. To demonstrate this, just tweak above code a little bit:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">StripLoadBalance()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 4);
+    source.AsParallel().Visualize(</span><span style="color: #2b91af;">ParallelEnumerable</span><span style="color: black;">.Select, value =&gt; <span style="color: blue;"></span><span style="color: black;">ComputingWorkload</span>(value % 2)).ForAll();
+}</span></pre>
+<blockquote>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-2-Partitioning_139D3/image_10.png"><img title="image" style="border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-2-Partitioning_139D3/image_thumb_4.png" width="800" height="600" border="0"></a></p>
+</blockquote>
+<p>Firstly, the 4 query threads pulls 4 values 0, 1, 2, 3 to process. Apparently, threads processing 0 and 2 get the jobs done sooner. They are not idle, and immediately starts to pull the following values 4 and 5 to process. As a result, the load is better balanced, 4 threads finish the query with similar time.</p>
+<p>To enable stripped partitioning for arrays and lists, call System.Collections.Concurrency.Partitioner’s Create method:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">StripForArray()
+{
+    </span><span style="color: blue;">int</span><span style="color: black;">[] array = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 4).ToArray();
+    </span><span style="color: #2b91af;">Partitioner</span><span style="color: black;">.Create(array, loadBalance: </span><span style="color: blue;">true</span><span style="color: black;">).AsParallel().Visualize(value =&gt; <span style="color: blue;"></span><span style="color: black;">ComputingWorkload</span>(value), </span><span style="color: blue;">nameof</span><span style="color: black;">(Strip));
+}</span></pre>
+<p>Here Partitioner.Create returns Partitioner&lt;T&gt; which implements load balanced strip partitioning. Then another ParallelEnumerable.AsParallel overload can be called on it:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; AsParallel&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Partitioner</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source);</span></pre>
+<p>The Partitioner&lt;TSource&gt; type will be discussed later.</p>
+<h2>Hash partitioning</h2>
+<p>When Parallel LINQ needs to compare values in the source, like GroupBy, Join, GroupJoin, etc., it partitions the values based on hash code. As a result, values with the same hash code are processed by the same thread. To demonstrate this behavior, a data structure with a custom hash algorithm can be defined:</p>
+<pre class="code"><span style="color: blue;">internal readonly struct </span><span style="color: #2b91af;">Data
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal </span><span style="color: black;">Data(</span><span style="color: blue;">int </span><span style="color: black;">value) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.Value = value;
+
+    </span><span style="color: blue;">internal int </span><span style="color: black;">Value { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">public override int </span><span style="color: black;">GetHashCode() =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.Value % </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount;
+
+    </span><span style="color: blue;">public override bool </span><span style="color: black;">Equals(</span><span style="color: blue;">object </span><span style="color: black;">obj) =&gt; obj </span><span style="color: blue;">is </span><span style="color: #2b91af;">Data </span><span style="color: black;">&amp;&amp; </span><span style="color: blue;">this</span><span style="color: black;">.GetHashCode() == ((</span><span style="color: #2b91af;">Data</span><span style="color: black;">)obj).GetHashCode();
+
+    </span><span style="color: blue;">public override string </span><span style="color: black;">ToString() =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.Value.ToString();
+}</span></pre>
+<p>It just wraps an Int32 value, but only produces 4 kinds of hash code on a quad core CPU.</p>
+<p>GroupBy query can be visualized by the other Visualize overload from previous part:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">HashInGroupBy()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Data</span><span style="color: black;">&gt; source = </span><span style="color: blue;">new int</span><span style="color: black;">[] { 0, 1, 2, 2, 2, 2, 3, 4, 5, 6, 10 }.Select(value =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Data</span><span style="color: black;">(value));
+    source.AsParallel()
+        .Visualize(
+            (parallelQuery, elementSelector) =&gt; parallelQuery.GroupBy(
+                keySelector: data =&gt; data, </span><span style="color: green;">// Key instance's GetHashCode will be called.
+                </span><span style="color: black;">elementSelector: elementSelector),
+            data =&gt; <span style="color: blue;"></span><span style="color: black;">ComputingWorkload</span>(data.Value)) </span><span style="color: green;">// elementSelector.
+        </span><span style="color: black;">.ForAll();
+    </span><span style="color: green;">// Equivalent to:
+    // MarkerSeries markerSeries = Markers.CreateMarkerSeries("Parallel");
+    // source.AsParallel()
+    //    .GroupBy(
+    //        keySelector: data =&gt; data,
+    //        elementSelector: data =&gt;
+    //        {
+    //            using (markerSeries.EnterSpan(Thread.CurrentThread.ManagedThreadId, data.ToString()))
+    //            {
+    //                return ComputingWorkload(data.Value);
+    //            }
+    //        })
+    //    .ForAll();
+</span><span style="color: black;">}</span></pre>
+<blockquote>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-2-Partitioning_139D3/image_12.png"><img title="image" style="border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-2-Partitioning_139D3/image_thumb_5.png" width="800" height="600" border="0"></a></p>
+</blockquote>
+<p>Here GroupBy uses Data instances as the keys, where Data.GetHashCode is called, and the returned hash codes are used for partitioning. Also, apparently there is no load balance. And the following the visualization of Join:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">HashInJoin()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Data</span><span style="color: black;">&gt; outerSource = </span><span style="color: blue;">new int</span><span style="color: black;">[] { 0, 1, 2, 2, 2, 2, 3, 6 }.Select(value =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Data</span><span style="color: black;">(value));
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Data</span><span style="color: black;">&gt; innerSource = </span><span style="color: blue;">new int</span><span style="color: black;">[] { 4, 5, 6, 7 }.Select(value =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Data</span><span style="color: black;">(value));
+    outerSource.AsParallel()
+        .Visualize(
+            (parallelQuery, resultSelector) =&gt; parallelQuery
+                .Join(
+                    inner: innerSource.AsParallel(),
+                    outerKeySelector: data =&gt; data, </span><span style="color: green;">// Key instance's GetHashCode is called.
+                    </span><span style="color: black;">innerKeySelector: data =&gt; data, </span><span style="color: green;">// Key instance's GetHashCode is called.
+                    </span><span style="color: black;">resultSelector: (outerData, innerData) =&gt; resultSelector(outerData)),
+            data =&gt; <span style="color: blue;"></span><span style="color: black;">ComputingWorkload</span>(data.Value)) </span><span style="color: green;">// resultSelector.
+        </span><span style="color: black;">.ForAll();
+}</span></pre>
+<blockquote>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-2-Partitioning_139D3/image_16.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-2-Partitioning_139D3/image_thumb_7.png" width="800" height="600" border="0"></a></p>
+</blockquote>
+<h2>Chunk partitioning</h2>
+<p>Parallel LINQ also implements chunk partitioning, where each thread pulls a chunk of values from the source. Initially the chunk size is 1, each thread pulls a chunk for 3 times; Then the chunk size increases to 2, and each thread pulls a chunk for 3 times; Then the chunk size increase to 3, and each thread pulls a chunk for 3 times again; and so on. On a quad core CPU, Parallel LINQ creates 4 partitions A, B, C, D by default, and the partitioning is: ABCD ABCD ABCD AABBCCDD AABBCCDD AABBCCDD AAABBBCCCDDD ... Another overload of Partitioner.Create can create such a chunk partitioner:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Chunk()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, (1 + 2) * 3 * </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount + 3);
+    </span><span style="color: #2b91af;">Partitioner</span><span style="color: black;">.Create(source, </span><span style="color: #2b91af;">EnumerablePartitionerOptions</span><span style="color: black;">.None).AsParallel()
+        .Visualize(</span><span style="color: #2b91af;">ParallelEnumerable</span><span style="color: black;">.Select, _ =&gt; <span style="color: blue;"></span><span style="color: black;">ComputingWorkload</span>())
+        .ForAll();
+}</span></pre>
+<p>Executing this query on a quad core CPU, the first 12 chunks have 1 value in each chunk, the next 12 chunks have 2 values in each chunk, then the 25th chunk has 3 values, and so on:</p>
+<blockquote>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-2-Partitioning_139D3/image_18.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-2-Partitioning_139D3/image_thumb_8.png" width="800" height="600" border="0"></a></p>
+</blockquote>
+<p>Stripped partitioning can be viewed as a special case of chunk partitioning, where chunk size is always 1. And for this reason, stripped partition can have better load balance.</p>
+<h1>Implement custom partitioner</h1>
+<p>.NET also provides APIs to implement custom partitioning. The contract is the System.Collections.Partitioner&lt;TSource&gt; abstract class:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Collections.Concurrent
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public abstract class </span><span style="color: #2b91af;">Partitioner</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;
+    {
+        </span><span style="color: blue;">protected </span><span style="color: black;">Partitioner() { }
+
+        </span><span style="color: blue;">public virtual bool </span><span style="color: black;">SupportsDynamicPartitions =&gt; </span><span style="color: blue;">false</span><span style="color: black;">;
+
+        </span><span style="color: blue;">public abstract </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; GetPartitions(</span><span style="color: blue;">int </span><span style="color: black;">partitionCount);
+
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; GetDynamicPartitions() =&gt;
+            </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">NotSupportedException</span><span style="color: black;">(</span><span style="color: #a31515;">"Dynamic partitions are not supported by this partitioner."</span><span style="color: black;">);
+    }
+}</span></pre>
+<h2>Static partitioner</h2>
+<p>The GetPartitions method is used to return the specified number of partitions, and each partition is represented by an iterator, which yields the values of each partition. This design of having multiple IEnumerator&lt;T&gt; iterators to share one IEnumerable&lt;T&gt; sequence, is the same idea as the EnumerableEx.Share and IBuffer&lt;T&gt; from Interactive Extenson (Ix) library discussed in the LINQ to Objects chapter. So an simple static partitioner can be implemented as a wrapper of IBuffer&lt;T&gt; created by Share:</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">StaticPartitioner</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">Partitioner</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">protected readonly </span><span style="color: #2b91af;">IBuffer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; buffer;
+
+    </span><span style="color: blue;">public </span><span style="color: black;">StaticPartitioner(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.buffer = source.Share();
+
+    </span><span style="color: blue;">public override </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; GetPartitions(</span><span style="color: blue;">int </span><span style="color: black;">partitionCount)
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(partitionCount &lt;= 0)
+        {
+            </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(partitionCount)</span><span style="color: black;">);
+        }
+
+        </span><span style="color: blue;">return </span><span style="color: #2b91af;">Enumerable
+            </span><span style="color: black;">.Range(0, partitionCount)
+            .Select(_ =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.buffer.GetEnumerator())
+            .ToArray();
+    }
+}</span></pre>
+<p>As demonstrated above, now the AsParallel for partitioner can be called:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">StaticPartitioner()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 4);
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">StaticPartitioner</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(source).AsParallel()
+        .Visualize(</span><span style="color: #2b91af;">ParallelEnumerable</span><span style="color: black;">.Select, value =&gt; <span style="color: blue;"></span><span style="color: black;">ComputingWorkload</span>(value))
+        .ForAll();
+}</span></pre>
+<p>Parallel LINQ only calls the GetPartitions method, and start to query the returned partitions in parallel. Apparently IBuffer&lt;T&gt; implements stripped partitioning.</p>
+<blockquote>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-2-Partitioning_139D3/image_14.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-2-Partitioning_139D3/image_thumb.png" width="800" height="600" border="0"></a></p>
+</blockquote>
+<h2>Dynamic partitioner</h2>
+<p>When a partitioner’s SupportsDynamicPartitions property returns true, it is a dynamic partitioner. Besides splitting source into a specified static number of iterators like above, dynamic partitioner’s GetDynamicPartitions can also split source into arbitrary number of partitions. GetDynamicPartitions returns a IEnumerable&lt;T&gt; sequence, whose GetEnumerator method can be called at any time, and can be called arbitrary times, to return arbitrary number of IEnumerator&lt;T&gt; iterators. This scenario is still supported by IBuffer&lt;T&gt;, so:</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">DynamicPartitioner</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">StaticPartitioner</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">public </span><span style="color: black;">DynamicPartitioner(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source) : </span><span style="color: blue;">base</span><span style="color: black;">(source) {</span><span style="color: black;"> }
+
+    </span><span style="color: blue;">public override bool </span><span style="color: black;">SupportsDynamicPartitions =&gt; </span><span style="color: blue;">true</span><span style="color: black;">;
+
+    </span><span style="color: blue;">public override </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; GetDynamicPartitions() =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.buffer;
+}</span></pre>
+<p>Parallel LINQ only calls the GetPartitions method, so for sure above DynamicPartitioner can be used in Parallel LINQ. Dynamic partitioner can be also used for System.Threading.Tasks.Parallel’s ForEach method:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Threading.Tasks
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Parallel
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">ParallelLoopResult </span><span style="color: black;">ForEach&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Partitioner</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; body);
+    }
+}</span></pre>
+<p>Parallel.ForEach first calls SupportsDynamicPartitions. If false is returned, it throws an InvalidOperationException: The Partitioner used here must support dynamic partitioning; If true is returned, it then calls GetDynamicPartitions to partition the values and call the specified callback function in parallel for each partition:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">DynamicPartitioner()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 4);
+    </span><span style="color: #2b91af;">Parallel</span><span style="color: black;">.ForEach(</span><span style="color: blue;">new </span><span style="color: #2b91af;">DynamicPartitioner</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(source), value =&gt; <span style="color: blue;"></span><span style="color: black;">ComputingWorkload</span>(value));
+}</span></pre>
+<p>Parallel.ForEach has another overload accepting an IEnumerable&lt;T&gt; sequence, which is more commonly used:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">ParallelLoopResult </span><span style="color: black;">ForEach&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; body);</span></pre>
+<p>Internally, it calls the fore mentioned Partitioner.Create method to create a dynamic partitioner from the source sequence, then use the dynamic partitioner to call the specified callback function in parallel.</p>
+
+
+</div>
+</body>
+</html>

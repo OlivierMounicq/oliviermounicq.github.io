@@ -1,0 +1,103 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+<h1>Category Theory via C# (4) Natural Transformation</h1>
+
+<h1>Natural transformation and naturality</h1>
+<p>If F: C → D and G: C → D are both functors from categories C to category D, the mapping from F to G is called <a href="http://en.wikipedia.org/wiki/Natural_transformation" target="_blank">natural transformation</a> and denoted α: F ⇒ G. α: F ⇒ G is actually family of morphisms from F to G, For each object X in category C, there is a specific morphism α<sub>X</sub>: F(X) → G(X) in category D, called the component of α at X. For each morphism m: X → Y in category C and 2 functors F: C → D, G: C → D, there is a naturality square in D:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/public-static-partial-class-Optio.------_E2EC/image_2.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/public-static-partial-class-Optio.------_E2EC/image_thumb.png" width="826" height="748" border="0"></a></p>
+<p>In another word, for m: X → Y in category C, there must be α<sub>Y</sub> ∘ F(m) ≡ G(m) ∘ α<sub>X</sub> , or equivalently α<sub>Y</sub> ∘ Select<sub>F</sub>(m) ≡ Select<sub>G</sub>(m) ∘ α<sub>X </sub>in category D.</p>
+<p>In DotNet category, the following ToLazy&lt;&gt; generic method transforms Func&lt;&gt; functor to Lazy&lt;&gt; functor:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">NaturalTransformations
+</span><span style="color: black;">{
+    </span><span style="color: green;">// ToLazy: Func&lt;&gt; -&gt; Lazy&lt;&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; ToLazy&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; function) =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(function);
+}</span></pre>
+<p>Apparently, for above natural transformation: ToLazy&lt;&gt;: Func&lt;&gt; ⇒ Lazy&lt;&gt;:</p>
+<ul>
+<li>for each specific object T, there is an object Func&lt;T&gt;, an object Lazy&lt;T&gt;, and a morphism ToFunc&lt;T&gt;: Func&lt;T&gt; → Lazy&lt;T&gt;.</li>
+<li>For each specific morphism selector: TSource → TResult, there is a naturality square, which consists of 4 morphisms:</li>
+<ul>
+<li>ToLazy&lt;TResult&gt;: Func&lt;TResult&gt; → Lazy&lt;TResult&gt;, which is the component of ToLazy&lt;&gt; at TResult</li>
+<li>FuncExtensions.Select(selector): Func&lt;TSource&gt; → Func&lt;TResult&gt;</li>
+<li>LazyExtensions.Select(selector): Lazy&lt;TSource&gt; → Lazy&lt;TResult&gt;</li>
+<li>ToLazy&lt;TSource&gt;: Func&lt;TSource&gt; → Lazy&lt;TSource&gt;, which is the component of ToLazy&lt;&gt; at TSource</li>
+</ul>
+</ul>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/public-static-partial-class-Optio.------_E2EC/image_4.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/public-static-partial-class-Optio.------_E2EC/image_thumb_1.png" width="1028" height="741" border="0"></a></p>
+<p>The following example is a simple naturality square that commutes for ToLazy&lt;&gt;:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Naturality()
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt; selector = int32 =&gt; </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(int32).ToString(</span><span style="color: #a31515;">"0.00"</span><span style="color: black;">);
+
+    </span><span style="color: green;">// Naturality square:
+    // ToFunc&lt;string&gt;.o(LazyExtensions.Select(selector)) == FuncExtensions.Select(selector).o(ToFunc&lt;int&gt;)
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;&gt; funcStringToLazyString = ToLazy&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;;
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;&gt; funcInt32ToFuncString = </span><span style="color: #2b91af;">FuncExtensions</span><span style="color: black;">.Select(selector);
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;&gt; leftComposition = funcStringToLazyString.o(funcInt32ToFuncString);
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;&gt; lazyInt32ToLazyString = </span><span style="color: #2b91af;">LazyExtensions</span><span style="color: black;">.Select(selector);
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; funcInt32ToLazyInt32 = ToLazy&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;;
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;&gt; rightComposition = lazyInt32ToLazyString.o(funcInt32ToLazyInt32);
+
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; funcInt32 = () =&gt; 2;
+    </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; lazyString = leftComposition(funcInt32);
+    lazyString.Value.WriteLine(); </span><span style="color: green;">// 1.41
+    </span><span style="color: black;">lazyString = rightComposition(funcInt32);
+    lazyString.Value.WriteLine(); </span><span style="color: green;">// 1.41
+</span><span style="color: black;">}</span></pre>
+<p>And the following are a few more examples of natural transformations:</p>
+<pre class="code"><span style="color: green;">// ToFunc: Lazy&lt;T&gt; -&gt; Func&lt;T&gt;
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; ToFunc&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; lazy) =&gt; () =&gt; lazy.Value;
+
+</span><span style="color: green;">// ToEnumerable: Func&lt;T&gt; -&gt; IEnumerable&lt;T&gt;
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; ToEnumerable&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; function)
+{
+    </span><span style="color: blue;">yield return </span><span style="color: black;">function();
+}
+
+</span><span style="color: green;">// ToEnumerable: Lazy&lt;T&gt; -&gt; IEnumerable&lt;T&gt;
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; ToEnumerable&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; lazy)
+{
+    </span><span style="color: blue;">yield return </span><span style="color: black;">lazy.Value;
+}</span></pre>
+<h1>Functor Category</h1>
+<p>Now there are functors, and mappings between functors, which are natural transformations. Naturally, they lead to category of functors. Given 2 categories C and D, there is a <a href="http://en.wikipedia.org/wiki/Functor_category" target="_blank">functor category</a>, denoted D<sup>C</sup>:</p>
+<ul>
+<li>Its objects ob(D<sup>C</sup>) are the functors from category C to D .</li>
+<li>Its morphisms hom(D<sup>C</sup>) are the natural transformations between those functors.</li>
+<li>The composition of natural transformations α: F ⇒ G and β: G ⇒ H, is natural transformations (β ∘ α): F ⇒ H.</li>
+<li>The identity natural transformation id<sub>F</sub>: F ⇒ F maps each functor to itself</li>
+</ul>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/public-static-partial-class-Optio.------_E2EC/image_thumb1_2.png"><img title="image_thumb1" style="margin: 0px; border: 0px currentcolor; padding-top: 0px; padding-right: 0px; padding-left: 0px; display: inline; background-image: none;" alt="image_thumb1" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/public-static-partial-class-Optio.------_E2EC/image_thumb1_thumb.png" width="640" height="576" border="0"></a></p>
+<p>Regarding the category laws:</p>
+<ul>
+<li>Associativity law: As fore mentioned, natural transformation’s components are morphisms in D, so natural transformation composition in D<sup>C</sup> can be viewed as morphism composition in D: (β ∘ α)<sub>X</sub>: F(X) → H(X) = (β<sub>X</sub>: G(X) → H(X)) ∘ (α<sub>X</sub>: F(X) → G(X)). Natural transformations’ composition in D<sup>C</sup> is associative, since all component morphisms’ composition in D is associative</li>
+<li>Identity law: similarly, identity natural transform’s components are the id morphisms id<sub>F(X)</sub>: F(X) → F(X) in D. Identity natural transform satisfy identity law, since all its components satisfy identity law.</li>
+</ul>
+<p>Here is an example of natural transformations composition:</p>
+<pre class="code"><span style="color: green;">// ToFunc: Lazy&lt;T&gt; -&gt; Func&lt;T&gt;
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; ToFunc&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; lazy) =&gt; () =&gt; lazy.Value;
+</span><span style="color: gray;">#endif
+
+</span><span style="color: green;">// ToOptional: Func&lt;T&gt; -&gt; Optional&lt;T&gt;
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; ToOptional&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; function) =&gt;
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(() =&gt; (</span><span style="color: blue;">true</span><span style="color: black;">, function()));
+
+</span><span style="color: green;">// ToOptional: Lazy&lt;T&gt; -&gt; Optional&lt;T&gt;
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; ToOptional&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; lazy) =&gt;
+    </span><span style="color: green;">// new Func&lt;Func&lt;T&gt;, Optional&lt;T&gt;&gt;(ToOptional).o(new Func&lt;Lazy&lt;T&gt;, Func&lt;T&gt;&gt;(ToFunc))(lazy);
+    </span><span style="color: black;">lazy.ToFunc().ToOptional();
+}</span></pre>
+<h2>Endofunctor category</h2>
+<p>Given category C, there is a endofunctors category, denoted C<sup>C</sup>, or End(C), where the objects are the endofunctors from category C to C itself, and the morphisms are the natural transformations between those endofunctors.</p>
+<p><img title="image3_thumb" style="border: 0px currentcolor; padding-top: 0px; padding-right: 0px; padding-left: 0px; display: inline; background-image: none;" alt="image3_thumb" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/public-static-partial-class-Optio.------_E2EC/image3_thumb_thumb.png" width="640" height="589" border="0"></p>
+<p>All the functors in C# are endofunctors from DotNet category to DotNet. They are the objects of endofunctor category DotNet<sup>DotNet</sup> or End(DotNet).</p>
+
+
+</div>
+</body>
+</html>

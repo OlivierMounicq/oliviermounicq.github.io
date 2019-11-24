@@ -1,0 +1,627 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+<h1>Category Theory via C# (7) Monad and LINQ to Monads</h1>
+<h2>Monad</h2>
+<p>As fore mentioned endofunctor category can be monoidal (the entire category. Actually, an endofunctor In the endofunctor category can be monoidal too. This kind of endofunctor is called monad. Monad is another important algebraic structure in category theory and LINQ. Formally, <a href="http://en.wikipedia.org/wiki/Monad_(category_theory)" target="_blank">monad</a> is an endofunctor equipped with 2 natural transformations:</p>
+<ul>
+<li>Monoid multiplication ◎ or μ, which a natural transformation ◎: F(F) ⇒ F, which means, for each object X, ◎ maps F(F(X)) to F(X). For convenience, this mapping operation is also denoted F ◎ F ⇒ F.</li>
+<li>Monoid unit η, which is a natural transformation η: I ⇒ F. Here I is the identity functor, which maps each object X to X itself. For each X, there is η maps I(X) to F(X). Since I(X) is just X, η can also be viewed as mapping: X → F(X).</li>
+</ul>
+<p>So monad F is a monoid (F, ◎, η) in the category of endofunctors. Apparently it must preserve the monoid laws:</p>
+<ul>
+<li>Associativity preservation α: (F ◎ F) ◎ F ≡ F ◎ (F ◎ F)</li>
+<li>Left unit preservation λ: η ◎ F ≡ F, and right unit preservation ρ: F ≡ F ◎ η</li>
+</ul>
+<p>So that, the following diagram commutes:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Category-Theory-via-C-6-Monad-and-LINQ-t_1486B/image_2.png"><img title="image" style="border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Category-Theory-via-C-6-Monad-and-LINQ-t_1486B/image_thumb.png" width="674" height="399" border="0"></a></p>
+<p>In DotNet category, monad can be defined as:</p>
+<pre class="code"><span style="color: green;">// Cannot be compiled.
+</span><span style="color: blue;">public partial interface </span><span style="color: #2b91af;">IMonad</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&lt;&gt;&gt; : </span><span style="color: #2b91af;">IFunctor</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&lt;&gt;&gt;<span style="color: black;"> </span><span style="color: blue;">where </span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&lt;&gt; : </span><span style="color: #2b91af;">IMonad</span><span style="color: black;">&lt;<span style="color: blue;"></span><span style="color: #2b91af;">TMonad</span>&lt;&gt;&gt;</span>
+{
+    </span><span style="color: green;">// From IFunctor&lt;TMonad&lt;&gt;&gt;:
+    // Select: (TSource -&gt; TResult) -&gt; (TMonad&lt;TSource&gt; -&gt; TMonad&lt;TResult&gt;)
+    // Func&lt;TMonad&lt;TSource&gt;, TMonad&lt;TResult&gt;&gt; Select&lt;TSource, TResult&gt;(Func&lt;TSource, TResult&gt; selector);
+
+    // Multiply: TMonad&lt;TMonad&lt;TSource&gt;&gt; -&gt; TMonad&lt;TSource&gt;
+    <span style="color: black;"></span><span style="color: #2b91af;">TMonad</span></span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Multiply&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(<span style="color: black;"></span><span style="color: #2b91af;">TMonad</span>&lt;<span style="color: black;"></span><span style="color: #2b91af;">TMonad</span>&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; sourceWrapper);
+
+    </span><span style="color: green;">// Unit: TSource -&gt; TMonad&lt;TSource&gt;
+    <span style="color: black;"></span><span style="color: #2b91af;">TMonad</span></span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Unit&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value);
+}</span></pre>
+<h2>LINQ to Monads and monad laws</h2>
+<h3>Built-in IEnumerable&lt;&gt; monad</h3>
+<p>The previously discussed IEnumerable&lt;&gt; functor is a built-in monad, it is straightforward to implement its (Multiply, Unit) method pair:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">EnumerableExtensions </span><span style="color: green;">// IEnumerable&lt;T&gt; : IMonad&lt;IEnumerable&lt;&gt;&gt;
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Multiply: IEnumerable&lt;IEnumerable&lt;TSource&gt;&gt; -&gt; IEnumerable&lt;TSource&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Multiply&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; sourceWrapper)
+    {
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source </span><span style="color: blue;">in </span><span style="color: black;">sourceWrapper)
+        {
+            </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+            {
+                </span><span style="color: blue;">yield return </span><span style="color: black;">value;
+            }
+        }
+    }
+
+    </span><span style="color: green;">// Unit: TSource -&gt; IEnumerable&lt;TSource&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Unit&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value)
+    {
+        </span><span style="color: blue;">yield return </span><span style="color: black;">value;
+    }
+}</span></pre>
+<p>The monoid unit η is exactly the same as the Wrap method for monoidal functor. It is easy to verify the above implementation preserves the monoid laws:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">MonoidLaws()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source = </span><span style="color: blue;">new int</span><span style="color: black;">[] { 0, 1, 2, 3, 4 };
+
+    </span><span style="color: green;">// Associativity preservation: source.Wrap().Multiply().Wrap().Multiply() == source.Wrap().Wrap().Multiply().Multiply().
+    </span><span style="color: black;">source.Enumerable().Multiply().Enumerable().Multiply().WriteLines();
+    </span><span style="color: green;">// 0 1 2 3 4
+    </span><span style="color: black;">source.Enumerable().Enumerable().Multiply().Multiply().WriteLines();
+    </span><span style="color: green;">// 0 1 2 3 4
+    // Left unit preservation: Unit(source).Multiply() == f.
+    </span><span style="color: black;">Unit(source).Multiply().WriteLines(); </span><span style="color: green;">// 0 1 2 3 4
+    // Right unit preservation: source == source.Select(Unit).Multiply().
+    </span><span style="color: black;">source.Select(Unit).Multiply().WriteLines(); </span><span style="color: green;">// 0 1 2 3 4
+</span><span style="color: black;">}</span></pre>
+<p>As discussed in LINQ to Object chapter, for IEnumerable&lt;&gt;, there is already a query method SelectMany providing the same ability to flatten hierarchy an IEnumerable&lt;IEnumerable&lt;T&gt;&gt; sequence to an IEnumerable&lt;T&gt; sequence. Actually, monad can be alternatively defined with SelectMany and η/Wrap:</p>
+<pre class="code"><span style="color: blue;">public partial interface </span><span style="color: #2b91af;">IMonad</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&gt; </span><span style="color: blue;">where </span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&lt;&gt; : </span><span style="color: #2b91af;">IMonad</span><span style="color: black;">&lt;<span style="color: blue;"></span><span style="color: #2b91af;">TMonad</span>&lt;&gt;&gt;
+{</span><span style="color: green;">
+    // SelectMany: (TMonad&lt;TSource&gt;, TSource -&gt; TMonad&lt;TSelector&gt;, (TSource, TSelector) -&gt; TResult) -&gt; TMonad&lt;TResult&gt;
+    <span style="color: blue;"></span><span style="color: #2b91af;">TMonad</span></span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; SelectMany&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        <span style="color: blue;"></span><span style="color: #2b91af;">TMonad</span>&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+        <span style="color: blue;"></span><span style="color: #2b91af;">Func</span>&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, <span style="color: blue;"></span><span style="color: #2b91af;">TMonad</span>&lt;</span><span style="color: #2b91af;">TSelector</span><span style="color: black;">&gt;&gt; selector,
+        <span style="color: blue;"></span><span style="color: #2b91af;">Func</span>&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector);
+
+    </span><span style="color: green;">// Wrap: TSource -&gt; IEnumerable&lt;TSource&gt;
+    <span style="color: blue;"></span><span style="color: #2b91af;">TMonad</span></span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Wrap&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value);
+}</span></pre>
+<p>And the alternative implementation is very similar:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">EnumerableExtensions <span style="color: black;"></span><span style="color: green;">// IEnumerable&lt;T&gt; : IMonad&lt;IEnumerable&lt;&gt;&gt;</span>
+</span><span style="color: black;">{
+    </span><span style="color: green;">// SelectMany: (IEnumerable&lt;TSource&gt;, TSource -&gt; IEnumerable&lt;TSelector&gt;, (TSource, TSelector) -&gt; TResult) -&gt; IEnumerable&lt;TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; SelectMany&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSelector</span><span style="color: black;">&gt;&gt; selector,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector)
+    {
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+        {
+            </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSelector </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">selector(value))
+            {
+                </span><span style="color: blue;">yield return </span><span style="color: black;">resultSelector(value, result);
+            }
+        }
+    }
+
+    </span><span style="color: green;">// Wrap: TSource -&gt; IEnumerable&lt;TSource&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Enumerable&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value)
+    {
+        </span><span style="color: blue;">yield return </span><span style="color: black;">value;
+    }
+}</span></pre>
+<p>The above 2 versions of monad definition are equivalent. First, the (SelectMany, Wrap) methods can be implemented with the (Select, Multiply, Unit) methods:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">EnumerableExtensions </span><span style="color: green;">// (Select, Multiply, Unit) implements (SelectMany, Wrap).
+</span><span style="color: black;">{
+    </span><span style="color: green;">// SelectMany: (IEnumerable&lt;TSource&gt;, TSource -&gt; IEnumerable&lt;TSelector&gt;, (TSource, TSelector) -&gt; TResult) -&gt; IEnumerable&lt;TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; SelectMany&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSelector</span><span style="color: black;">&gt;&gt; selector,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector) =&gt;
+            (</span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source
+             </span><span style="color: blue;">select </span><span style="color: black;">(</span><span style="color: blue;">from </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">selector(value)
+                     </span><span style="color: blue;">select </span><span style="color: black;">resultSelector(value, result))).Multiply();
+            </span><span style="color: green;">// Compiled to:
+            // source.Select(value =&gt; selector(value).Select(result =&gt; resultSelector(value, result))).Multiply();
+
+    // Wrap: TSource -&gt; IEnumerable&lt;TSource&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Enumerable&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value) =&gt; Unit(value);
+}</span></pre>
+<p>And the (Select, Multiply, Unit) methods can be implemented with (SelectMany, Wrap) methods too:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">EnumerableExtensions </span><span style="color: green;">// (SelectMany, Wrap) implements (Select, Multiply, Unit).
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Select: (TSource -&gt; TResult) -&gt; (IEnumerable&lt;TSource&gt; -&gt; IEnumerable&lt;TResult&gt;).
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt; source =&gt;
+            </span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source
+            </span><span style="color: blue;">from </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">value.Enumerable()
+            </span><span style="color: blue;">select </span><span style="color: black;">result;
+            </span><span style="color: green;">// source.SelectMany(Enumerable, (result, value) =&gt; value);
+
+    // Multiply: IEnumerable&lt;IEnumerable&lt;TSource&gt;&gt; -&gt; IEnumerable&lt;TSource&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Multiply&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; sourceWrapper) =&gt;
+        </span><span style="color: blue;">from </span><span style="color: black;">source </span><span style="color: blue;">in </span><span style="color: black;">sourceWrapper
+        </span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source
+        </span><span style="color: blue;">select </span><span style="color: black;">value;
+        </span><span style="color: green;">// sourceWrapper.SelectMany(source =&gt; source, (source, value) =&gt; value);
+
+    // Unit: TSource -&gt; IEnumerable&lt;TSource&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Unit&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value) =&gt; value.Enumerable();
+}</span></pre>
+<p>So monad support is built-in in the C# language. As discussed in the LINQ query expression pattern part, SelectMany enables multiple from clauses, which can chain operations together to build a workflow, for example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Workflow&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">T4</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">&gt;&gt; source1,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt;&gt; source2,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T3</span><span style="color: black;">&gt;&gt; source3,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T4</span><span style="color: black;">&gt;&gt; source4)
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T4</span><span style="color: black;">&gt; query = </span><span style="color: blue;">from </span><span style="color: black;">value1 </span><span style="color: blue;">in </span><span style="color: black;">source1()
+                            </span><span style="color: blue;">from </span><span style="color: black;">value2 </span><span style="color: blue;">in </span><span style="color: black;">source2()
+                            </span><span style="color: blue;">from </span><span style="color: black;">value3 </span><span style="color: blue;">in </span><span style="color: black;">source3()
+                            </span><span style="color: blue;">from </span><span style="color: black;">value4 </span><span style="color: blue;">in </span><span style="color: black;">source4(value1, value2, value3)
+                            </span><span style="color: blue;">select </span><span style="color: black;">value4; </span><span style="color: green;">// Define query.
+    </span><span style="color: black;">query.WriteLines(); </span><span style="color: green;">// Execute query.
+</span><span style="color: black;">}</span></pre>
+<p>Here N + 1 from clauses are compiled to N SelectMany fluent calls:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledWorkflow&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">T4</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">&gt;&gt; source1,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt;&gt; source2,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T3</span><span style="color: black;">&gt;&gt; source3,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T4</span><span style="color: black;">&gt;&gt; source4)
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T4</span><span style="color: black;">&gt; query = source1()
+        .SelectMany(value1 =&gt; source2(), (value1, value2) =&gt; </span><span style="color: blue;">new </span><span style="color: black;">{ Value1 = value1, Value2 = value2 })
+        .SelectMany(result2 =&gt; source3(), (result2, value3) =&gt; </span><span style="color: blue;">new </span><span style="color: black;">{ Result2 = result2, Value3 = value3 })
+        .SelectMany(
+            result3 =&gt; source4(result3.Result2.Value1, result3.Result2.Value2, result3.Value3),
+            (result3, value4) =&gt; value4); </span><span style="color: green;">// Define query.
+    </span><span style="color: black;">query.WriteLines(); </span><span style="color: black;"></span><span style="color: green;">// Execute query.
+</span><span style="color: black;">}</span></pre>
+<p>In LINQ, if monad’s SelectMany implements deferred execution, then monad enables imperative programming paradigm (a sequence of commands) in a purely functional way. In above LINQ query definition, the calls to the commands are not executed. When trying to pull results from the LINQ query, the workflow stars, and the commands executes sequentially.</p>
+<h3>Monad law and Kleisli composition</h3>
+<p>Regarding monad (F, ◎, η) can be redefined as (F, SelectMany, Wrap), the monoid laws now can be expressed by SelectMany and Wrap too, which are called monad laws:</p>
+<ul>
+<li>Associativity law: SelectMany is the associative operator, since it is equivalent to Multiply.</li>
+<li>Left unit law and right unit law: Wrap is the unit η, since it is identical to Unit.</li>
+</ul>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">MonadLaws()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source = </span><span style="color: blue;">new int</span><span style="color: black;">[] { 0, 1, 2, 3, 4 };
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">char</span><span style="color: black;">&gt;&gt; selector = int32 =&gt; </span><span style="color: blue;">new string</span><span style="color: black;">(</span><span style="color: #a31515;">'*'</span><span style="color: black;">, int32);
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">&gt;&gt; selector1 = int32 =&gt; </span><span style="color: blue;">new double</span><span style="color: black;">[] { int32 / 2D, </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(int32) };
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;&gt; selector2 =
+        @double =&gt; </span><span style="color: blue;">new string</span><span style="color: black;">[] { @double.ToString(</span><span style="color: #a31515;">"0.0"</span><span style="color: black;">), @double.ToString(</span><span style="color: #a31515;">"0.00"</span><span style="color: black;">) };
+    </span><span style="color: blue;">const int </span><span style="color: black;">Value = 5;
+
+    </span><span style="color: green;">// Associativity: source.SelectMany(selector1).SelectMany(selector2) == source.SelectMany(value =&gt; selector1(value).SelectMany(selector2)).
+    </span><span style="color: black;">(</span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source
+     </span><span style="color: blue;">from </span><span style="color: black;">result1 </span><span style="color: blue;">in </span><span style="color: black;">selector1(value)
+     </span><span style="color: blue;">from </span><span style="color: black;">result2 </span><span style="color: blue;">in </span><span style="color: black;">selector2(result1)
+     </span><span style="color: blue;">select </span><span style="color: black;">result2).WriteLines();
+    </span><span style="color: green;">// 0.0 0.00 0.0 0.00
+    // 0.5 0.50 1.0 1.00
+    // 1.0 1.00 1.4 1.41
+    // 1.5 1.50 1.7 1.73
+    // 2.0 2.00 2.0 2.00
+    </span><span style="color: black;">(</span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source
+     </span><span style="color: blue;">from </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">(</span><span style="color: blue;">from </span><span style="color: black;">result1 </span><span style="color: blue;">in </span><span style="color: black;">selector1(value)
+                     </span><span style="color: blue;">from </span><span style="color: black;">result2 </span><span style="color: blue;">in </span><span style="color: black;">selector2(result1)
+                     </span><span style="color: blue;">select </span><span style="color: black;">result2)
+     </span><span style="color: blue;">select </span><span style="color: black;">result).WriteLines();
+    </span><span style="color: green;">// 0.0 0.00 0.0 0.00
+    // 0.5 0.50 1.0 1.00
+    // 1.0 1.00 1.4 1.41
+    // 1.5 1.50 1.7 1.73
+    // 2.0 2.00 2.0 2.00
+    // Left unit: value.Wrap().SelectMany(selector) == selector(value).
+    </span><span style="color: black;">(</span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">Value.Enumerable()
+     </span><span style="color: blue;">from </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">selector(value)
+     </span><span style="color: blue;">select </span><span style="color: black;">result).WriteLines(); </span><span style="color: green;">// * * * * *
+    </span><span style="color: black;">selector(Value).WriteLines(); </span><span style="color: green;">// * * * * *
+    // Right unit: source == source.SelectMany(Wrap).
+    </span><span style="color: black;">(</span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source
+     </span><span style="color: blue;">from </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">value.Enumerable()
+     </span><span style="color: blue;">select </span><span style="color: black;">result).WriteLines(); </span><span style="color: green;">// 0 1 2 3 4
+</span><span style="color: black;">}</span></pre>
+<p>However, the monad laws are not intuitive. The Kleisli composition ∘ can help. For 2 monadic selector functions that can be passed to SelectMany,are also called Kleisli functions like s<sub>1</sub>: TSource –&gt; TMonad&lt;TMiddle&gt; and s<sub>2</sub>: TMiddle –&gt; TMonad&lt;TResult&gt;, their Kleisli composition is still a monadic selector (s<sub>2</sub> ∘ s<sub>1</sub>): TSource –&gt; TMonad&lt;TResult&gt;:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; o&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TMiddle</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;( </span><span style="color: green;">// After.
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TMiddle</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; selector2,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TMiddle</span><span style="color: black;">&gt;&gt; selector1) =&gt;
+        value =&gt; selector1(value).SelectMany(selector2, (result1, result2) =&gt; result2);
+        </span><span style="color: green;">// Equivalent to:
+        // value =&gt; selector1(value).Select(selector2).Multiply();</span></pre>
+<p>Or generally:</p>
+<pre class="code"><span style="color: green;">// Cannot be compiled.
+</span><span style="color: blue;">public static class </span><span style="color: #2b91af;">FuncExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static <span style="color: blue;"></span><span style="color: #2b91af;">Func</span></span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, <span style="color: black;"></span><span style="color: #2b91af;">TMonad</span>&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; o&lt;</span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&lt;&gt;, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TMiddle</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;( </span><span style="color: green;">// After.
+        </span><span style="color: blue;">this <span style="color: blue;"></span><span style="color: #2b91af;">Func</span></span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TMiddle</span><span style="color: black;">, <span style="color: black;"></span><span style="color: #2b91af;">TMonad</span>&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; selector2,
+        <span style="color: blue;"></span><span style="color: #2b91af;">Func</span>&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, <span style="color: black;"></span><span style="color: #2b91af;">TMonad</span>&lt;</span><span style="color: #2b91af;">TMiddle</span><span style="color: black;">&gt;&gt; selector1) </span><span style="color: blue;">where </span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&lt;&gt; : </span><span style="color: #2b91af;">IMonad</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&lt;&gt;&gt; =&gt;
+            value =&gt; selector1(value).SelectMany</span><span style="color: red;"></span><span style="color: black;">(selector2, (result1, result2) =&gt; result2);
+            <span style="color: black;"></span><span style="color: green;">// Equivalent to:
+            </span></span><span style="color: green;">// value =&gt; selector1(value).Select(selector2).Multiply();
+</span><span style="color: black;">}</span></pre>
+<p>Now above monad laws can be expressed by monadic selectors and Kleisli composition:</p>
+<ul><!--StartFragment-->
+<li>Associativity law: the Kleisli composition of monadic selectors is now the monoid multiplication, it is associative. For monadic selectors s<sub>1</sub>, s<sub>2</sub>, s<sub>3</sub>, there is (s<sub>3</sub> ∘ s<sub>2</sub>) ∘ s<sub>1</sub> = s<sub>3</sub> ∘ (s<sub>2</sub> ∘ s<sub>1</sub>).</li>
+<li>Left unit law and right unit law: Wrap is still the monoid unit η, it is of type TSource –&gt; TMonad&lt;TSource&gt;, so it can also be viewed as a monadic selector too. For monadic selector s, there is η ∘ s = s and s = s ∘ η.</li>
+</ul>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">KleisliComposition()
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">bool</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; selector1 =
+        boolean =&gt; boolean ? </span><span style="color: blue;">new int</span><span style="color: black;">[] { 0, 1, 2, 3, 4 } : </span><span style="color: blue;">new int</span><span style="color: black;">[] { 5, 6, 7, 8, 9 };
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">&gt;&gt; selector2 = int32 =&gt; </span><span style="color: blue;">new double</span><span style="color: black;">[] { int32 / 2D, </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(int32) };
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;&gt; selector3 =
+        @double =&gt; </span><span style="color: blue;">new string</span><span style="color: black;">[] { @double.ToString(</span><span style="color: #a31515;">"0.0"</span><span style="color: black;">), @double.ToString(</span><span style="color: #a31515;">"0.00"</span><span style="color: black;">) };
+
+    </span><span style="color: green;">// Associativity: selector3.o(selector2).o(selector1) == selector3.o(selector2.o(selector1)).
+    </span><span style="color: black;">selector3.o(selector2).o(selector1)(</span><span style="color: blue;">true</span><span style="color: black;">).WriteLines();
+    </span><span style="color: green;">// 0.0 0.00 0.0 0.00
+    // 0.5 0.50 1.0 1.00
+    // 1.0 1.00 1.4 1.41
+    // 1.5 1.50 1.7 1.73
+    // 2.0 2.00 2.0 2.00
+    </span><span style="color: black;">selector3.o(selector2.o(selector1))(</span><span style="color: blue;">true</span><span style="color: black;">).WriteLines();
+    </span><span style="color: green;">// 0.0 0.00 0.0 0.00
+    // 0.5 0.50 1.0 1.00
+    // 1.0 1.00 1.4 1.41
+    // 1.5 1.50 1.7 1.73
+    // 2.0 2.00 2.0 2.00
+    // Left unit: Unit.o(selector) == selector.
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; leftUnit = Enumerable;
+    leftUnit.o(selector1)(</span><span style="color: blue;">true</span><span style="color: black;">).WriteLines(); </span><span style="color: green;">// 0 1 2 3 4
+    </span><span style="color: black;">selector1(</span><span style="color: blue;">true</span><span style="color: black;">).WriteLines(); </span><span style="color: green;">// 0 1 2 3 4
+    // Right unit: selector == selector.o(Unit).
+    </span><span style="color: black;">selector1(</span><span style="color: blue;">false</span><span style="color: black;">).WriteLines(); </span><span style="color: green;">// 5 6 7 8 9
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">bool</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">bool</span><span style="color: black;">&gt;&gt; rightUnit = Enumerable;
+    selector1.o(rightUnit)(</span><span style="color: blue;">false</span><span style="color: black;">).WriteLines(); </span><span style="color: green;">// 5 6 7 8 9
+</span><span style="color: black;">}</span></pre>
+<h3>Kleisli category</h3>
+<p>With monad and Kleisli composition, a new kind of category called Kleisli category can be defined. Given a monad (F, ◎, η) in category C, there is a Kleisli category of F, denoted C<sub>F</sub>:</p>
+<ul><!--StartFragment-->
+<li>Its objects ob(C<sub>F</sub>) are ob(C), all objects in C.</li>
+<li>Its morphisms hom(C<sub>F</sub>) are Kleisli morphisms. A Kleisli morphisms m from object X to object Y is m: X → F(Y). In DotNet, the Kleisli morphisms are above monadic selector functions.</li>
+<li>The composition of Kleisli morphisms is the above Kleisli composition.</li>
+<li>The identity Kleisli morphism is η of the monad, so that η<sub>X</sub>: X → F(X).</li>
+</ul>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Category-Theory-via-C-6-Monad-and-LINQ-t_1486B/image_4.png"><img title="image" style="border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Category-Theory-via-C-6-Monad-and-LINQ-t_1486B/image_thumb_1.png" width="882" height="352" border="0"></a></p>
+<p><!--EndFragment-->As already demonstrated, Kleisli composition and η satisfy the category associativity law and identity law.</p>
+<h3>Monad pattern of LINQ</h3>
+<p>So LINQ SelectMany query’s quintessential mathematics is monad. Generally, in DotNet category, a type is a monad if:</p>
+<ul>
+<li>This type is an open generic type definition, which can be viewed as type constructor of kind * –&gt; *, so that it maps a concrete type to another concrete monad-wrapped type.</li>
+<li>It is equipped with the standard LINQ query method SelectMany, which can be either instance method or extension method.</li>
+<li>The implementation of SelectMany satisfies the monad laws, so that the monad’s monoid structure is preserved.</li>
+</ul>
+<p>As <a href="https://www.linkedin.com/in/brianbeckman" target="_blank">Brian Beckman</a> said in <a href="http://channel9.msdn.com/Shows/Going+Deep/Brian-Beckman-Dont-fear-the-Monads" target="_blank">this Channel 9 video</a>:</p>
+<blockquote>
+<p>LINQ is monad. It is very carefully designed by <a href="http://en.wikipedia.org/wiki/Erik_Meijer_(computer_scientist)" target="_blank">Erik Meijer</a> so that it is monad.</p>
+</blockquote>
+<p><a href="http://ericlippert.com/" target="_blank">Eric Lippert</a> also <a href="http://stackoverflow.com/questions/4683506/are-there-any-connections-between-haskell-and-linq" target="_blank">mentioned</a>:</p>
+<blockquote>
+<p>The LINQ syntax is designed specifically to make operations on the sequence monad feel natural, but in fact the implementation is more general; what C# calls "SelectMany" is a slightly modified form of the "Bind" operation on an arbitrary monad.</p>
+</blockquote>
+<p>On the other hand, to enable the monad LINQ query expression (multiple from clauses with select clause) for a type does not require that type to be strictly a monad. This LINQ workflow syntax can be enabled for any generic or non generic type as long as it has such a SelectMany method, which can be virtually demonstrated as:</p>
+<pre class="code"><span style="color: green;">// Cannot be compiled.</span><span style="color: black;">
+</span><span style="color: blue;">internal static void </span><span style="color: black;">Workflow&lt;</span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&lt;&gt;, </span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">T4</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(<span style="color: #2b91af;"> </span><span style="color: green;">// Non generic TMonad can work too.</span>
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;<span style="color: black;"></span><span style="color: #2b91af;">TMonad</span>&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">&gt;&gt; operation1,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;<span style="color: black;"></span><span style="color: #2b91af;">TMonad</span>&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt;&gt; operation2,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;<span style="color: black;"></span><span style="color: #2b91af;">TMonad</span>&lt;</span><span style="color: #2b91af;">T3</span><span style="color: black;">&gt;&gt; operation3,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;<span style="color: black;"></span><span style="color: #2b91af;">TMonad</span>&lt;</span><span style="color: #2b91af;">T4</span><span style="color: black;">&gt;&gt; operation4,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">T4</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector) </span><span style="color: blue;">where </span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&lt;&gt; : <span style="color: black;"></span><span style="color: #2b91af;">IMonad</span>&lt;<span style="color: black;"></span><span style="color: #2b91af;">TMonad</span>&lt;&gt;&gt;
+{
+    <span style="color: blue;"></span><span style="color: #2b91af;">TMonad</span>&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; query = </span><span style="color: blue;">from </span><span style="color: green;">/* T1 */ </span><span style="color: black;">value1 </span><span style="color: blue;">in </span><span style="color: green;">/* TMonad&lt;T1&gt; */ </span><span style="color: black;">operation1()
+                            </span><span style="color: blue;">from </span><span style="color: green;">/* T2 */ </span><span style="color: black;">value2 </span><span style="color: blue;">in </span><span style="color: green;">/* TMonad&lt;T1&gt; */ </span><span style="color: black;">operation2()
+                            </span><span style="color: blue;">from </span><span style="color: green;">/* T3 */ </span><span style="color: black;">value3 </span><span style="color: blue;">in </span><span style="color: green;">/* TMonad&lt;T1&gt; */ </span><span style="color: black;">operation3()
+                            </span><span style="color: blue;">from </span><span style="color: green;">/* T4 */ </span><span style="color: black;">value4 </span><span style="color: blue;">in </span><span style="color: green;">/* TMonad&lt;T1&gt; */ </span><span style="color: black;">operation4()
+                            </span><span style="color: blue;">select </span><span style="color: green;">/* TResult */ </span><span style="color: black;">resultSelector(value1, value2, value3, value4); </span><span style="color: green;">// Define query.
+</span><span style="color: black;">}
+</span></pre>
+<h2>Monad vs. monoidal/applicative functor</h2>
+<p>Monad is monoidal functor and applicative functor. Monads’ (SelectMany, Wrap) methods implement monoidal functor’s Multiply and Unit methods, and applicative functor’s (Apply, Wrap) methods. This can be virtually demonstrated as:</p>
+<pre class="code"><span style="color: blue;"><span style="color: green;">// Cannot be compiled.
+</span><span style="color: blue;">public </span>static partial class </span><span style="color: #2b91af;">MonadExtensions </span><span style="color: green;">// (SelectMany, Wrap) implements (Multiply, Unit).
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Multiply: (TMonad&lt;T1&gt;, TMonad&lt;T2&gt;) =&gt; TMonad&lt;(T1, T2)&gt;
+    </span><span style="color: blue;">public static <span style="color: blue;"></span><span style="color: #2b91af;">TMonad</span></span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">)&gt; Multiply&lt;</span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&lt;&gt;, </span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this <span style="color: blue;"></span><span style="color: #2b91af;">TMonad</span></span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">&gt; source1, <span style="color: blue;"></span><span style="color: #2b91af;">TMonad</span>&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt; source2) </span><span style="color: blue;">where </span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&lt;&gt; : </span><span style="color: #2b91af;">IMonad</span><span style="color: black;">&lt;<span style="color: blue;"></span><span style="color: #2b91af;">TMonad</span>&lt;&gt;&gt; =&gt;
+            </span><span style="color: blue;">from </span><span style="color: black;">value1 </span><span style="color: blue;">in </span><span style="color: black;">source1
+            </span><span style="color: blue;">from </span><span style="color: black;">value2 </span><span style="color: blue;">in </span><span style="color: black;">source2
+            </span><span style="color: blue;">select (</span><span style="color: black;">value1, value2);
+            </span><span style="color: green;">// source1.SelectMany(value1 =&gt; source2 (value1, value2) =&gt; value1.ValueTuple(value2));
+
+    // Unit: Unit -&gt; TMonad&lt;Unit&gt;
+    </span><span style="color: blue;">public static <span style="color: black;"></span><span style="color: #2b91af;">TMonad</span></span><span style="color: black;">&lt;<span style="color: black;"></span><span style="color: #2b91af;">Unit</span>&gt; Unit&lt;</span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&lt;&gt;&gt;(
+        <span style="color: black;"></span><span style="color: #2b91af;">Unit</span> unit = </span><span style="color: blue;">default</span><span style="color: black;">) </span><span style="color: blue;">where </span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&lt;&gt; : </span><span style="color: #2b91af;">IMonad</span><span style="color: black;">&lt;<span style="color: blue;"></span><span style="color: #2b91af;">TMonad</span></span><span style="color: red;"></span><span style="color: black;">&lt;&gt;&gt; =&gt; unit</span><span style="color: red;"></span><span style="color: black;">.Wrap();
+}
+
+</span><span style="color: blue;"><span style="color: green;">// Cannot be compiled.
+</span><span style="color: blue;">public </span>static partial class </span><span style="color: #2b91af;">MonadExtensions </span><span style="color: green;">// (SelectMany, Wrap) implements (Apply, Wrap).
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Apply: (TMonad&lt;TSource -&gt; TResult&gt;, TMonad&lt;TSource&gt;) -&gt; TMonad&lt;TResult&gt;
+    </span><span style="color: blue;">public static <span style="color: blue;"></span><span style="color: #2b91af;">TMonad</span></span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Apply&lt;</span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&lt;&gt;, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this <span style="color: blue;"></span><span style="color: #2b91af;">TMonad</span></span><span style="color: black;">&lt;<span style="color: blue;"></span><span style="color: #2b91af;">Func</span>&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; selectorWrapper,
+        <span style="color: blue;"></span><span style="color: #2b91af;">TMonad</span>&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source) </span><span style="color: blue;">where </span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&lt;&gt; : </span><span style="color: #2b91af;">IMonad</span><span style="color: black;">&lt;TMonad&lt;&gt;&gt; =&gt;
+            </span><span style="color: blue;">from </span><span style="color: black;">selector </span><span style="color: blue;">in </span><span style="color: black;">selectorWrapper
+            </span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source
+            </span><span style="color: blue;">select </span><span style="color: black;">selector(value);
+            </span><span style="color: green;">// selectorWrapper.SelectMany(selector =&gt; source, (selector, value) =&gt; selector(value));
+
+    // Monad's Wrap is identical to applicative functor's Wrap.
+</span><span style="color: black;">}</span></pre>
+<p>If monad is defined with the (Multiply, Unit) methods, they implement monoidal functor’s Multiply and Unit methods, and applicative functor’s (Apply, Wrap) methods too:</p>
+<pre class="code"><span style="color: green;">// Cannot be compiled.
+</span><span style="color: blue;">public static class </span><span style="color: #2b91af;">MonadExtensions </span><span style="color: green;">// Monad (Multiply, Unit) implements monoidal functor (Multiply, Unit).
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Multiply: (TMonad&lt;T1&gt;, TMonad&lt;T2&gt;) =&gt; TMonad&lt;(T1, T2)&gt;
+    </span><span style="color: blue;">public static <span style="color: black;"></span><span style="color: #2b91af;">TMonad</span></span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">)&gt; Multiply&lt;</span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&lt;&gt;, </span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this <span style="color: black;"></span><span style="color: #2b91af;">TMonad</span></span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">&gt; source1, <span style="color: black;"></span><span style="color: #2b91af;">TMonad</span>&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt; source2) </span><span style="color: blue;">where </span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&lt;&gt; : </span><span style="color: #2b91af;">IMonad</span><span style="color: black;">&lt;<span style="color: black;"></span><span style="color: #2b91af;">TMonad</span>&lt;&gt;&gt; =&gt;
+            (</span><span style="color: blue;">from </span><span style="color: black;">value1 </span><span style="color: blue;">in </span><span style="color: black;">source1
+             <span style="color: black;"></span><span style="color: blue;">select </span></span><span style="color: red;"></span><span style="color: black;">(</span><span style="color: blue;">from </span><span style="color: black;">value2 </span><span style="color: blue;">in </span><span style="color: black;">source2
+                     <span style="color: black;"></span><span style="color: blue;">select (</span></span><span style="color: red;"></span><span style="color: black;">value1, value2))).Multiply();
+            </span><span style="color: green;">// source1.Select(value1 =&gt; source2.Select(value2 =&gt; (value1, value2))).Multiply();
+
+    // Unit: Unit -&gt; TMonad&lt;Unit&gt;
+    </span><span style="color: blue;">public static <span style="color: black;"></span><span style="color: #2b91af;">TMonad</span></span><span style="color: black;">&lt;<span style="color: black;"></span><span style="color: #2b91af;">Unit</span>&gt; Unit&lt;</span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&gt;(Unit unit = </span><span style="color: blue;">default</span><span style="color: black;">) </span><span style="color: blue;">where </span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&lt;&gt;: </span><span style="color: #2b91af;">IMonad</span><span style="color: black;">&lt;<span style="color: black;"></span><span style="color: #2b91af;">TMonad</span>&lt;&gt;&gt; =&gt;
+        <span style="color: black;"></span><span style="color: #2b91af;">TMonad</span>&lt;<span style="color: black;"></span><span style="color: #2b91af;">Unit</span>&gt;.Unit</span><span style="color: red;"></span><span style="color: black;">&lt;<span style="color: black;"></span><span style="color: #2b91af;">Unit</span>&gt;(unit);
+}
+
+</span><span style="color: green;">// Cannot be compiled.
+</span><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">MonadExtensions </span><span style="color: green;">// Monad (Multiply, Unit) implements applicative functor (Apply, Wrap).
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Apply: (TMonad&lt;TSource -&gt; TResult&gt;, TMonad&lt;TSource&gt;) -&gt; TMonad&lt;TResult&gt;
+    </span><span style="color: blue;">public static <span style="color: black;"></span><span style="color: #2b91af;">TMonad</span></span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Apply&lt;</span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&lt;&gt;, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this <span style="color: black;"></span><span style="color: #2b91af;">TMonad</span></span><span style="color: black;">&lt;Func&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; selectorWrapper,
+        <span style="color: black;"></span><span style="color: #2b91af;">TMonad</span>&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source)  </span><span style="color: blue;">where </span><span style="color: #2b91af;">TMonad</span><span style="color: black;"><span style="color: black;">&lt;&gt; :</span> </span><span style="color: #2b91af;">IMonad</span><span style="color: black;">&lt;<span style="color: black;"></span><span style="color: #2b91af;">TMonad</span>&lt;&gt;&gt; =&gt;
+            (</span><span style="color: blue;">from </span><span style="color: black;">selector </span><span style="color: blue;">in </span><span style="color: black;">selectorWrapper
+             <span style="color: black;"></span><span style="color: blue;">select </span></span><span style="color: red;"></span><span style="color: black;">(</span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source
+                     <span style="color: black;"></span><span style="color: blue;">select </span></span><span style="color: red;"></span><span style="color: black;">selector(value))).Multiply();
+            </span><span style="color: green;">// selectorWrapper.Select(selector =&gt; source.Select(value =&gt; selector(value))).Multiply();
+
+    // Wrap: TSource -&gt; TMonad&lt;TSource&gt;
+    </span><span style="color: blue;">public static <span style="color: black;"></span><span style="color: #2b91af;">TMonad</span></span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Wrap&lt;</span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&lt;&gt;, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value) </span><span style="color: blue;">where </span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&lt;&gt;: </span><span style="color: #2b91af;">IMonad</span><span style="color: black;">&lt;<span style="color: black;"></span><span style="color: #2b91af;">TMonad</span>&lt;&gt;&gt; =&gt; <span style="color: blue;"></span><span style="color: #2b91af;">TMonad</span>&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;.Unit&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(value);
+}</span></pre>
+<p>So the monad definition can be updated to implement monoidal functor and applicative functor too:</p>
+<pre class="code"><span style="color: green;">// Cannot be compiled.
+</span><span style="color: blue;">public partial interface </span><span style="color: #2b91af;">IMonad</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TMonad</span><span style="color: black;">&lt;&gt;&gt; : </span><span style="color: #2b91af;">IMonoidalFunctor</span><span style="color: black;">&lt;<span style="color: black;"></span><span style="color: #2b91af;">TMonad</span>&lt;&gt;&gt;, </span><span style="color: #2b91af;">IApplicativeFunctor</span><span style="color: black;">&lt;<span style="color: black;"></span><span style="color: #2b91af;">TMonad</span>&lt;&gt;&gt;
+{
+}</span></pre>
+<h2>More LINQ to Monads</h2>
+<p>Many other open generic type definitions provided by .NET can be monad. Take Lazy&lt;&gt; functor as example, first, apparently it is a type constructor of kind * –&gt; *. Then, its SelectMany query method can be defined as extension method:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">LazyExtensions </span><span style="color: green;">// Lazy&lt;T&gt; : IMonad&lt;Lazy&lt;&gt;&gt;
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Multiply: Lazy&lt;Lazy&lt;TSource&gt; -&gt; Lazy&lt;TSource&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Multiply&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; sourceWrapper) =&gt;
+        sourceWrapper.SelectMany(Id, False);
+
+    </span><span style="color: green;">// Unit: TSource -&gt; Lazy&lt;TSource&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Unit&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value) =&gt; Lazy(value);
+
+    </span><span style="color: green;">// SelectMany: (Lazy&lt;TSource&gt;, TSource -&gt; Lazy&lt;TSelector&gt;, (TSource, TSelector) -&gt; TResult) -&gt; Lazy&lt;TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; SelectMany&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSelector</span><span style="color: black;">&gt;&gt; selector,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector) =&gt;
+            </span><span style="color: blue;">new </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(() =&gt; resultSelector(source.Value, selector(source.Value).Value));
+}</span></pre>
+<p>Its Wrap method has been implemented previously, as a requirement of applicative functor. The following is an example of chaining operations into a workflow with Lazy&lt;&gt; monad:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Workflow()
+{
+    </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; query = </span><span style="color: blue;">from </span><span style="color: black;">filePath </span><span style="color: blue;">in new </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Console</span><span style="color: black;">.ReadLine)
+                         </span><span style="color: blue;">from </span><span style="color: black;">encodingName </span><span style="color: blue;">in new </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Console</span><span style="color: black;">.ReadLine)
+                         </span><span style="color: blue;">from </span><span style="color: black;">encoding </span><span style="color: blue;">in new </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Encoding</span><span style="color: black;">&gt;(() =&gt; </span><span style="color: #2b91af;">Encoding</span><span style="color: black;">.GetEncoding(encodingName))
+                         </span><span style="color: blue;">from </span><span style="color: black;">fileContent </span><span style="color: blue;">in new </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;(() =&gt; </span><span style="color: #2b91af;">File</span><span style="color: black;">.ReadAllText(filePath, encoding))
+                         </span><span style="color: blue;">select </span><span style="color: black;">fileContent; </span><span style="color: green;">// Define query.
+    </span><span style="color: blue;">string </span><span style="color: black;">result = query.Value; </span><span style="color: green;">// Execute query.
+</span><span style="color: black;">}</span></pre>
+<p>Since SelectMany implements deferred execution, the above LINQ query is pure and the workflow is deferred. When the query is executed by calling Lazy&lt;&gt;.Value, the workflow is started.</p>
+<p>Func&lt;&gt; functor is also monad, with the following SelectMany:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">FuncExtensions </span><span style="color: green;">// Func&lt;T&gt; : IMonad&lt;Func&lt;&gt;&gt;
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Multiply: Func&lt;Func&lt;T&gt; -&gt; Func&lt;T&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Multiply&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; sourceWrapper) =&gt;
+        sourceWrapper.SelectMany(source =&gt; source, (source, value) =&gt; value);
+
+    </span><span style="color: green;">// Unit: Unit -&gt; Func&lt;Unit&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Unit&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value) =&gt; Func(value);
+
+    </span><span style="color: green;">// SelectMany: (Func&lt;TSource&gt;, TSource -&gt; Func&lt;TSelector&gt;, (TSource, TSelector) -&gt; TResult) -&gt; Func&lt;TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; SelectMany&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSelector</span><span style="color: black;">&gt;&gt; selector,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector) =&gt; () =&gt;
+        {
+            </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value = source();
+            </span><span style="color: blue;">return </span><span style="color: black;">resultSelector(value, selector(value)());
+        };
+}</span></pre>
+<p>And the workflow is similar to Lazy&lt;&gt; monad’s workflow, because Lazy&lt;T&gt; is just a wrapper of Func&lt;T&gt; factory function:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Workflow()
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; query = </span><span style="color: blue;">from </span><span style="color: black;">filePath </span><span style="color: blue;">in new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Console</span><span style="color: black;">.ReadLine)
+                         </span><span style="color: blue;">from </span><span style="color: black;">encodingName </span><span style="color: blue;">in new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Console</span><span style="color: black;">.ReadLine)
+                         </span><span style="color: blue;">from </span><span style="color: black;">encoding </span><span style="color: blue;">in new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Encoding</span><span style="color: black;">&gt;(() =&gt; </span><span style="color: #2b91af;">Encoding</span><span style="color: black;">.GetEncoding(encodingName))
+                         </span><span style="color: blue;">from </span><span style="color: black;">fileContent </span><span style="color: blue;">in new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;(() =&gt; </span><span style="color: #2b91af;">File</span><span style="color: black;">.ReadAllText(filePath, encoding))
+                         </span><span style="color: blue;">select </span><span style="color: black;">fileContent; </span><span style="color: green;">// Define query.
+    </span><span style="color: blue;">string </span><span style="color: black;">result = query(); </span><span style="color: green;">// Execute query.
+</span><span style="color: black;">}</span></pre>
+<p>The Optional&lt;&gt; monad is monad too, with the following SelectMany:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">OptionalExtensions </span><span style="color: green;">// Optional&lt;T&gt; : IMonad&lt;Optional&lt;&gt;&gt;
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Multiply: Optional&lt;Optional&lt;TSource&gt; -&gt; Optional&lt;TSource&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Multiply&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; sourceWrapper) =&gt;
+        sourceWrapper.SelectMany(source =&gt; source, (source, value) =&gt; value);
+
+    </span><span style="color: green;">// Unit: TSource -&gt; Optional&lt;TSource&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Unit&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value) =&gt; Optional(value);
+
+    </span><span style="color: green;">// SelectMany: (Optional&lt;TSource&gt;, TSource -&gt; Optional&lt;TSelector&gt;, (TSource, TSelector) -&gt; TResult) -&gt; Optional&lt;TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; SelectMany&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSelector</span><span style="color: black;">&gt;&gt; selector,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector) =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(() =&gt;
+            {
+                </span><span style="color: blue;">if </span><span style="color: black;">(source.HasValue)
+                {
+                    </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSelector</span><span style="color: black;">&gt; result = selector(source.Value);
+                    </span><span style="color: blue;">if </span><span style="color: black;">(result.HasValue)
+                    {
+                        </span><span style="color: blue;">return </span><span style="color: black;">(</span><span style="color: blue;">true</span><span style="color: black;">, resultSelector(source.Value, result.Value));
+                    }
+                }
+                </span><span style="color: blue;">return </span><span style="color: black;">(</span><span style="color: blue;">false</span><span style="color: black;">, </span><span style="color: blue;">default</span><span style="color: black;">);
+            });
+}</span></pre>
+<p>The LINQ workflow of Optional&lt;&gt; monad is also pure and deferred, where each operation in the chaining is an Optional&lt;T&gt; instance:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Workflow()
+{
+    </span><span style="color: blue;">string </span><span style="color: black;">input;
+    </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; query =
+        </span><span style="color: blue;">from </span><span style="color: black;">filePath </span><span style="color: blue;">in new </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;(() =&gt; </span><span style="color: blue;">string</span><span style="color: black;">.IsNullOrWhiteSpace(input = </span><span style="color: #2b91af;">Console</span><span style="color: black;">.ReadLine())
+            ? (</span><span style="color: blue;">false</span><span style="color: black;">, </span><span style="color: blue;">default</span><span style="color: black;">) : (</span><span style="color: blue;">true</span><span style="color: black;">, input))
+        </span><span style="color: blue;">from </span><span style="color: black;">encodingName </span><span style="color: blue;">in new </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;(() =&gt; </span><span style="color: blue;">string</span><span style="color: black;">.IsNullOrWhiteSpace(input = </span><span style="color: #2b91af;">Console</span><span style="color: black;">.ReadLine())
+            ? (</span><span style="color: blue;">false</span><span style="color: black;">, </span><span style="color: blue;">default</span><span style="color: black;">) : (</span><span style="color: blue;">true</span><span style="color: black;">, input))
+        </span><span style="color: blue;">from </span><span style="color: black;">encoding </span><span style="color: blue;">in new </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Encoding</span><span style="color: black;">&gt;(() =&gt;
+            {
+                </span><span style="color: blue;">try
+                </span><span style="color: black;">{
+                    </span><span style="color: blue;">return </span><span style="color: black;">(</span><span style="color: blue;">true</span><span style="color: black;">, </span><span style="color: #2b91af;">Encoding</span><span style="color: black;">.GetEncoding(encodingName));
+                }
+                </span><span style="color: blue;">catch </span><span style="color: black;">(</span><span style="color: #2b91af;">ArgumentException</span><span style="color: black;">)
+                {
+                    </span><span style="color: blue;">return </span><span style="color: black;">(</span><span style="color: blue;">false</span><span style="color: black;">, </span><span style="color: blue;">default</span><span style="color: black;">);
+                }
+            })
+        </span><span style="color: blue;">from </span><span style="color: black;">fileContent </span><span style="color: blue;">in new </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;(() =&gt; </span><span style="color: #2b91af;">File</span><span style="color: black;">.Exists(filePath)
+            ? (</span><span style="color: blue;">true</span><span style="color: black;">, </span><span style="color: #2b91af;">File</span><span style="color: black;">.ReadAllText(filePath, encoding)) : (</span><span style="color: blue;">false</span><span style="color: black;">, </span><span style="color: blue;">default</span><span style="color: black;">))
+        </span><span style="color: blue;">select </span><span style="color: black;">fileContent; </span><span style="color: green;">// Define query.
+    </span><span style="color: blue;">if </span><span style="color: black;">(query.HasValue) </span><span style="color: green;">// Execute query.
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">string </span><span style="color: black;">result = query.Value;
+    }
+}</span></pre>
+<p>So Optional&lt;&gt; covers the scenario that each operation of the workflow may not have invalid result. When an operation has valid result (Optional&lt;T&gt;.HasValue returns true), its next operation executes. And when all all the operations have valid result, the entire workflow has a valid query result.</p>
+<p>The ValueTuple&lt;&gt; functor is also monad. Again, its SelectMany cannot defer the call of selector, just like its Select:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ValueTupleExtensions </span><span style="color: green;">// ValueTuple&lt;T, TResult&gt; : IMonad&lt;ValueTuple&lt;T,&gt;&gt;
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Multiply: ValueTuple&lt;T, ValueTuple&lt;T, TSource&gt; -&gt; ValueTuple&lt;T, TSource&gt;
+    </span><span style="color: blue;">public static </span><span style="color: black;">(</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">) Multiply&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: black;">(</span><span style="color: #2b91af;">T</span><span style="color: black;">, (</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">)) sourceWrapper) =&gt;
+        sourceWrapper.SelectMany(source =&gt; source, (source, value) =&gt; value); </span><span style="color: green;">// Immediate execution.
+
+    // Unit: TSource -&gt; ValueTuple&lt;T, TSource&gt;
+    </span><span style="color: blue;">public static </span><span style="color: black;">(</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">) Unit&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value) =&gt; ValueTuple&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(value);
+
+    </span><span style="color: green;">// SelectMany: (ValueTuple&lt;T, TSource&gt;, TSource -&gt; ValueTuple&lt;T, TSelector&gt;, (TSource, TSelector) -&gt; TResult) -&gt; ValueTuple&lt;T, TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: black;">(</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">) SelectMany&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: black;">(</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">) source,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, (</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">)&gt; selector,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector) =&gt;
+            (source.Item1, resultSelector(source.Item2, selector(source.Item2).Item2)); </span><span style="color: green;">// Immediate execution.
+</span><span style="color: black;">}</span></pre>
+<p>So its workflow is the immediate execution version of Lazy&lt;&gt; monad’s workflow:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ValueTupleExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Workflow()
+    {
+        </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; query = </span><span style="color: blue;">from </span><span style="color: black;">filePath </span><span style="color: blue;">in new </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Console</span><span style="color: black;">.ReadLine())
+                                   </span><span style="color: blue;">from </span><span style="color: black;">encodingName </span><span style="color: blue;">in new </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Console</span><span style="color: black;">.ReadLine())
+                                   </span><span style="color: blue;">from </span><span style="color: black;">encoding </span><span style="color: blue;">in new </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Encoding</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Encoding</span><span style="color: black;">.GetEncoding(encodingName))
+                                   </span><span style="color: blue;">from </span><span style="color: black;">fileContent </span><span style="color: blue;">in new </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">File</span><span style="color: black;">.ReadAllText(filePath, encoding))
+                                   </span><span style="color: blue;">select </span><span style="color: black;">fileContent; </span><span style="color: green;">// Define and execute query.
+        </span><span style="color: blue;">string </span><span style="color: black;">result = query.Item1; </span><span style="color: green;">// Query result.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>The Task&lt;&gt; functor is monad too. Once again, its SelectMany is immediate and impure, just like its Select:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">TaskExtensions </span><span style="color: green;">// Task&lt;T&gt; : IMonad&lt;Task&lt;&gt;&gt;
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Multiply: Task&lt;Task&lt;T&gt; -&gt; Task&lt;T&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Task</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Multiply&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Task</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Task</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; sourceWrapper) =&gt;
+        sourceWrapper.SelectMany(source =&gt; source, (source, value) =&gt; value); </span><span style="color: green;">// Immediate execution, impure.
+
+    // Unit: TSource -&gt; Task&lt;TSource&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Task</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Unit&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value) =&gt; Task(value);
+
+    </span><span style="color: green;">// SelectMany: (Task&lt;TSource&gt;, TSource -&gt; Task&lt;TSelector&gt;, (TSource, TSelector) -&gt; TResult) -&gt; Task&lt;TResult&gt;
+    </span><span style="color: blue;">public static async </span><span style="color: #2b91af;">Task</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; SelectMany&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Task</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">Task</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSelector</span><span style="color: black;">&gt;&gt; selector,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector) =&gt;
+            resultSelector(</span><span style="color: blue;">await </span><span style="color: black;">source, </span><span style="color: blue;">await </span><span style="color: black;">selector(</span><span style="color: blue;">await </span><span style="color: black;">source)); </span><span style="color: green;">// Immediate execution, impure.
+</span><span style="color: black;">}</span></pre>
+<p>So the following LINQ workflow with Task&lt;&gt; monad is also immediate and impure:</p>
+<pre class="code"><span style="color: blue;">internal static async <span style="color: black;"></span><span style="color: #2b91af;">Task</span> <span style="color: blue;"></span><span style="color: black;">WorkflowAsync</span></span><span style="color: black;">(</span><span style="color: blue;">string </span><span style="color: black;">uri)
+{
+    </span><span style="color: #2b91af;">Task</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; query = </span><span style="color: blue;">from </span><span style="color: black;">response </span><span style="color: blue;">in new </span><span style="color: #2b91af;">HttpClient</span><span style="color: black;">().GetAsync(uri) </span><span style="color: green;">// Return Task&lt;HttpResponseMessage&gt;.
+                         </span><span style="color: blue;">from </span><span style="color: black;">stream </span><span style="color: blue;">in </span><span style="color: black;">response.Content.ReadAsStreamAsync() </span><span style="color: green;">// Return Task&lt;Stream&gt;.
+                         </span><span style="color: blue;">from </span><span style="color: black;">text </span><span style="color: blue;">in new </span><span style="color: #2b91af;">StreamReader</span><span style="color: black;">(stream).ReadToEndAsync() </span><span style="color: green;">// Return Task&lt;string&gt;.
+                         </span><span style="color: blue;">select </span><span style="color: black;">text; </span><span style="color: green;">// Define and execute query.
+    </span><span style="color: blue;">string </span><span style="color: black;">result = </span><span style="color: blue;">await </span><span style="color: black;">query; </span><span style="color: green;">// Query result.
+</span><span style="color: black;">}</span></pre>
+<p>It is easy to verify all the above SelectMany methods satisfy the monad laws, and all the above (Multiply, Unit) methods preserve the monoid laws. However, not any SelectMany or (Multiply, Unit) methods can automatically satisfy those laws. Take the ValueTuple&lt;T,&gt; functor as example, here are its SelectMany and (Multiply, Unit):</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ValueTupleExtensions </span><span style="color: green;">// ValueTuple&lt;T, TResult&gt; : IMonad&lt;ValueTuple&lt;T,&gt;&gt;
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Multiply: ValueTuple&lt;T, ValueTuple&lt;T, TSource&gt; -&gt; ValueTuple&lt;T, TSource&gt;
+    </span><span style="color: blue;">public static </span><span style="color: black;">(</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">) Multiply&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: black;">(</span><span style="color: #2b91af;">T</span><span style="color: black;">, (</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">)) sourceWrapper) =&gt;
+        sourceWrapper.SelectMany(source =&gt; source, (source, value) =&gt; value); </span><span style="color: green;">// Immediate execution.
+
+    // Unit: TSource -&gt; ValueTuple&lt;T, TSource&gt;
+    </span><span style="color: blue;">public static </span><span style="color: black;">(</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">) Unit&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value) =&gt; ValueTuple&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(value);
+
+    </span><span style="color: green;">// SelectMany: (ValueTuple&lt;T, TSource&gt;, TSource -&gt; ValueTuple&lt;T, TSelector&gt;, (TSource, TSelector) -&gt; TResult) -&gt; ValueTuple&lt;T, TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: black;">(</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">) SelectMany&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: black;">(</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">) source,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, (</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">)&gt; selector,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector) =&gt;
+            (source.Item1, resultSelector(source.Item2, selector(source.Item2).Item2)); </span><span style="color: green;">// Immediate execution.
+</span><span style="color: black;">}</span></pre>
+<p>The above (Multiply, Unit) implementations cannot preserve the monoid left unit law:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">MonoidLaws()
+{
+    (</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">) source = (</span><span style="color: #a31515;">"a"</span><span style="color: black;">, 1);
+
+    </span><span style="color: green;">// Associativity preservation: source.Wrap().Multiply().Wrap().Multiply() == source.Wrap().Wrap().Multiply().Multiply().
+    </span><span style="color: black;">source
+        .ValueTuple&lt;</span><span style="color: blue;">string</span><span style="color: black;">, (</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">)&gt;()
+        .Multiply()
+        .ValueTuple&lt;</span><span style="color: blue;">string</span><span style="color: black;">, (</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">)&gt;()
+        .Multiply()
+        .WriteLine(); </span><span style="color: green;">// (, 1)
+    </span><span style="color: black;">source
+        .ValueTuple&lt;</span><span style="color: blue;">string</span><span style="color: black;">, (</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">)&gt;()
+        .ValueTuple&lt;</span><span style="color: blue;">string</span><span style="color: black;">, (</span><span style="color: blue;">string</span><span style="color: black;">, (</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">))&gt;()
+        .Multiply()
+        .Multiply()
+        .WriteLine(); </span><span style="color: green;">// (, 1)
+    // Left unit preservation: Unit(f).Multiply() == source.
+    </span><span style="color: black;">Unit&lt;</span><span style="color: blue;">string</span><span style="color: black;">, (</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">)&gt;(source).Multiply().WriteLine(); </span><span style="color: green;">// (, 1)
+    // Right unit preservation: source == source.Select(Unit).Multiply().
+    </span><span style="color: black;">source.Select(Unit&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;).Multiply().WriteLine(); </span><span style="color: green;">// (a, 1)
+</span><span style="color: black;">}</span></pre>
+<p>And the above SelectMany implementation breaks the left unit monad law too:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">MonadLaws()
+{
+    </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; source = (</span><span style="color: #a31515;">"a"</span><span style="color: black;">, 1);
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">char</span><span style="color: black;">&gt;&gt; selector = int32 =&gt; (</span><span style="color: #a31515;">"b"</span><span style="color: black;">, </span><span style="color: #a31515;">'@'</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt;&gt; selector1 = int32 =&gt; (</span><span style="color: #a31515;">"c"</span><span style="color: black;">, </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(int32));
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt;&gt; selector2 = @double =&gt; (</span><span style="color: #a31515;">"d"</span><span style="color: black;">, @double.ToString(</span><span style="color: #a31515;">"0.00"</span><span style="color: black;">));
+    </span><span style="color: blue;">const int </span><span style="color: black;">Value = 5;
+
+    </span><span style="color: green;">// Associativity: source.SelectMany(selector1).SelectMany(selector2) == source.SelectMany(value =&gt; selector1(value).SelectMany(selector2)).
+    </span><span style="color: black;">(</span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source
+        </span><span style="color: blue;">from </span><span style="color: black;">result1 </span><span style="color: blue;">in </span><span style="color: black;">selector1(value)
+        </span><span style="color: blue;">from </span><span style="color: black;">result2 </span><span style="color: blue;">in </span><span style="color: black;">selector2(result1)
+        </span><span style="color: blue;">select </span><span style="color: black;">result2).WriteLine(); </span><span style="color: green;">// (a, 1.00)
+    </span><span style="color: black;">(</span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source
+        </span><span style="color: blue;">from </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">(</span><span style="color: blue;">from </span><span style="color: black;">result1 </span><span style="color: blue;">in </span><span style="color: black;">selector1(value) </span><span style="color: blue;">from </span><span style="color: black;">result2 </span><span style="color: blue;">in </span><span style="color: black;">selector2(result1) </span><span style="color: blue;">select </span><span style="color: black;">result2)
+        </span><span style="color: blue;">select </span><span style="color: black;">result).WriteLine(); </span><span style="color: green;">// (a, 1.00)
+    // Left unit: value.Wrap().SelectMany(selector) == selector(value).
+    </span><span style="color: black;">(</span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">Value.ValueTuple&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;()
+        </span><span style="color: blue;">from </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">selector(value)
+        </span><span style="color: blue;">select </span><span style="color: black;">result).WriteLine(); </span><span style="color: green;">// (, @)
+    </span><span style="color: black;">selector(Value).WriteLine(); </span><span style="color: green;">// (b, @)
+    // Right unit: source == source.SelectMany(Wrap).
+    </span><span style="color: black;">(</span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source
+        </span><span style="color: blue;">from </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">value.ValueTuple&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;()
+        </span><span style="color: blue;">select </span><span style="color: black;">result).WriteLine(); </span><span style="color: green;">// (a, 1)
+</span><span style="color: black;">}</span>
+
+</div>
+</body>
+</html>

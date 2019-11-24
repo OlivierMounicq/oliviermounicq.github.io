@@ -1,0 +1,145 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+<h1>Category Theory via C# (2) Monoid</h1>
+
+<h1>Monoid and monoid laws</h1>
+<p><a href="http://en.wikipedia.org/wiki/Monoid_(category_theory)" target="_blank">Monoid</a> is an important algebraic structure in category theory. A monoid M is a set M equipped with a binary operation ⊙ and a special element I, denoted 3-tuple (M, ⊙, I), where</p>
+<ul>
+<li>M is a set of elements</li>
+<li>⊙ is a binary operator called multiplication, so that M ⊙ M → M, which means the multiplication of 2 elements in set M always results an element in set M. This operation is also denoted μ, so that μ(M, M) ≡ M ⊙ M.</li>
+<li>I is a special unit element (aka neutral element, or identity element) in set M</li>
+</ul>
+<p>And the binary operator and the unit element must satisfy the following monoid laws:</p>
+<ul>
+<li>associative law α<sub>X, Y, Z</sub>: (X ⊙ Y) ⊙ Z ≡ X ⊙ (Y ⊙ Z), where X ∈ M, Y ∈ M, Z ∈ M</li>
+<li>left unit law λ<sub>X</sub>: I ⊙ X ≡ X, where X ∈ M; and right unit law ρ<sub>X</sub>: X ≡ X ⊙ I, where X ∈ M</li>
+</ul>
+<p>so that:</p>
+<ul>
+<li>the triangle identity commutes:<br><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/LINQ-via-C-Series-C-Functional-Programmi_921F/image_6.png"><img title="image" style="border-width: 0px; padding-top: 0px; padding-right: 0px; padding-left: 0px; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/LINQ-via-C-Series-C-Functional-Programmi_921F/image_thumb_2.png" width="640" height="252" border="0"></a></li>
+<li>and the pentagon identity commutes::<br><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/LINQ-via-C-Series-C-Functional-Programmi_921F/Untitled-2.fw_2.png"><img title="Untitled-2.fw" style="border-width: 0px; padding-top: 0px; padding-right: 0px; padding-left: 0px; display: inline; background-image: none;" alt="Untitled-2.fw" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/LINQ-via-C-Series-C-Functional-Programmi_921F/Untitled-2.fw_thumb.png" width="640" height="376" border="0"></a>&nbsp;</li>
+</ul>
+<p>In C#, the monoid definition can be represented as:</p>
+<pre class="code"><span style="color: blue;">public interface </span><span style="color: #2b91af;">IMonoid</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: #2b91af;">T </span><span style="color: black;">Multiply(</span><span style="color: #2b91af;">T </span><span style="color: black;">value1, </span><span style="color: #2b91af;">T </span><span style="color: black;">value2);
+
+    </span><span style="color: #2b91af;">T </span><span style="color: black;">Unit();
+}</span></pre>
+<p>An intuitive example is the set ℤ of all integers, with binary operator + and unit element 0. The addition of 2 integers always results another integer; Also for integers x, y ,z, there is (x + y) + z ≡ x + (y + z) and 0 + x ≡ x ≡ x + 0 (ℤ, +, 0), so that (ℤ, +, 0) is monoid. Apparently (ℤ, *, 1) is monoid too.</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">Int32SumMonoid </span><span style="color: black;">: </span><span style="color: #2b91af;">IMonoid</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">public int </span><span style="color: black;">Multiply(</span><span style="color: blue;">int </span><span style="color: black;">value1, </span><span style="color: blue;">int </span><span style="color: black;">value2) =&gt; value1 + value2;
+
+    </span><span style="color: blue;">public int </span><span style="color: black;">Unit() =&gt; 0;
+}
+
+</span><span style="color: blue;">public class </span><span style="color: #2b91af;">Int32ProductMonoid </span><span style="color: black;">: </span><span style="color: #2b91af;">IMonoid</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">public int </span><span style="color: black;">Multiply(</span><span style="color: blue;">int </span><span style="color: black;">value1, </span><span style="color: blue;">int </span><span style="color: black;">value2) =&gt; value1 * value2;
+
+    </span><span style="color: blue;">public int </span><span style="color: black;">Unit() =&gt; 1;
+}</span></pre>
+<p>Another monoid example is (string, string.Concat, string.Empty):</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">StringConcatMonoid </span><span style="color: black;">: </span><span style="color: #2b91af;">IMonoid</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">public string </span><span style="color: black;">Multiply(</span><span style="color: blue;">string </span><span style="color: black;">value1, </span><span style="color: blue;">string </span><span style="color: black;">value2) =&gt; </span><span style="color: blue;">string</span><span style="color: black;">.Concat(value1, value2);
+
+    </span><span style="color: blue;">public string </span><span style="color: black;">Unit() =&gt; </span><span style="color: blue;">string</span><span style="color: black;">.Empty;
+}</span></pre>
+<p>Here string can be viewed as a sequence of char, and the unit string is an empty sequence. Generally, (IEnumerable&lt;T&gt;, Enumerable.Concat&lt;T&gt;, Enumerable.Empty&lt;T&gt;()) is a monoid:</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">EnumerableConcatMonoid</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IMonoid</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt;
+{
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; Multiply(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; value1, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; value2) =&gt; value1.Concat(value2);
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; Unit() =&gt; </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Empty&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;();
+}</span></pre>
+<p>The set of Boolean values { true, false }, with binary operator &amp;&amp; and unit element true, is a monoid with only 2 element: ({true, false}, &amp;&amp;, true); And so is ({ true, false }, ||, false):</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">BooleanAndMonoid </span><span style="color: black;">: </span><span style="color: #2b91af;">IMonoid</span><span style="color: black;">&lt;</span><span style="color: blue;">bool</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">public bool </span><span style="color: black;">Multiply(</span><span style="color: blue;">bool </span><span style="color: black;">value1, </span><span style="color: blue;">bool </span><span style="color: black;">value2) =&gt; value1 &amp;&amp; value2;
+
+    </span><span style="color: blue;">public bool </span><span style="color: black;">Unit() =&gt; </span><span style="color: blue;">true</span><span style="color: black;">;
+}
+
+</span><span style="color: blue;">public class </span><span style="color: #2b91af;">BooleanOrMonoid </span><span style="color: black;">: </span><span style="color: #2b91af;">IMonoid</span><span style="color: black;">&lt;</span><span style="color: blue;">bool</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">public bool </span><span style="color: black;">Multiply(</span><span style="color: blue;">bool </span><span style="color: black;">value1, </span><span style="color: blue;">bool </span><span style="color: black;">value2) =&gt; value1 || value2;
+
+    </span><span style="color: blue;">public bool </span><span style="color: black;">Unit() =&gt; </span><span style="color: blue;">false</span><span style="color: black;">;
+}</span></pre>
+<p>A monoid with 1 single element can be defined with the special type void (System.Void):</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{</span><span style="color: black;">
+    [</span><span style="color: #2b91af;">ComVisible</span><span style="color: black;">(</span><span style="color: blue;">true</span><span style="color: black;">)]
+    [</span><span style="color: #2b91af;">Serializable</span><span style="color: black;">]
+    [</span><span style="color: #2b91af;">StructLayout</span><span style="color: black;">(</span><span style="color: #2b91af;">LayoutKind</span><span style="color: black;">.Sequential, Size = 1)]
+    </span><span style="color: blue;">public struct </span><span style="color: #2b91af;">Void
+    </span><span style="color: black;">{
+    }
+}</span></pre>
+<p>The set { default(void) } with the following operator and unit is a monoid:</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">VoidMonoid </span><span style="color: black;">: </span><span style="color: #2b91af;">IMonoid</span><span style="color: black;">&lt;</span><span style="color: blue;">void</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">public void </span><span style="color: black;">Multiply(</span><span style="color: blue;">void </span><span style="color: black;">value1, </span><span style="color: blue;">void </span><span style="color: black;">value2) =&gt; </span><span style="color: blue;">default</span><span style="color: black;">;
+
+    </span><span style="color: blue;">public void </span><span style="color: black;">Unit() =&gt; </span><span style="color: blue;">default</span><span style="color: black;">;
+}</span></pre>
+<p>However, C# compiler does not allow void keyword or System.Void type to be used in this way, so here System.Void can be replaced with its equivalency in F#, the Microsoft.FSharp.Core.Unit type:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">Microsoft.FSharp.Core
+{</span><span style="color: black;">
+    [</span><span style="color: #2b91af;">CompilationMapping</span><span style="color: black;">(</span><span style="color: #2b91af;">SourceConstructFlags</span><span style="color: black;">.ObjectType)]
+    [</span><span style="color: #2b91af;">Serializable</span><span style="color: black;">]
+    </span><span style="color: blue;">public sealed class </span><span style="color: #2b91af;">Unit </span><span style="color: black;">: </span><span style="color: #2b91af;">IComparable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">internal </span><span style="color: black;">Unit() { }
+
+        </span><span style="color: blue;">public override int </span><span style="color: black;">GetHashCode() =&gt; 0;
+
+        </span><span style="color: blue;">public override bool </span><span style="color: black;">Equals(</span><span style="color: blue;">object </span><span style="color: black;">obj) =&gt;
+            obj == </span><span style="color: blue;">null </span><span style="color: black;">|| </span><span style="color: #2b91af;">LanguagePrimitives</span><span style="color: black;">.</span><span style="color: #2b91af;">IntrinsicFunctions</span><span style="color: black;">.TypeTestGeneric&lt;</span><span style="color: #2b91af;">Unit</span><span style="color: black;">&gt;(obj);
+
+        </span><span style="color: blue;">int </span><span style="color: #2b91af;">IComparable</span><span style="color: black;">.CompareTo(</span><span style="color: blue;">object </span><span style="color: black;">obj) =&gt; 0;
+    }
+}</span></pre>
+<p>With an internal constructor, Unit cannot be instantiated, a Unit variable can only be default(Unit), which is null. So similarly, set { default(Unit) } with the following operator and unit element is monoid:</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">UnitMonoid </span><span style="color: black;">: </span><span style="color: #2b91af;">IMonoid</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Unit</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">Unit </span><span style="color: black;">Multiply(</span><span style="color: #2b91af;">Unit </span><span style="color: black;">value1, </span><span style="color: #2b91af;">Unit </span><span style="color: black;">value2) =&gt; </span><span style="color: blue;">null</span><span style="color: black;">;
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">Unit </span><span style="color: black;">Unit() =&gt; </span><span style="color: blue;">null</span><span style="color: black;">;
+}</span></pre>
+<h1>Monoid as category</h1>
+<p>An individual monoid (M, ⊙, I) can be a category C with 1 single object M, where:</p>
+<ul>
+<li>The collection of objects ob(C) is { M }, which means, category C has 1 single object, that is M.</li>
+<li>The collection of orphisms hom(C) is set M itself, which mean, each elements in set M is a morphism in category C.</li>
+<li>The composition operation ∘ of C is ⊙: since each morphism in C is each element in M, the composition of morphisms is just the multiplication of elements.</li>
+<li>The identity morphism id of C is unit element I: the identity morphism in C is the unit element in M</li>
+</ul>
+<p>In this way, since M, ⊙, I satisfies the monoid laws, apparently the category laws are satisfied. In C#, this singleton category can be represented as:</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">MonoidCategory</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">ICategory</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Type</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">IMonoid</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; monoid;
+
+    </span><span style="color: blue;">public </span><span style="color: black;">MonoidCategory(</span><span style="color: #2b91af;">IMonoid</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; monoid)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.monoid = monoid;
+    }
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Type</span><span style="color: black;">&gt; Objects { </span><span style="color: blue;">get </span><span style="color: black;">{ </span><span style="color: blue;">yield return typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">T</span><span style="color: black;">); } }
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">T </span><span style="color: black;">Compose(</span><span style="color: #2b91af;">T </span><span style="color: black;">morphism2, </span><span style="color: #2b91af;">T </span><span style="color: black;">morphism1) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.monoid.Multiply(morphism1, morphism2);
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">T </span><span style="color: black;">Id(</span><span style="color: #2b91af;">Type </span><span style="color: black;">@object) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.monoid.Unit;
+}</span>
+
+
+</div>
+</body>
+</html>

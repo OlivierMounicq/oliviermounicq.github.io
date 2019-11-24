@@ -1,0 +1,641 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+<h1>Category Theory via C# (8) Advanced LINQ to Monads</h1>
+
+<p>Monad is a powerful structure, with the LINQ support in C# language, monad enables chaining operations to build fluent workflow, which can be pure. With these features, monad can be used to manage I/O, state changes, exception handling, shared environment, logging/tracing, and continuation, etc., in the functional paradigm.</p>
+<h1>IO monad</h1>
+<p>IO is impure. As already demonstrated, the Lazy&lt;&gt; and Func&lt;&gt; monads can build purely function workflows consists of I/O operations. The I/O is produced only when the workflows is started. So the Func&lt;&gt; monad is also called IO monad (Again, Lazy&lt;T&gt; is just a wrapper of Func&lt;T&gt; factory function, so Lazy&lt;&gt; and Func&lt;&gt; can be viewed as equivalent.). Here, to be more intuitive, rename Func&lt;&gt; to IO&lt;&gt;:</p>
+<pre class="code"><span style="color: green;">// IO: () -&gt; T
+</span><span style="color: blue;">public delegate </span><span style="color: #2b91af;">T IO</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;();</span></pre>
+<p>Func&lt;T&gt; or IO&lt;T&gt; is just a wrapper of T. Generally, the difference is, if a value T is obtained, effect is already produced; and if a Func&lt;T&gt; or IO&lt;T&gt; function wrapper is obtained, the effect can be delayed to produce, until explicitly calling this function to pull the wrapped T value. The following example is a simple comparison:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">IOExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static string </span><span style="color: black;">Impure()
+    {
+        </span><span style="color: blue;">string </span><span style="color: black;">filePath = </span><span style="color: #2b91af;">Console</span><span style="color: black;">.ReadLine();
+        </span><span style="color: blue;">string </span><span style="color: black;">fileContent = </span><span style="color: #2b91af;">File</span><span style="color: black;">.ReadAllText(filePath);
+        </span><span style="color: blue;">return </span><span style="color: black;">fileContent;
+    }
+
+    </span><span style="color: blue;">internal static </span><span style="color: #2b91af;">IO</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; Pure()
+    {
+        </span><span style="color: #2b91af;">IO</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; filePath = () =&gt; </span><span style="color: #2b91af;">Console</span><span style="color: black;">.ReadLine();
+        </span><span style="color: #2b91af;">IO</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; fileContent = () =&gt; </span><span style="color: #2b91af;">File</span><span style="color: black;">.ReadAllText(filePath());
+        </span><span style="color: blue;">return </span><span style="color: black;">fileContent;
+    }
+
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">IO()
+    {
+        </span><span style="color: blue;">string </span><span style="color: black;">ioResult1 = Impure(); </span><span style="color: green;">// IO is produced.
+        </span><span style="color: #2b91af;">IO</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; ioResultWrapper = Pure(); </span><span style="color: green;">// IO is not produced.<span style="color: green;">
+
+        </span></span><span style="color: blue;">string </span><span style="color: black;">ioResult2 = ioResultWrapper(); </span><span style="color: green;">// IO is produced.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>IO&lt;&gt; monad is just Func&lt;&gt; monad:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">IOExtensions
+</span><span style="color: black;">{
+    </span><span style="color: green;">// SelectMany: (IO&lt;TSource&gt;, TSource -&gt; IO&lt;TSelector&gt;, (TSource, TSelector) -&gt; TResult) -&gt; IO&lt;TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IO</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; SelectMany&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">IO</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">IO</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSelector</span><span style="color: black;">&gt;&gt; selector,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector) =&gt;
+            () =&gt;
+            {
+                </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value = source();
+                </span><span style="color: blue;">return </span><span style="color: black;">resultSelector(value, selector(value)());
+            };
+
+    </span><span style="color: green;">// Wrap: TSource -&gt; IO&lt;TSource&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IO</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; IO&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value) =&gt; () =&gt; value;
+
+    </span><span style="color: green;">// Select: (IO&lt;TSource&gt;, TSource -&gt; TResult) -&gt; IO&lt;TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IO</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">IO</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt;
+            source.SelectMany(value =&gt; selector(value).IO(), (value, result) =&gt; result);
+}</span></pre>
+<p>The (SelectMany, Wrap, Select) operations are defined so that the LINQ functor syntax (single from clause) and monad syntax (multiple from clauses) are enabled. The let clause is also enabled by Select, which provides great convenience.</p>
+<p>Some I/O operations, like above Console.ReadLine: () –&gt; string, and File.ReadAllText: string –&gt; string, returns a value T that can be wrapped IO&lt;T&gt;. There are other I/O operations that return void, like Console.WriteLine: string –&gt; void, etc. Since C# compiler does not allow void to be used as type argument of IO&lt;void&gt;, these operations can be viewed as returning a Unit value, which can be wrapped as IO&lt;Uint&gt;. The following methods help wrap IO&lt;T&gt; functions from I/O operations with or without return value:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IO</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; IO&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; function) =&gt;
+    () =&gt; function();
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IO</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Unit</span><span style="color: black;">&gt; IO(</span><span style="color: #2b91af;">Action </span><span style="color: black;">action) =&gt;
+    () =&gt;
+    {
+        action();
+        </span><span style="color: blue;">return default</span><span style="color: black;">;
+    };</span></pre>
+<p>Now the I/O workflow can be build as purely function LINQ query:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Workflow()
+{
+    </span><span style="color: #2b91af;">IO</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; query = </span><span style="color: blue;">from </span><span style="color: black;">unit1 </span><span style="color: blue;">in </span><span style="color: black;">IO(() =&gt; </span><span style="color: #2b91af;">Console</span><span style="color: black;">.WriteLine(</span><span style="color: #a31515;">"File path:"</span><span style="color: black;">)) </span><span style="color: green;">// IO&lt;Unit&gt;.
+                    </span><span style="color: blue;">from </span><span style="color: black;">filePath </span><span style="color: blue;">in </span><span style="color: black;">IO(</span><span style="color: #2b91af;">Console</span><span style="color: black;">.ReadLine) </span><span style="color: green;">// IO&lt;string&gt;.
+                    </span><span style="color: blue;">from </span><span style="color: black;">unit2 </span><span style="color: blue;">in </span><span style="color: black;">IO(() =&gt; </span><span style="color: #2b91af;">Console</span><span style="color: black;">.WriteLine(</span><span style="color: #a31515;">"File encoding:"</span><span style="color: black;">)) </span><span style="color: green;">// IO&lt;Unit&gt;.
+                    </span><span style="color: blue;">from </span><span style="color: black;">encodingName </span><span style="color: blue;">in </span><span style="color: black;">IO(</span><span style="color: #2b91af;">Console</span><span style="color: black;">.ReadLine) </span><span style="color: green;">// IO&lt;string&gt;.
+                    </span><span style="color: blue;">let </span><span style="color: black;">encoding = </span><span style="color: #2b91af;">Encoding</span><span style="color: black;">.GetEncoding(encodingName)
+                    </span><span style="color: blue;">from </span><span style="color: black;">fileContent </span><span style="color: blue;">in </span><span style="color: black;">IO(() =&gt; </span><span style="color: #2b91af;">File</span><span style="color: black;">.ReadAllText(filePath, encoding)) </span><span style="color: green;">// IO&lt;string&gt;.
+                    </span><span style="color: blue;">from </span><span style="color: black;">unit3 </span><span style="color: blue;">in </span><span style="color: black;">IO(() =&gt; </span><span style="color: #2b91af;">Console</span><span style="color: black;">.WriteLine(</span><span style="color: #a31515;">"File content:"</span><span style="color: black;">)) </span><span style="color: green;">// IO&lt;Unit&gt;.
+                    </span><span style="color: blue;">from </span><span style="color: black;">unit4 </span><span style="color: blue;">in </span><span style="color: black;">IO(() =&gt; </span><span style="color: #2b91af;">Console</span><span style="color: black;">.WriteLine(fileContent)) </span><span style="color: green;">// IO&lt;Unit&gt;.
+                    </span><span style="color: blue;">select </span><span style="color: black;">fileContent.Length; </span><span style="color: green;">// Define query.
+    </span><span style="color: blue;">int </span><span style="color: black;">result = query(); </span><span style="color: green;">// Execute query.
+</span><span style="color: black;">}</span></pre>
+<p>IO&lt;&gt; monad works with both synchronous and asynchronous I/O operations. The async version of IO&lt;T&gt; is just IO&lt;Task&lt;T&gt;&gt;, and the async version of IO&lt;Unit&gt; is just IO&lt;Task&gt;:</p>
+<pre class="code"><span style="color: blue;">internal static async </span><span style="color: #2b91af;">Task </span><span style="color: black;">WorkflowAsync()
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">HttpClient </span><span style="color: black;">httpClient = </span><span style="color: blue;">new </span><span style="color: #2b91af;">HttpClient</span><span style="color: black;">())
+    {
+        </span><span style="color: #2b91af;">IO</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Task</span><span style="color: black;">&gt; query = </span><span style="color: blue;">from </span><span style="color: black;">unit1 </span><span style="color: blue;">in </span><span style="color: black;">IO(() =&gt; </span><span style="color: #2b91af;">Console</span><span style="color: black;">.WriteLine(</span><span style="color: #a31515;">"URI:"</span><span style="color: black;">)) </span><span style="color: green;">// IO&lt;Unit&gt;.
+                            </span><span style="color: blue;">from </span><span style="color: black;">uri </span><span style="color: blue;">in </span><span style="color: black;">IO(</span><span style="color: #2b91af;">Console</span><span style="color: black;">.ReadLine) </span><span style="color: green;">// IO&lt;string&gt;.
+                            </span><span style="color: blue;">from </span><span style="color: black;">unit2 </span><span style="color: blue;">in </span><span style="color: black;">IO(() =&gt; </span><span style="color: #2b91af;">Console</span><span style="color: black;">.WriteLine(</span><span style="color: #a31515;">"File path:"</span><span style="color: black;">)) </span><span style="color: green;">// IO&lt;Unit&gt;.
+                            </span><span style="color: blue;">from </span><span style="color: black;">filePath </span><span style="color: blue;">in </span><span style="color: black;">IO(</span><span style="color: #2b91af;">Console</span><span style="color: black;">.ReadLine) </span><span style="color: green;">// IO&lt;string&gt;.
+                            </span><span style="color: blue;">from </span><span style="color: black;">downloadStreamTask </span><span style="color: blue;">in </span><span style="color: black;">IO(</span><span style="color: blue;">async </span><span style="color: black;">() =&gt;
+                                </span><span style="color: blue;">await </span><span style="color: black;">httpClient.GetStreamAsync(uri)) </span><span style="color: green;">// IO&lt;Task&lt;Stream&gt;&gt;.
+                            </span><span style="color: blue;">from </span><span style="color: black;">writeFileTask </span><span style="color: blue;">in </span><span style="color: black;">IO(</span><span style="color: blue;">async </span><span style="color: black;">() =&gt;
+                                </span><span style="color: blue;">await </span><span style="color: black;">(</span><span style="color: blue;">await </span><span style="color: black;">downloadStreamTask).CopyToAsync(</span><span style="color: #2b91af;">File</span><span style="color: black;">.Create(filePath))) </span><span style="color: green;">// IO&lt;Task&gt;.
+                            </span><span style="color: blue;">from </span><span style="color: black;">messageTask </span><span style="color: blue;">in </span><span style="color: black;">IO(</span><span style="color: blue;">async </span><span style="color: black;">() =&gt;
+                                {
+                                    </span><span style="color: blue;">await </span><span style="color: black;">writeFileTask;
+                                    </span><span style="color: #2b91af;">Console</span><span style="color: black;">.WriteLine(</span><span style="color: #a31515;">$"Downloaded </span><span style="color: black;">{uri} </span><span style="color: #a31515;">to </span><span style="color: black;">{filePath}</span><span style="color: #a31515;">"</span><span style="color: black;">);
+                                }) </span><span style="color: green;">// IO&lt;Task&gt;.
+                            </span><span style="color: blue;">select </span><span style="color: black;">messageTask; </span><span style="color: green;">// Define query.
+        </span><span style="color: blue;">await </span><span style="color: black;">query(); </span><span style="color: green;">// Execute query.
+    </span><span style="color: black;">}
+}</span></pre>
+<h1>State monad</h1>
+<p>In object-oriented programming, there is the state pattern to handle state changes. In functional programming, state change can be modeled with pure function. For pure function TSource –&gt; TResult, its state-involved version can be represented as a Tuple&lt;TSource, TState&gt; –&gt; Tuple&lt;TResult, TState&gt; function, which accepts some input value along with some input state, and returns some output value and some output state. This function can remains pure, because it can leave the input state unchanged, then either return the same old state, or create a new state and return it. To make this function monadic, break up the input tuple and curry the function to TSource –&gt; (TState –&gt; Tuple&lt;TResult, TState&gt;). Now the returned TState –&gt; Tuple&lt;TResult, TState&gt; function type can be given an alias called State:</p>
+<pre class="code"><span style="color: green;">// State: TState -&gt; ValueTuple&lt;T, TState&gt;
+</span><span style="color: blue;">public delegate </span><span style="color: black;">(</span><span style="color: #2b91af;">T </span><span style="color: black;">Value, </span><span style="color: #2b91af;">TState </span><span style="color: black;">State) </span><span style="color: #2b91af;">State</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TState</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TState </span><span style="color: black;">state);</span></pre>
+<p>Similar to fore mentioned Tuple&lt;,&gt; and Func&lt;,&gt; types, the above open generic type State&lt;,&gt; can be viewed as a type constructor of kind * –&gt; * –&gt; *. After partially applied with a first type argument TState, State&lt;TState,&gt; becomes a * –&gt; * type constructor. If it can be a functor and monad, then above stateful function becomes a monadic selector TSource –&gt; State&lt;TState, TResult&gt;. So the following (SelectMany, Wrap, Select) methods can be defined for State&lt;TState,&gt;:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">StateExtensions
+</span><span style="color: black;">{
+    </span><span style="color: green;">// SelectMany: (State&lt;TState, TSource&gt;, TSource -&gt; State&lt;TState, TSelector&gt;, (TSource, TSelector) -&gt; TResult) -&gt; State&lt;TState, TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">State</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TState</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; SelectMany&lt;</span><span style="color: #2b91af;">TState</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">State</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TState</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">State</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TState</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">&gt;&gt; selector,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector) =&gt;
+            oldState =&gt;
+            {
+                (</span><span style="color: #2b91af;">TSource </span><span style="color: black;">Value, </span><span style="color: #2b91af;">TState </span><span style="color: black;">State) value = source(oldState);
+                (</span><span style="color: #2b91af;">TSelector </span><span style="color: black;">Value, </span><span style="color: #2b91af;">TState </span><span style="color: black;">State) result = selector(value.Value)(value.State);
+                </span><span style="color: #2b91af;">TState </span><span style="color: black;">newState = result.State;
+                </span><span style="color: blue;">return </span><span style="color: black;">(resultSelector(value.Value, result.Value), newState); </span><span style="color: green;">// Output new state.
+            </span><span style="color: black;">};
+
+    </span><span style="color: green;">// Wrap: TSource -&gt; State&lt;TState, TSource&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">State</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TState</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; State&lt;</span><span style="color: #2b91af;">TState</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value) =&gt;
+        oldState =&gt; (value, oldState); </span><span style="color: green;">// Output old state.
+
+    // Select: (State&lt;TState, TSource&gt;, TSource -&gt; TResult) -&gt; State&lt;TState, TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">State</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TState</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TState</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">State</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TState</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt;
+            oldState =&gt;
+            {
+                (</span><span style="color: #2b91af;">TSource </span><span style="color: black;">Value, </span><span style="color: #2b91af;">TState </span><span style="color: black;">State) value = source(oldState);
+                </span><span style="color: #2b91af;">TState </span><span style="color: black;">newState = value.State;
+                </span><span style="color: blue;">return </span><span style="color: black;">(selector(value.Value), newState); </span><span style="color: green;">// Output new state.
+            </span><span style="color: black;">};
+            </span><span style="color: green;">// Equivalent to:
+            // source.SelectMany(value =&gt; selector(value).State&lt;TState, TResult&gt;(), (value, result) =&gt; result);
+</span><span style="color: black;">}</span></pre>
+<p>SelectMany and Select return a function that accepts an old state and outputs new state, State method returns a function that outputs the old state. Now this State&lt;TState,&gt; delegate type is the state monad, so a State&lt;TState, T&gt; function can be viewed as a wrapper of a T value, and this T value can be unwrapped in the monad workflow, with the from value in source syntax. State&lt;TState, T&gt; function also wraps the state information. To get/set the TState state in the monad workflow, the following GetState/SetState functions can be defined:</p>
+<pre class="code"><span style="color: green;">// GetState: () -&gt; State&lt;TState, TState&gt;
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">State</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TState</span><span style="color: black;">, </span><span style="color: #2b91af;">TState</span><span style="color: black;">&gt; GetState&lt;</span><span style="color: #2b91af;">TState</span><span style="color: black;">&gt;() =&gt;
+    oldState =&gt; (oldState, oldState); </span><span style="color: green;">// Output old state.
+
+// SetState: TState -&gt; State&lt;TState, Unit&gt;
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">State</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TState</span><span style="color: black;">, </span><span style="color: #2b91af;">Unit</span><span style="color: black;">&gt; SetState&lt;</span><span style="color: #2b91af;">TState</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TState </span><span style="color: black;">newState) =&gt;
+    oldState =&gt; (</span><span style="color: blue;">default</span><span style="color: black;">, newState); </span><span style="color: green;">// Output new state.</span></pre>
+<p>Here GetState returns a State&lt;TState, TState&gt; function wrapping the state as value, so that the state can be extracted in the monad workflow with the same syntax that unwraps the value. SetState returns a State&lt;TState, Unit&gt; function, which ignores the old state, and wrap no value (represented by Unit) and outputs the the specified new value to the monad workflow. Generally, the state monad workflow can be demonstrated as:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Workflow()
+{
+    </span><span style="color: blue;">string </span><span style="color: black;">initialState = </span><span style="color: blue;">nameof</span><span style="color: black;">(initialState);
+    </span><span style="color: blue;">string </span><span style="color: black;">newState = </span><span style="color: blue;">nameof</span><span style="color: black;">(newState);
+    </span><span style="color: blue;">string </span><span style="color: black;">resetState = </span><span style="color: blue;">nameof</span><span style="color: black;">(resetState);
+    </span><span style="color: #2b91af;">State</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; source1 = oldState =&gt; (1, oldState);
+    </span><span style="color: #2b91af;">State</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; source2 = oldState =&gt; (</span><span style="color: blue;">true</span><span style="color: black;">, newState);
+    </span><span style="color: #2b91af;">State</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">char</span><span style="color: black;">&gt; source3 = </span><span style="color: #a31515;">'@'</span><span style="color: black;">.State&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">char</span><span style="color: black;">&gt;(); </span><span style="color: green;">// oldState =&gt; 2, oldState).
+
+    </span><span style="color: #2b91af;">State</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">[]&gt; query =
+        </span><span style="color: blue;">from </span><span style="color: black;">value1 </span><span style="color: blue;">in </span><span style="color: black;">source1 </span><span style="color: green;">// source1: State&lt;string, int&gt; = initialState =&gt; (1, initialState).
+        </span><span style="color: blue;">from </span><span style="color: black;">state1 </span><span style="color: blue;">in </span><span style="color: black;">GetState&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;() </span><span style="color: green;">// GetState&lt;int&gt;(): State&lt;string, string&gt; = initialState =&gt; (initialState, initialState).
+        </span><span style="color: blue;">from </span><span style="color: black;">value2 </span><span style="color: blue;">in </span><span style="color: black;">source2 </span><span style="color: green;">// source2: State&lt;string, bool&gt;3 = initialState =&gt; (true, newState).
+        </span><span style="color: blue;">from </span><span style="color: black;">state2 </span><span style="color: blue;">in </span><span style="color: black;">GetState&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;() </span><span style="color: green;">// GetState&lt;int&gt;(): State&lt;string, string&gt; = newState =&gt; (newState, newState).
+        </span><span style="color: blue;">from </span><span style="color: black;">unit </span><span style="color: blue;">in </span><span style="color: black;">SetState(resetState) </span><span style="color: green;">// SetState(resetState): State&lt;string, Unit&gt; = newState =&gt; (default, resetState).
+        </span><span style="color: blue;">from </span><span style="color: black;">state3 </span><span style="color: blue;">in </span><span style="color: black;">GetState&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;() </span><span style="color: green;">// GetState(): State&lt;string, string&gt; = resetState =&gt; (resetState, resetState).
+        </span><span style="color: blue;">from </span><span style="color: black;">value3 </span><span style="color: blue;">in </span><span style="color: black;">source3 </span><span style="color: green;">// source3: State&lt;string, char&gt; = resetState =&gt; (@, resetState).
+        </span><span style="color: blue;">select new string</span><span style="color: black;">[] { state1, state2, state3 }; </span><span style="color: green;">// Define query.
+    </span><span style="color: black;">(</span><span style="color: blue;">string</span><span style="color: black;">[] Value, </span><span style="color: blue;">string </span><span style="color: black;">State) result = query(initialState); </span><span style="color: green;">// Execute query with initial state.
+    </span><span style="color: black;">result.Value.WriteLines(); </span><span style="color: green;">// initialState newState resetState
+    </span><span style="color: black;">result.State.WriteLine(); </span><span style="color: green;">// Final state: resetState
+</span><span style="color: black;">}</span></pre>
+<p>The state monad workflow is a State&lt;TState, T&gt; function, which is of type TState –&gt; Tuple&lt;T, TState&gt;. To execute the workflow, it must be called with a TState initial state. At runtime, when the workflow executes, the first operation in the workflow, also a TState –&gt; Tuple&lt;T, TState&gt; function, is called with the workflow’s initial state, and returns a output value and a output state; then the second operation, once again another TState –&gt; Tuple&lt;T, TState&gt; function, is called with the first operation’s output state, and outputs another output value and another output state; and so on. In this chaining, each operation function can wither return its original input state, or return a new state. This is how state changes through a workflow of pure functions.</p>
+<p>Take the factorial function as example. The factorial function can be viewed as a recursive function with a state – the current product of the current recursion step, and apparently take the initial state (product) is 1. To calculate the factorial of 5, the recursive steps can be modeled as:</p>
+<ul>
+<li>(Value: 5, State: 1) =&gt; (Value: 4, State: 1 * 5)</li>
+<li>(Value: 4, State: 1 * 5) =&gt; (Value: 3, State: 1 * 5 * 4)</li>
+<li>(Value: 3, State: 1 * 5 * 4) =&gt; (Value: 3, State: 1 * 5 * 4)</li>
+<li>(Value: 2, State: 1 * 5 * 4 * 3) =&gt; (Value: 2, State: 1 * 5 * 4 * 3)</li>
+<li>(Value: 1, State: 1 * 5 * 4 * 3 * 2) =&gt; (Value: 1, State: 1 * 5 * 4 * 3 * 2)</li>
+<li>(Value: 0, State: 1 * 5 * 4 * 3 * 2 * 1) =&gt; (Value: 0, State: 1 * 5 * 4 * 3 * 2 * 1)</li>
+</ul>
+<p>When the current integer becomes 0, the recursion terminates, and the final state (product) is the factorial result. So this recursive function is of type Tuple&lt;int, int&gt; –&gt; Tuple&lt;int, int&gt;. As fore mentioned, it can be curried to int –&gt; (int –&gt; Tuple&lt;int, int&gt;), which is equivalent to int –&gt; State&lt;int, int&gt;:</p>
+<pre class="code"><span style="color: green;">// FactorialState: uint -&gt; (uint -&gt; (uint, uint))
+// FactorialState: uint -&gt; State&lt;unit, uint&gt;
+</span><span style="color: blue;">private static </span><span style="color: #2b91af;">State</span><span style="color: black;">&lt;</span><span style="color: blue;">uint</span><span style="color: black;">, </span><span style="color: blue;">uint</span><span style="color: black;">&gt; FactorialState(</span><span style="color: blue;">uint </span><span style="color: black;">current) =&gt;
+    </span><span style="color: blue;">from </span><span style="color: black;">state </span><span style="color: blue;">in </span><span style="color: black;">GetState&lt;</span><span style="color: blue;">uint</span><span style="color: black;">&gt;() </span><span style="color: green;">// State&lt;uint, uint&gt;.
+    </span><span style="color: blue;">let </span><span style="color: black;">product = state
+    </span><span style="color: blue;">let </span><span style="color: black;">next = current - 1U
+    </span><span style="color: blue;">from </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">current &gt; 0U
+        ? (</span><span style="color: blue;">from </span><span style="color: black;">unit </span><span style="color: blue;">in </span><span style="color: black;">SetState(product * current) </span><span style="color: green;">// State&lt;unit, Unit&gt;.
+            </span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">FactorialState(next) </span><span style="color: green;">// State&lt;uint, uint&gt;.
+            </span><span style="color: blue;">select </span><span style="color: black;">next)
+        : next.State&lt;</span><span style="color: blue;">uint</span><span style="color: black;">, </span><span style="color: blue;">uint</span><span style="color: black;">&gt;() </span><span style="color: green;">// State&lt;uint, uint&gt;.
+    </span><span style="color: blue;">select </span><span style="color: black;">result;
+
+</span><span style="color: blue;">public static uint </span><span style="color: black;">Factorial(</span><span style="color: blue;">uint </span><span style="color: black;">uInt32)
+{
+    </span><span style="color: #2b91af;">State</span><span style="color: black;">&lt;</span><span style="color: blue;">uint</span><span style="color: black;">, </span><span style="color: blue;">uint</span><span style="color: black;">&gt; query = FactorialState(uInt32); </span><span style="color: green;">// Define query.
+    </span><span style="color: blue;">return </span><span style="color: black;">query(1).State; </span><span style="color: green;">// Execute query, with initial state: 1.
+</span><span style="color: black;">}</span></pre>
+<p>Another example is Enumerable.Aggregate query method, which accepts an IEnumerable&lt;TSource&gt; sequence, a TAccumulate seed, and a TAccumulate –&gt; TSource –&gt; TAccumulate function. Aggregate calls the accumulation function over the seed and all the values in the sequence. The aggregation steps can also be modeled as recursive steps, where each step’s state is the current accumulate result and the unused source values. Take source sequence { 1, 2, 3, 4, 5 }, seed 0, and function + as example:</p>
+<ul>
+<li>(Value: +, State: (0, { 1, 2, 3, 4 })) =&gt; (Value: +, State: (0 + 1, { 2, 3, 4 }))</li>
+<li>(Value: +, State: (0 + 1, { 2, 3, 4 })) =&gt; (Value: +, State: (0 + 1 + 2, { 3, 4 }))</li>
+<li>(Value: +, State: (0 + 1 + 2, { 3, 4 })) =&gt; (Value: +, State: (0 + 1 + 2 + 3, { 4 }))</li>
+<li>(Value: +, State: (0 + 1 + 2 + 3, { 4 })) =&gt; (Value: +, State: (0 + 1 + 2 + 3 + 4, { }))</li>
+<li>(Value: +, State: (0 + 1 + 2 + 3 + 4, { })) =&gt; (Value: +, State: (0 + 1 + 2 + 3 + 4, { }))</li>
+</ul>
+<p>When the current source sequence in the state is empty, all source values are applied to the accumulate function, the recursion terminates, and the aggregation result in in the final state. So the recursive function is of type Tuple&lt;TAccumulate –&gt; TSource –&gt; TAccumulate, Tuple&lt;TAccumulate, IEnumerable&lt;TSource&gt;&gt;&gt; –&gt; Tuple&lt;TAccumulate –&gt; TSource –&gt; TAccumulate, Tuple&lt;TAccumulate, IEnumerable&lt;TSource&gt;&gt;&gt;. Again, it can be curried to (TAccumulate –&gt; TSource –&gt; TAccumulate) –&gt; (Tuple&lt;TAccumulate, IEnumerable&lt;TSource&gt;&gt; –&gt; Tuple&lt;TAccumulate –&gt; TSource –&gt; TAccumulate, Tuple&lt;TAccumulate, IEnumerable&lt;TSource&gt;&gt;&gt;), which is equivalent to (TAccumulate –&gt; TSource –&gt; TAccumulate) –&gt; State&lt;Tuple&lt;TAccumulate, IEnumerable&lt;TSource&gt;&gt;, TAccumulate –&gt; TSource –&gt; TAccumulate&gt;:</p>
+<pre class="code"><span style="color: green;">// AggregateState: (TAccumulate -&gt; TSource -&gt; TAccumulate) -&gt; ((TAccumulate, IEnumerable&lt;TSource&gt;) -&gt; (TAccumulate -&gt; TSource -&gt; TAccumulate, (TAccumulate, IEnumerable&lt;TSource&gt;)))
+// AggregateState: TAccumulate -&gt; TSource -&gt; TAccumulate -&gt; State&lt;(TAccumulate, IEnumerable&lt;TSource&gt;), TAccumulate -&gt; TSource -&gt; TAccumulate&gt;
+</span><span style="color: blue;">private static </span><span style="color: #2b91af;">State</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;), </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">&gt;&gt; AggregateState&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">&gt; func) =&gt;
+        </span><span style="color: blue;">from </span><span style="color: black;">state </span><span style="color: blue;">in </span><span style="color: black;">GetState&lt;(</span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;)&gt;() </span><span style="color: green;">// State&lt;(TAccumulate, IEnumerable&lt;TSource&gt;), (TAccumulate, IEnumerable&lt;TSource&gt;)&gt;.
+        </span><span style="color: blue;">let </span><span style="color: black;">accumulate = state.Item1 </span><span style="color: green;">// TAccumulate.
+        </span><span style="color: blue;">let </span><span style="color: black;">source = state.Item2.Share() </span><span style="color: green;">// IBuffer&lt;TSource&gt;.
+        </span><span style="color: blue;">let </span><span style="color: black;">sourceIterator = source.GetEnumerator() </span><span style="color: green;">// IEnumerator&lt;TSource&gt;.
+        </span><span style="color: blue;">from </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">sourceIterator.MoveNext()
+            ? (</span><span style="color: blue;">from </span><span style="color: black;">unit </span><span style="color: blue;">in </span><span style="color: black;">SetState((func(accumulate, sourceIterator.Current), source.AsEnumerable())) </span><span style="color: green;">// State&lt;(TAccumulate, IEnumerable&lt;TSource&gt;), Unit&gt;.
+                </span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">AggregateState(func) </span><span style="color: green;">// State&lt;(TAccumulate, IEnumerable&lt;TSource&gt;), Func&lt;TAccumulate, TSource, TAccumulate&gt;&gt;.
+                </span><span style="color: blue;">select </span><span style="color: black;">func)
+            : func.State&lt;(</span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;), </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">&gt;&gt;() </span><span style="color: green;">// State&lt;(TAccumulate, IEnumerable&lt;TSource&gt;), Func&lt;TAccumulate, TSource, TAccumulate&gt;&gt;.
+        </span><span style="color: blue;">select </span><span style="color: black;">result;
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">TAccumulate </span><span style="color: black;">Aggregate&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">TAccumulate </span><span style="color: black;">seed, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">&gt; func)
+{
+    </span><span style="color: #2b91af;">State</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;), </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">&gt;&gt; query =
+        AggregateState(func); </span><span style="color: green;">// Define query.
+    </span><span style="color: blue;">return </span><span style="color: black;">query((seed, source)).State.Item1; </span><span style="color: green;">// Execute query, with initial state (seed, source).
+</span><span style="color: black;">}</span></pre>
+<p>In each recursion step, if the source sequence in the current state in not empty, the source sequence needs to be split. The first value is used to call the accumulation function, and the other values are put into output state, which is passed to the next recursion step. So there are multiple pulling operations for the source sequence: detecting if it is empty detection, pulling first value, and pulling the rest values. To avoid multiple iterations for the same source sequence, here the Share query method from Microsoft Ix (Interactive Extensions) library is called, so that all the pulling operations share the same iterator.</p>
+<p>The stack’s Pop and Push operation can be also viewed as state processing. The Pop method of stack requires no input, and out put the stack’s top value T, So Pop can be viewed of type Unit –&gt; T. In contrast, stack’s Push method accepts a value, set the value to the top of the stack, and returns no output, so Push can be viewed of type T –&gt; Unit. The stack’s values are different before and after the Pop and Push operations, so the stack itself can be viewed as the state of the Pop and Push operation. If the values in a stack is represented as a IEnumerable&lt;T&gt; sequence, then Pop can be remodeled as Tuple&lt;Unit, IEnumerable&lt;T&gt;&gt; –&gt; Tuple&lt;Unit, IEnumerable&lt;T&gt;&gt;, which can be curried to Unit –&gt; State&lt;IEnumerable&lt;T&gt;, T&gt;; and Push can be remodeled as Tuple&lt;T, IEnumerable&lt;T&gt;&gt; –&gt; Tuple&lt;Unit, IEnumerable&lt;T&gt;&gt;:</p>
+<pre class="code"><span style="color: green;">// PopState: Unit -&gt; (IEnumerable&lt;T&gt; -&gt; (T, IEnumerable&lt;T&gt;))
+// PopState: Unit -&gt; State&lt;IEnumerable&lt;T&gt;, T&gt;
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">State</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; PopState&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Unit </span><span style="color: black;">unit = </span><span style="color: blue;">null</span><span style="color: black;">) =&gt;
+    oldStack =&gt;
+    {
+        </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; newStack = oldStack.Share();
+        </span><span style="color: blue;">return </span><span style="color: black;">(newStack.First(), newStack); </span><span style="color: green;">// Output new state.
+    </span><span style="color: black;">};
+
+</span><span style="color: green;">// PushState: T -&gt; (IEnumerable&lt;T&gt; -&gt; (Unit, IEnumerable&lt;T&gt;))
+// PushState: T -&gt; State&lt;IEnumerable&lt;T&gt;, Unit&gt;
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">State</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Unit</span><span style="color: black;">&gt; PushState&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T </span><span style="color: black;">value) =&gt;
+    oldStack =&gt;
+    {
+        </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; newStack = oldStack.Concat(value.Enumerable());
+        </span><span style="color: blue;">return </span><span style="color: black;">(</span><span style="color: blue;">default</span><span style="color: black;">, newStack); </span><span style="color: green;">// Output new state.
+    </span><span style="color: black;">};</span></pre>
+<p>Now the stack operations can be a state monad workflow. Also, GetState can get the current values of the stack, and SetState can reset the values of stack:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Stack()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; initialStack = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Repeat(0, 5);
+    </span><span style="color: #2b91af;">State</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; query =
+        </span><span style="color: blue;">from </span><span style="color: black;">value1 </span><span style="color: blue;">in </span><span style="color: black;">PopState&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;() </span><span style="color: green;">// State&lt;IEnumerable&lt;int&gt;, int&gt;.
+        </span><span style="color: blue;">from </span><span style="color: black;">unit1 </span><span style="color: blue;">in </span><span style="color: black;">PushState(1) </span><span style="color: green;">// State&lt;IEnumerable&lt;int&gt;, Unit&gt;.
+        </span><span style="color: blue;">from </span><span style="color: black;">unit2 </span><span style="color: blue;">in </span><span style="color: black;">PushState(2) </span><span style="color: green;">// State&lt;IEnumerable&lt;int&gt;, Unit&gt;.
+        </span><span style="color: blue;">from </span><span style="color: black;">stack </span><span style="color: blue;">in </span><span style="color: black;">GetState&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt;() </span><span style="color: green;">// State&lt;IEnumerable&lt;int&gt;, IEnumerable&lt;int&gt;&gt;.
+        </span><span style="color: blue;">from </span><span style="color: black;">unit3 </span><span style="color: blue;">in </span><span style="color: black;">SetState(</span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5)) </span><span style="color: green;">// State&lt;IEnumerable&lt;int&gt;, Unit&gt;.
+        </span><span style="color: blue;">from </span><span style="color: black;">value2 </span><span style="color: blue;">in </span><span style="color: black;">PopState&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;() </span><span style="color: green;">// State&lt;IEnumerable&lt;int&gt;, int&gt;.
+        </span><span style="color: blue;">from </span><span style="color: black;">value3 </span><span style="color: blue;">in </span><span style="color: black;">PopState&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;() </span><span style="color: green;">// State&lt;IEnumerable&lt;int&gt;, int&gt;.
+        </span><span style="color: blue;">from </span><span style="color: black;">unit4 </span><span style="color: blue;">in </span><span style="color: black;">PushState(5) </span><span style="color: green;">// State&lt;IEnumerable&lt;int&gt;, Unit&gt;.
+        </span><span style="color: blue;">select </span><span style="color: black;">stack; </span><span style="color: green;">// Define query.
+    </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; Value, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; State) result = query(initialStack); </span><span style="color: green;">// Execute query with initial state.
+    </span><span style="color: black;">result.Value.WriteLines(); </span><span style="color: green;">// 0 0 0 0 1 2
+    </span><span style="color: black;">result.State.WriteLines(); </span><span style="color: green;">// 0 1 2 5
+</span><span style="color: black;">}</span></pre>
+<h1>Exception monad</h1>
+<p>As previously demonstrated, the Optional&lt;&gt; monad can handle the case that any operation of the workflow may not produce a valid result, in a . When an operation succeeds to return a valid result, the next operation executes. If all operations succeed, the entire workflow has a valid result. Option&lt;&gt; monad’s handling is based on operation’s return result. What if the operation fails with exception? To work with operation exceptions in a purely functional paradigm, the following Try&lt;&gt; structure can be defined, which is just Optional&lt;&gt; plus exception handling and store:</p>
+<pre class="code"><span style="color: blue;">public readonly struct </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">Exception</span><span style="color: black;">)&gt; factory;
+
+    </span><span style="color: blue;">public </span><span style="color: black;">Try(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">Exception</span><span style="color: black;">)&gt; factory) =&gt;
+        </span><span style="color: blue;">this</span><span style="color: black;">.factory = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">Exception</span><span style="color: black;">)&gt;(() =&gt;
+        {
+            </span><span style="color: blue;">try
+            </span><span style="color: black;">{
+                </span><span style="color: blue;">return </span><span style="color: black;">factory();
+            }
+            </span><span style="color: blue;">catch </span><span style="color: black;">(</span><span style="color: #2b91af;">Exception </span><span style="color: black;">exception)
+            {
+                </span><span style="color: blue;">return </span><span style="color: black;">(</span><span style="color: blue;">default</span><span style="color: black;">, exception);
+            }
+        });
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">T </span><span style="color: black;">Value
+    {
+        </span><span style="color: blue;">get
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">if </span><span style="color: black;">(</span><span style="color: blue;">this</span><span style="color: black;">.HasException)
+            {
+                </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">InvalidOperationException</span><span style="color: black;">(</span><span style="color: #a31515;">$"</span><span style="color: black;">{</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;)} </span><span style="color: #a31515;">object must have a value."</span><span style="color: black;">);
+            }
+            </span><span style="color: blue;">return this</span><span style="color: black;">.factory.Value.Item1;
+        }
+    }
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">Exception </span><span style="color: black;">Exception =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.factory.Value.Item2;
+
+    </span><span style="color: blue;">public bool </span><span style="color: black;">HasException =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.Exception != </span><span style="color: blue;">null</span><span style="color: black;">;
+
+    </span><span style="color: blue;">public static implicit operator </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T </span><span style="color: black;">value) =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(() =&gt; (value, (</span><span style="color: #2b91af;">Exception</span><span style="color: black;">)</span><span style="color: blue;">null</span><span style="color: black;">));
+}</span></pre>
+<p>Try&lt;T&gt; represents an operation, which either succeeds with a result, or fail with an exception. Its SelectMany method is also in the same pattern as Optional&lt;&gt;’s SelectMany, so that when an operation (source) succeeds without exception, the next operation (returned by selector) executes:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">TryExtensions
+</span><span style="color: black;">{
+    </span><span style="color: green;">// SelectMany: (Try&lt;TSource&gt;, TSource -&gt; Try&lt;TSelector&gt;, (TSource, TSelector) -&gt; TResult) -&gt; Try&lt;TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; SelectMany&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSelector</span><span style="color: black;">&gt;&gt; selector,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector) =&gt;
+            </span><span style="color: blue;">new </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(() =&gt;
+            {
+                </span><span style="color: blue;">if </span><span style="color: black;">(source.HasException)
+                {
+                    </span><span style="color: blue;">return </span><span style="color: black;">(</span><span style="color: blue;">default</span><span style="color: black;">, source.Exception);
+                }
+                </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSelector</span><span style="color: black;">&gt; result = selector(source.Value);
+                </span><span style="color: blue;">if </span><span style="color: black;">(result.HasException)
+                {
+                    </span><span style="color: blue;">return </span><span style="color: black;">(</span><span style="color: blue;">default</span><span style="color: black;">, result.Exception);
+                }
+                </span><span style="color: blue;">return </span><span style="color: black;">(resultSelector(source.Value, result.Value), (</span><span style="color: #2b91af;">Exception</span><span style="color: black;">)</span><span style="color: blue;">null</span><span style="color: black;">);
+            });
+
+    </span><span style="color: green;">// Wrap: TSource -&gt; Try&lt;TSource&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Try&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value) =&gt; value;
+
+    </span><span style="color: green;">// Select: (Try&lt;TSource&gt;, TSource -&gt; TResult) -&gt; Try&lt;TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt;
+            source.SelectMany(value =&gt; selector(value).Try(), (value, result) =&gt; result);
+}</span></pre>
+<p>The operation of throwing an exception can be represented with a Try&lt;T&gt; with the specified exception:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; Throw&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Exception </span><span style="color: black;">exception) =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(() =&gt; (</span><span style="color: blue;">default</span><span style="color: black;">, exception));</span></pre>
+<p>For convenience, Try&lt;T&gt; instance can be implicitly wrapped from a T value. And the following method also helps wrap a Func&lt;T&gt; operation:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; Try&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; function) =&gt;
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(() =&gt; (function(), (</span><span style="color: #2b91af;">Exception</span><span style="color: black;">)</span><span style="color: blue;">null</span><span style="color: black;">));</span></pre>
+<p>Similar to IO&lt;&gt; monad, an function operation (() –&gt; void) without return result can be viewed as a function returning Unit (() –&gt; Unit):</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Unit</span><span style="color: black;">&gt; Try(</span><span style="color: #2b91af;">Action </span><span style="color: black;">action) =&gt;
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Unit</span><span style="color: black;">&gt;(() =&gt;
+    {
+        action();
+        </span><span style="color: blue;">return </span><span style="color: black;">(</span><span style="color: blue;">default</span><span style="color: black;">, (</span><span style="color: #2b91af;">Exception</span><span style="color: black;">)</span><span style="color: blue;">null</span><span style="color: black;">);
+    });</span></pre>
+<p>To handle the exception from an operation represented by Try&lt;T&gt;, just check the HasException property, filter the exception, and process it. The following Catch method handles the specified exception type:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; Catch&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TException</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TException</span><span style="color: black;">, </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt; handler, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TException</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; when = </span><span style="color: blue;">null</span><span style="color: black;">)
+    </span><span style="color: blue;">where </span><span style="color: #2b91af;">TException </span><span style="color: black;">: </span><span style="color: #2b91af;">Exception </span><span style="color: black;">=&gt;
+        </span><span style="color: blue;">new </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(() =&gt;
+        {
+            </span><span style="color: blue;">if </span><span style="color: black;">(source.HasException &amp;&amp; source.Exception </span><span style="color: blue;">is </span><span style="color: #2b91af;">TException </span><span style="color: black;">exception &amp;&amp; exception != </span><span style="color: blue;">null
+                </span><span style="color: black;">&amp;&amp; (when == </span><span style="color: blue;">null </span><span style="color: black;">|| when(exception)))
+            {
+                source = handler(exception);
+            }
+            </span><span style="color: blue;">return </span><span style="color: black;">source.HasException ? (</span><span style="color: blue;">default</span><span style="color: black;">, source.Exception) : (source.Value, (</span><span style="color: #2b91af;">Exception</span><span style="color: black;">)</span><span style="color: blue;">null</span><span style="color: black;">);
+        });</span></pre>
+<p>The evaluation of the Try&lt;T&gt; source, and the execution of handler, are both deferred. And the following Catch overload handles all exception types:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; Catch&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; <span style="color: blue;"></span><span style="color: black;">source</span>, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Exception</span><span style="color: black;">, </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt; handler, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Exception</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; when = </span><span style="color: blue;">null</span><span style="color: black;">) =&gt;
+        Catch&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">Exception</span><span style="color: black;">&gt;(<span style="color: blue;"></span><span style="color: black;">source</span>, handler, when);</span></pre>
+<p>And the Finally method just call a function to process the Try&lt;T&gt;:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">TResult </span><span style="color: black;">Finally&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; <span style="color: blue;"></span><span style="color: black;">source</span>, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; finally) =&gt; finally(<span style="color: blue;"></span><span style="color: black;">source</span>);
+
+</span><span style="color: blue;">public static void </span><span style="color: black;">Finally&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; <span style="color: blue;"></span><span style="color: black;">source</span>, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt; finally) =&gt; finally(<span style="color: blue;"></span><span style="color: black;">source</span>);</span></pre>
+<p>The operation of throwing an exception can be represented with a Try&lt;T&gt; instance wrapping the specified exception:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">TryExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; Throw&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Exception </span><span style="color: black;">exception) =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(() =&gt; (</span><span style="color: blue;">default</span><span style="color: black;">, exception));
+}</span></pre>
+<p>The following is an example of throwing exception:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; TryStrictFactorial(</span><span style="color: blue;">int</span><span style="color: black;">? value)
+{
+    </span><span style="color: blue;">if </span><span style="color: black;">(value == </span><span style="color: blue;">null</span><span style="color: black;">)
+    {
+        </span><span style="color: blue;">return </span><span style="color: black;">Throw&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(</span><span style="color: blue;">new </span><span style="color: #2b91af;">ArgumentNullException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(value)));
+    }
+    </span><span style="color: blue;">if </span><span style="color: black;">(value &lt;= 0)
+    {
+        </span><span style="color: blue;">return </span><span style="color: black;">Throw&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(</span><span style="color: blue;">new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(value), value, </span><span style="color: #a31515;">"Argument should be positive."</span><span style="color: black;">));
+    }
+
+    </span><span style="color: blue;">if </span><span style="color: black;">(value == 1)
+    {
+        </span><span style="color: blue;">return </span><span style="color: black;">1;
+    }
+    </span><span style="color: blue;">return </span><span style="color: black;">value.Value * TryStrictFactorial(value - 1).Value;
+}</span></pre>
+<p>And the the following is an example of handling exception:</p>
+<pre class="code"><span style="color: blue;">internal static string </span><span style="color: black;">Factorial(</span><span style="color: blue;">string </span><span style="color: black;">value)
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">?&gt; stringToNullableInt32 = @string =&gt;
+        </span><span style="color: blue;">string</span><span style="color: black;">.IsNullOrEmpty(@string) ? </span><span style="color: blue;">default </span><span style="color: black;">: </span><span style="color: #2b91af;">Convert</span><span style="color: black;">.ToInt32(@string);
+    </span><span style="color: #2b91af;">Try</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; query = </span><span style="color: blue;">from </span><span style="color: black;">nullableInt32 </span><span style="color: blue;">in </span><span style="color: black;">Try(() =&gt; stringToNullableInt32(value)) </span><span style="color: green;">// Try&lt;int32?&gt;
+                        </span><span style="color: blue;">from </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">TryStrictFactorial(nullableInt32) </span><span style="color: green;">// Try&lt;int&gt;.
+                        </span><span style="color: blue;">from </span><span style="color: black;">unit </span><span style="color: blue;">in </span><span style="color: black;">Try(() =&gt; result.WriteLine()) </span><span style="color: green;">// Try&lt;Unit&gt;.
+                        </span><span style="color: blue;">select </span><span style="color: black;">result; </span><span style="color: green;">// Define query.
+    </span><span style="color: blue;">return </span><span style="color: black;">query
+        .Catch(exception =&gt; </span><span style="color: green;">// Catch all and rethrow.
+        </span><span style="color: black;">{
+            exception.WriteLine();
+            </span><span style="color: blue;">return </span><span style="color: black;">Throw&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(exception);
+        })
+        .Catch&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">ArgumentNullException</span><span style="color: black;">&gt;(exception =&gt; 1) </span><span style="color: green;">// When argument is null, factorial is 1.
+        </span><span style="color: black;">.Catch&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">&gt;(
+            when: exception =&gt; </span><span style="color: blue;">object</span><span style="color: black;">.Equals(exception.ActualValue, 0),
+            handler: exception =&gt; 1) </span><span style="color: green;">// When argument is 0, factorial is 1.
+        </span><span style="color: black;">.Finally(result =&gt; result.HasException </span><span style="color: green;">// Execute query.
+            </span><span style="color: black;">? result.Exception.Message : result.Value.ToString());
+}</span></pre>
+<h1>Reader monad</h1>
+<p>The Func&lt;T,&gt; functor is also monad. In contrast to Func&lt;&gt; monad, a factory function that only outputs a value, Func&lt;T,&gt; can also read input value from the environment. So Fun&lt;T,&gt; monad is also called reader monad, or environment monad. To be intuitive, rename Func&lt;T,&gt; to Reader&lt;TEnvironment,&gt;:</p>
+<pre class="code"><span style="color: green;">// Reader: TEnvironment -&gt; T
+</span><span style="color: blue;">public delegate </span><span style="color: #2b91af;">T Reader</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">TEnvironment</span><span style="color: black;">, </span><span style="color: blue;">out </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TEnvironment </span><span style="color: black;">environment);</span></pre>
+<p>And its (SelectMany, Wrap, Select) methods are straightforward:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ReaderExtensions
+</span><span style="color: black;">{
+    </span><span style="color: green;">// SelectMany: (Reader&lt;TEnvironment, TSource&gt;, TSource -&gt; Reader&lt;TEnvironment, TSelector&gt;, (TSource, TSelector) -&gt; TResult) -&gt; Reader&lt;TEnvironment, TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Reader</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEnvironment</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; SelectMany&lt;</span><span style="color: #2b91af;">TEnvironment</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Reader</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEnvironment</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">Reader</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEnvironment</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">&gt;&gt; selector,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector) =&gt;
+            environment =&gt;
+            {
+                </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value = source(environment);
+                </span><span style="color: blue;">return </span><span style="color: black;">resultSelector(value, selector(value)(environment));
+            };
+
+    </span><span style="color: green;">// Wrap: TSource -&gt; Reader&lt;TEnvironment, TSource&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Reader</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEnvironment</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Reader&lt;</span><span style="color: #2b91af;">TEnvironment</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value) =&gt;
+        environment =&gt; value;
+
+    </span><span style="color: green;">// Select: (Reader&lt;TEnvironment, TSource&gt;, TSource -&gt; TResult) -&gt; Reader&lt;TEnvironment, TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Reader</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEnvironment</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TEnvironment</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Reader</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEnvironment</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt;
+            source.SelectMany(value =&gt; selector(value).Reader&lt;</span><span style="color: #2b91af;">TEnvironment</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(), (value, result) =&gt; result</span><span style="color: black;">);
+}</span></pre>
+<p>There are scenarios of accessing input value from shared environment, like reading the configurations, dependency injection, etc. In the following example, the operations are dependents of the configurations, so these operations can be modeled using Reader&lt;ICongiguration,&gt; monad:</p>
+<pre class="code"><span style="color: blue;">private static </span><span style="color: #2b91af;">Reader</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IConfiguration</span><span style="color: black;">, </span><span style="color: #2b91af;">FileInfo</span><span style="color: black;">&gt; DownloadHtml(</span><span style="color: #2b91af;">Uri </span><span style="color: black;">uri) =&gt;
+    configuration =&gt; </span><span style="color: blue;">default</span><span style="color: black;">;</span><span style="color: green;">
+
+</span><span style="color: blue;">private static </span><span style="color: #2b91af;">Reader</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IConfiguration</span><span style="color: black;">, </span><span style="color: #2b91af;">FileInfo</span><span style="color: black;">&gt; ConverToWord(</span><span style="color: #2b91af;">FileInfo </span><span style="color: black;">htmlDocument, </span><span style="color: #2b91af;">FileInfo </span><span style="color: black;">template) =&gt;
+    configuration =&gt; </span><span style="color: blue;">default</span><span style="color: black;">;</span><span style="color: green;">
+
+</span><span style="color: blue;">private static </span><span style="color: #2b91af;">Reader</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IConfiguration</span><span style="color: black;">, </span><span style="color: #2b91af;">Unit</span><span style="color: black;">&gt; UploadToOneDrive(</span><span style="color: #2b91af;">FileInfo </span><span style="color: black;">file) =&gt;
+    configuration =&gt; </span><span style="color: blue;">default</span><span style="color: black;">;</span><span style="color: green;">
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">Workflow(</span><span style="color: #2b91af;">IConfiguration </span><span style="color: black;">configuration, </span><span style="color: #2b91af;">Uri </span><span style="color: black;">uri, </span><span style="color: #2b91af;">FileInfo </span><span style="color: black;">template)
+{
+    </span><span style="color: #2b91af;">Reader</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IConfiguration</span><span style="color: black;">, (</span><span style="color: #2b91af;">FileInfo</span><span style="color: black;">, </span><span style="color: #2b91af;">FileInfo</span><span style="color: black;">)&gt; query =
+        </span><span style="color: blue;">from </span><span style="color: black;">htmlDocument </span><span style="color: blue;">in </span><span style="color: black;">DownloadHtml(uri) </span><span style="color: green;">// Reader&lt;IConfiguration, FileInfo&gt;.
+        </span><span style="color: blue;">from </span><span style="color: black;">wordDocument </span><span style="color: blue;">in </span><span style="color: black;">ConverToWord(htmlDocument, template) </span><span style="color: green;">// Reader&lt;IConfiguration, FileInfo&gt;.
+        </span><span style="color: blue;">from </span><span style="color: black;">unit </span><span style="color: blue;">in </span><span style="color: black;">UploadToOneDrive(wordDocument) </span><span style="color: green;">// Reader&lt;IConfiguration, Unit&gt;.
+        </span><span style="color: blue;">select </span><span style="color: black;">(htmlDocument, wordDocument); </span><span style="color: green;">// Define query.
+    </span><span style="color: black;">(</span><span style="color: #2b91af;">FileInfo</span><span style="color: black;">, </span><span style="color: #2b91af;">FileInfo</span><span style="color: black;">) result = query(configuration); </span><span style="color: green;">// Execute query.
+</span><span style="color: black;">}</span></pre>
+<p>The workflow is also a Reader&lt;ICongiguration, T&gt; function. To execute the workflow, it must read the required configuration input. Then all operation in the workflow execute sequentially by reading the same configuration input.</p>
+<h1>Writer monad</h1>
+<p>Writer is a function that returns a computed value along with a stream of additional content, so this function is of type () –&gt; Tuple&lt;T, TContent&gt;. In the writer monad workflow, each operation’s additional output content is merged with the next operation’s additional output content, so that when the entire workflow is executed, all operations’ additional output content are merged as the workflow’s final additional output content. Each merge operation accepts 2 TContent instances, and result another TContent instance. It is a binary operation and can be implemented by monoid’s multiplication: TContent ⊙ TContent –&gt; TContent. So writer can be represented by a () –&gt; Tuple&lt;T, TContent&gt; function along with a IMonoid&lt;TContent&gt; monoid:</p>
+<pre class="code"><span style="color: blue;">public abstract class </span><span style="color: #2b91af;">WriterBase</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TContent</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">TContent</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">)&gt; lazy;
+
+    </span><span style="color: blue;">protected </span><span style="color: black;">WriterBase(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">TContent</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">)&gt; writer, </span><span style="color: #2b91af;">IMonoid</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TContent</span><span style="color: black;">&gt; monoid)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.lazy = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">TContent</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">)&gt;(writer);
+        </span><span style="color: blue;">this</span><span style="color: black;">.Monoid = monoid;
+    }
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">TContent </span><span style="color: black;">Content =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.lazy.Value.Item1;
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">T </span><span style="color: black;">Value =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.lazy.Value.Item2;
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">IMonoid</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TContent</span><span style="color: black;">&gt; Monoid { </span><span style="color: blue;">get</span><span style="color: black;">; }
+}</span></pre>
+<p>The most common scenario of outputting additional content, is tracing and logging, where the TContent is a sequence of log entries. A sequence of log entries can be represented as IEnumerable&lt;T&gt;, so the fore mentioned (IEnumerable&lt;T&gt;, Enumerable.Concat&lt;T&gt;, Enumerable.Empty&lt;T&gt;()) monoid can be used:</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">Writer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntry</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">WriterBase</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntry</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">private static readonly </span><span style="color: #2b91af;">IMonoid</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntry</span><span style="color: black;">&gt;&gt; ContentMonoid =
+        </span><span style="color: blue;">new </span><span style="color: #2b91af;">EnumerableConcatMonoid</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntry</span><span style="color: black;">&gt;();
+
+    </span><span style="color: blue;">public </span><span style="color: black;">Writer(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntry</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">T</span><span style="color: black;">)&gt; writer) : </span><span style="color: blue;">base</span><span style="color: black;">(writer, ContentMonoid) { }
+
+    </span><span style="color: blue;">public </span><span style="color: black;">Writer(</span><span style="color: #2b91af;">T </span><span style="color: black;">value) : </span><span style="color: blue;">base</span><span style="color: black;">(() =&gt; (ContentMonoid.Unit(), value), ContentMonoid) { }
+}</span></pre>
+<p>Similar to State&lt;TState,&gt; and Reader&lt;TEnvironment,&gt;, here Writer&lt;TEntry,&gt; can be monad with the following (SelectMany, Wrap, Select) methods:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">WriterExtensions
+</span><span style="color: black;">{
+    </span><span style="color: green;">// SelectMany: (Writer&lt;TEntry, TSource&gt;, TSource -&gt; Writer&lt;TEntry, TSelector&gt;, (TSource, TSelector) -&gt; TResult) -&gt; Writer&lt;TEntry, TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Writer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntry</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; SelectMany&lt;</span><span style="color: #2b91af;">TEntry</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Writer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntry</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">Writer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntry</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">&gt;&gt; selector,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector) =&gt;
+            </span><span style="color: blue;">new </span><span style="color: #2b91af;">Writer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntry</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(() =&gt;
+            {
+                </span><span style="color: #2b91af;">Writer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntry</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">&gt; result = selector(source.Value);
+                </span><span style="color: blue;">return (</span><span style="color: black;">source.Monoid.Multiply(source.Content, result.Content),
+                    resultSelector(source.Value, result.Value));
+            });
+
+    </span><span style="color: green;">// Wrap: TSource -&gt; Writer&lt;TEntry, TSource&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Writer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntry</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Writer&lt;</span><span style="color: #2b91af;">TEntry</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value) =&gt;
+        </span><span style="color: blue;">new </span><span style="color: #2b91af;">Writer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntry</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(value);
+
+    </span><span style="color: green;">// Select: (Writer&lt;TEnvironment, TSource&gt;, TSource -&gt; TResult) -&gt; Writer&lt;TEnvironment, TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Writer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntry</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TEntry</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Writer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntry</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt;
+            source.SelectMany(value =&gt; selector(value).Writer&lt;</span><span style="color: #2b91af;">TEntry</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(), (value, result) =&gt; result);
+}</span></pre>
+<p>Most commonly, each operation in the workflow logs string message. So the following method is defined to construct a writer instance from a value and a string log factory:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">Writer</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; LogWriter&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt; logFactory) =&gt;
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">Writer</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(() =&gt; (logFactory(value).Enumerable(), value));</span></pre>
+<p>The previous Fun&lt;&gt; monad workflow now can output logs for each operation:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Workflow()
+{
+    </span><span style="color: #2b91af;">Writer</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt; query = </span><span style="color: blue;">from </span><span style="color: black;">filePath </span><span style="color: blue;">in </span><span style="color: #2b91af;">Console</span><span style="color: black;">.ReadLine().LogWriter(value =&gt;
+                                        </span><span style="color: #a31515;">$"File path: </span><span style="color: black;">{value}</span><span style="color: #a31515;">"</span><span style="color: black;">) </span><span style="color: green;">// Writer&lt;string, string&gt;.
+                                   </span><span style="color: blue;">from </span><span style="color: black;">encodingName </span><span style="color: blue;">in </span><span style="color: #2b91af;">Console</span><span style="color: black;">.ReadLine().LogWriter(value =&gt;
+                                        </span><span style="color: #a31515;">$"Encoding name: </span><span style="color: black;">{value}</span><span style="color: #a31515;">"</span><span style="color: black;">) </span><span style="color: green;">// Writer&lt;string, string&gt;.
+                                   </span><span style="color: blue;">from </span><span style="color: black;">encoding </span><span style="color: blue;">in </span><span style="color: #2b91af;">Encoding</span><span style="color: black;">.GetEncoding(encodingName).LogWriter(value =&gt;
+                                        </span><span style="color: #a31515;">$"Encoding: </span><span style="color: black;">{value}</span><span style="color: #a31515;">"</span><span style="color: black;">) </span><span style="color: green;">// Writer&lt;string, Encoding&gt;.
+                                   </span><span style="color: blue;">from </span><span style="color: black;">fileContent </span><span style="color: blue;">in </span><span style="color: #2b91af;">File</span><span style="color: black;">.ReadAllText(filePath, encoding).LogWriter(value =&gt;
+                                        </span><span style="color: #a31515;">$"File content length: </span><span style="color: black;">{value.Length}</span><span style="color: #a31515;">"</span><span style="color: black;">) </span><span style="color: green;">// Writer&lt;string, string&gt;.
+                                   </span><span style="color: blue;">select </span><span style="color: black;">fileContent; </span><span style="color: green;">// Define query.
+    </span><span style="color: blue;">string </span><span style="color: black;">result = query.Value; </span><span style="color: green;">// Execute query.
+    </span><span style="color: black;">query.Content.WriteLines(</span><span style="color: black;">);
+    </span><span style="color: green;">// File path: D:\File.txt
+    // Encoding name: utf-8
+    // Encoding: System.Text.UTF8Encoding
+    // File content length: 76138
+</span><span style="color: black;">}</span></pre>
+<h1>Continuation monad</h1>
+<p>In program, a function can return the result value, so that some other continuation function can use that value; or a function can take a continuation function as parameter, after it computes the result value, it calls back the continuation function with that value:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">CpsExtensions
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Sqrt: int -&gt; double
+    </span><span style="color: blue;">internal static double </span><span style="color: black;">Sqrt(</span><span style="color: blue;">int </span><span style="color: black;">int32) =&gt; </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(int32);
+
+    </span><span style="color: green;">// SqrtWithCallback: (int, double -&gt; TContinuation) -&gt; TContinuation
+    </span><span style="color: blue;">internal static </span><span style="color: #2b91af;">TContinuation </span><span style="color: black;">SqrtWithCallback&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">&gt;(<span style="color: black;">
+        </span></span><span style="color: blue;">int </span><span style="color: black;">int32, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">&gt; continuation) =&gt;
+            continuation(</span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(int32));
+}</span></pre>
+<p>The former is style is called direct style, and the latter is called continuation-passing style (CPS). Generally, for a TSource –&gt; TResult function, its CPS version can accept a TResult –&gt; TContinuation continuation function, so the CPS function is of type (TSource, TResult –&gt; TContinuation) –&gt; TContinuation. Again, just like the state monad, the CPS function can be curried to TSource –&gt; ((TResult –&gt; TContinuation) –&gt; TContinuation)</p>
+<pre class="code"><span style="color: green;">// SqrtWithCallback: int -&gt; (double -&gt; TContinuation) -&gt; TContinuation
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">&gt; SqrtWithCallback&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">&gt;(</span><span style="color: blue;">int </span><span style="color: black;">int32) =&gt;
+    continuation =&gt; continuation(</span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(int32));</span></pre>
+<p>Now the returned (TResult –&gt; TContinuation) –&gt; TContinuation function type can be given an alias Cps:</p>
+<pre class="code"><span style="color: green;">// Cps: (T -&gt; TContinuation&gt;) -&gt; TContinuation
+</span><span style="color: blue;">public delegate </span><span style="color: #2b91af;">TContinuation Cps</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: blue;">out </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">&gt; continuation);</span></pre>
+<p>So that the above function can be renamed as:</p>
+<pre class="code"><span style="color: green;">// SqrtCps: int -&gt; Cps&lt;TContinuation, double&gt;
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">Cps</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt; SqrtCps&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">&gt;(</span><span style="color: blue;">int </span><span style="color: black;">int32) =&gt;
+    continuation =&gt; continuation(</span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(int32));</span></pre>
+<p>The CPS function becomes TSource –&gt; Cps&lt;TContinuation, TResult&gt;, which is a monadic selector function. Just like State&lt;TState,&gt;, here Cps&lt;TContinuation,&gt; is the continuation monad. Its (SelectMany, Wrap, Select) methods can be implemented as:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">CpsExtensions
+</span><span style="color: black;">{
+    </span><span style="color: green;">// SelectMany: (Cps&lt;TContinuation, TSource&gt;, TSource -&gt; Cps&lt;TContinuation, TSelector&gt;, (TSource, TSelector) -&gt; TResult) -&gt; Cps&lt;TContinuation, TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Cps</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; SelectMany&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Cps</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">Cps</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">&gt;&gt; selector,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector) =&gt;
+            continuation =&gt; source(value =&gt;
+                selector(value)(result =&gt;
+                    continuation(resultSelector(value, result))));
+
+    </span><span style="color: green;">// Wrap: TSource -&gt; Cps&lt;TContinuation, TSource&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Cps</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Cps&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value) =&gt;
+        continuation =&gt; continuation(value);
+
+    </span><span style="color: green;">// Select: (Cps&lt;TContinuation, TSource&gt;, TSource -&gt; TResult) -&gt; Cps&lt;TContinuation, TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Cps</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Cps</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt;
+            source.SelectMany(value =&gt; selector(value).Cps&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(), (value, result) =&gt; result);
+            </span><span style="color: green;">// Equivalent to:
+            // continuation =&gt; source(value =&gt; continuation(selector(value)));
+            // Or:
+            // continuation =&gt; source(continuation.o(selector));
+</span><span style="color: black;">}</span></pre>
+<p>A more complex example is sum of squares. The CPS version of sum and square are straightforward. If direct style of square operation of type int –&gt; int, and the direct style of sum operation is (int, int) –&gt; int, then their CPS versions are just of type int –&gt; Cps&lt;TContinuation, int&gt;, and (int, int) –&gt; Cps&lt;TContinuation, int&gt;:</p>
+<pre class="code"><span style="color: green;">// SquareCps: int -&gt; Cps&lt;TContinuation, int&gt;
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">Cps</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; SquareCps&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">&gt;(</span><span style="color: blue;">int </span><span style="color: black;">x) =&gt;
+    continuation =&gt; continuation(x * x);
+
+</span><span style="color: green;">// SumCps: (int, int) -&gt; Cps&lt;TContinuation, int&gt;
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">Cps</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; SumCps&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">&gt;(</span><span style="color: blue;">int </span><span style="color: black;">x, </span><span style="color: blue;">int </span><span style="color: black;">y) =&gt;
+    continuation =&gt; continuation(x + y);</span></pre>
+<p>Then CPS version of sum of square can be implemented with them:</p>
+<pre class="code"><span style="color: green;">// SumOfSquaresCps: (int, int) -&gt; Cps&lt;TContinuation, int&gt;
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">Cps</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; SumOfSquaresCps&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">&gt;(</span><span style="color: blue;">int </span><span style="color: black;">a, </span><span style="color: blue;">int </span><span style="color: black;">b) =&gt;
+    continuation =&gt;
+        SquareCps&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">&gt;(a)(squareOfA =&gt;
+        SquareCps&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">&gt;(b)(squareOfB =&gt;
+        SumCps&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">&gt;(squareOfA, squareOfB)(continuation)));</span></pre>
+<p>This is not intuitive. But the continuation monad can help. A Cps&lt;TContinuation, T&gt; function can be viewed as a monad wrapper of T value. So T value can be unwrapped from Cps&lt;TContinuation, T&gt; with the LINQ from clause:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">Cps</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; SumOfSquaresCpsLinq&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">&gt;(</span><span style="color: blue;">int </span><span style="color: black;">a, </span><span style="color: blue;">int </span><span style="color: black;">b) =&gt;
+    </span><span style="color: blue;">from </span><span style="color: black;">squareOfA </span><span style="color: blue;">in </span><span style="color: black;">SquareCps&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">&gt;(a) </span><span style="color: green;">// Cps&lt;TContinuation, int&gt;.
+    </span><span style="color: blue;">from </span><span style="color: black;">squareOfB </span><span style="color: blue;">in </span><span style="color: black;">SquareCps&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">&gt;(b) </span><span style="color: green;">// Cps&lt;TContinuation, int&gt;.
+    </span><span style="color: blue;">from </span><span style="color: black;">sum </span><span style="color: blue;">in </span><span style="color: black;">SumCps&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">&gt;(squareOfA, squareOfB) </span><span style="color: green;">// Cps&lt;TContinuation, int&gt;.
+    </span><span style="color: blue;">select </span><span style="color: black;">sum;</span></pre>
+<p>And the following is a similar example of fibonacci:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">Cps</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: blue;">uint</span><span style="color: black;">&gt; FibonacciCps&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">&gt;(</span><span style="color: blue;">uint </span><span style="color: black;">uInt32) =&gt;
+    uInt32 &gt; 1
+        ? (</span><span style="color: blue;">from </span><span style="color: black;">a </span><span style="color: blue;">in </span><span style="color: black;">FibonacciCps&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">&gt;(uInt32 - 1U)
+            </span><span style="color: blue;">from </span><span style="color: black;">b </span><span style="color: blue;">in </span><span style="color: black;">FibonacciCps&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">&gt;(uInt32 - 2U)
+            </span><span style="color: blue;">select </span><span style="color: black;">a + b)
+        : uInt32.Cps&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: blue;">uint</span><span style="color: black;">&gt;();
+    </span><span style="color: green;">// Equivalent to:
+    // continuation =&gt; uInt32 &gt; 1U
+    //    ? continuation(FibonacciCps&lt;int&gt;(uInt32 - 1U)(Id) + FibonacciCps&lt;int&gt;(uInt32 - 2U)(Id))
+    //    : continuation(uInt32);</span></pre>
+<p>Generally, a direct style function can be easily converted to CPS function – just pass the direct style function’s return value to a continuation function:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">Cps</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; Cps&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; function) =&gt;
+    continuation =&gt; continuation(function());</span></pre>
+<p>Now the previous workflows can be represented in CPS too:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Workflow&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">&gt; continuation)
+{
+    </span><span style="color: #2b91af;">Cps</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt; query =
+        </span><span style="color: blue;">from </span><span style="color: black;">filePath </span><span style="color: blue;">in </span><span style="color: black;">Cps&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Console</span><span style="color: black;">.ReadLine) </span><span style="color: green;">// Cps&lt;TContinuation, string&gt;.
+        </span><span style="color: blue;">from </span><span style="color: black;">encodingName </span><span style="color: blue;">in </span><span style="color: black;">Cps&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Console</span><span style="color: black;">.ReadLine) </span><span style="color: green;">// Cps&lt;TContinuation, string&gt;.
+        </span><span style="color: blue;">from </span><span style="color: black;">encoding </span><span style="color: blue;">in </span><span style="color: black;">Cps&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: #2b91af;">Encoding</span><span style="color: black;">&gt;(() =&gt; </span><span style="color: #2b91af;">Encoding</span><span style="color: black;">.GetEncoding(encodingName)) </span><span style="color: green;">// Cps&lt;TContinuation, Encoding&gt;.
+        </span><span style="color: blue;">from </span><span style="color: black;">fileContent </span><span style="color: blue;">in </span><span style="color: black;">Cps&lt;</span><span style="color: #2b91af;">TContinuation</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt;(() =&gt; </span><span style="color: #2b91af;">File</span><span style="color: black;">.ReadAllText(filePath, encoding)) </span><span style="color: green;">// Cps&lt;TContinuation, string&gt;.
+        </span><span style="color: blue;">select </span><span style="color: black;">fileContent; </span><span style="color: green;">// Define query.
+    </span><span style="color: #2b91af;">TContinuation </span><span style="color: black;">result = query(continuation); </span><span style="color: green;">// Execute query.
+</span><span style="color: black;">}</span></pre>
+<p>In the workflow, each operation’s continuation function is its next operation. When the workflow executes, each operation computes its return value, then calls back its next operation with its return value. When the last operation executes, it calls back the workflow’s continuation function.</p>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,381 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+<h1>Lambda Calculus via C# (5) List</h1>
+
+<p>In lambda calculus and Church encoding, there are various ways to represent a list with anonymous functions.</p>
+<h1>Tuple as list node</h1>
+<p>With Church pair, it is easy to model Church list as a linked list, where each list node is a a Church pair (2-tuple) of current node’s value and the next node, So that</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">CreateListNode := <span style="background: #f5f5f5; color: black;">CreateTuple = </span>λv.λn.λf.f v n
+ListNode := <span style="background: #f5f5f5; color: black;">Tuple = </span>λf.f v n
+</span></pre>
+<p>Here variable v is the value of the current node, so it is the first item of the tuple; And variable n is the next node of the current node, so it is the second item of the tuple:</p>
+<pre class="code"><span style="color: black;">Value := Item1 = λl.l (λv.λn.v)
+Next := Item2 = λl.l (λv.λn.n)</span></pre>
+<p>Here variable l is the list node. The C# implementation is similar to tuple and signed numeral, except ListNode&lt;T&gt; function type now has 1 type parameter, which is the type of its value:</p>
+<pre class="code"><span style="color: green;">// ListNode&lt;T&gt; is the alias of Tuple&lt;T, ListNode&lt;T&gt;&gt;.
+</span><span style="color: blue;">public delegate dynamic </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Boolean </span><span style="color: black;">f);
+
+</span><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ChurchList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: green;">// Create = value =&gt; next =&gt; (value, next)
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt;&gt;
+        Create = value =&gt; next =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">ChurchTuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt;.Create(value)(next));
+
+    </span><span style="color: green;">// Value = node =&gt; node.Item1()
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+        Value = node =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Tuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt;(node).Item1();
+
+    </span><span style="color: green;">// Next = node =&gt; node.Item2()
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt;
+        Next = node =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Tuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt;(node).Item2();
+}</span></pre>
+<p>Usually, when a list ends, its last node’s next node is flagged as a special null node. Here in lambda calculus, since a node is an anonymous function, the null node is also an anonymous function:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">Null := λf.λx.x
+</span></pre>
+<p>And IsNull predicate returns a Church Boolean to indicate whether a list node is null:</p>
+<pre class="code"><span style="color: black;">IsNull := λl.l (λv.λn.λx.False) True</span></pre>
+<p>When IsNull is applied with a null node:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">  IsNull Null
+≡ (λl.l (λv.λn.λx.False) True) (λf.λx.x)
+≡ (λf.λx.x) (λv.λn.λx.False) True
+≡ (λx.x) True
+≡ True</span></pre>
+<p>And when IsNull is applied with a non-null node:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">  IsNull (CreateListNode 0 Null)
+≡ IsNull (λf.f 0 Null)
+≡ (λl.l (λv.λn.λx.False) True) (λf.f 0 Null)
+≡ (λf.f 0 Null) (λv.λn.λx.False) True
+≡ (λv.λn.λx.False) 0 Null True
+≡ (λn.λx.False) Null True
+≡ (λx.False) True
+≡ False</span></pre>
+<p>The C# implementation is noisy because a lot of type information has to be provided. This is Null:</p>
+<pre class="code"><span style="color: blue;">using static </span><span style="color: #2b91af;">ChurchBoolean</span><span style="color: black;">;
+</span><span style="color: black;">
+</span><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ChurchList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: green;">// Null = False;
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+        Null = </span><span style="color: blue;">new </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(False);
+
+    </span><span style="color: green;">// IsNull = node =&gt; node(value =&gt; next =&gt; _ =&gt; False)(True)
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">&gt;
+        IsNull = node =&gt; node(value =&gt; next =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">, </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">&gt;(_ =&gt; False))(True);</span><span style="color: black;">
+}</span></pre>
+<p>And the indexer for list can be easily defined with as a function accepts a start node and a Church numeral i as the specified index. To return the node at the specified index, just call Next function for i times from the start node:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">ListNodeAt := λl.λi.i Next l</span></pre>
+<p>C#:</p>
+<pre class="code"><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt;&gt;
+    ListNodeAt = start =&gt; index =&gt; </span><span style="color: black;">index(node =&gt; Next(node</span><span style="color: black;">))(start);</span></pre>
+<p>The following are the extension methods wrapping the list operators:</p>
+<pre class="code"><span style="color: blue;">public static class </span><span style="color: #2b91af;">ListNodeExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">T </span><span style="color: black;">Value&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; node) =&gt; </span><span style="color: #2b91af;">ChurchList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;.Value(node);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; Next&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; node) =&gt; </span><span style="color: #2b91af;">ChurchList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;.Next(node);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">IsNull&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; node) =&gt; </span><span style="color: #2b91af;">ChurchList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;.IsNull(node);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; ListNodeAt&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; start, </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">index) =&gt; </span><span style="color: #2b91af;">ChurchList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;.ListNodeAt(start)(index);
+}</span></pre>
+<p>And the following code demonstrates how the list works:</p>
+<pre class="code"><span style="color: black;">[</span><span style="color: #2b91af;">TestClass</span><span style="color: black;">]
+</span><span style="color: blue;">public class </span><span style="color: #2b91af;">ChurchListTests
+</span><span style="color: black;">{
+    [</span><span style="color: #2b91af;">TestMethod</span><span style="color: black;">]
+    </span><span style="color: blue;">public void </span><span style="color: black;">CreateValueNextTest()
+    {
+        </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; node1 = </span><span style="color: #2b91af;">ChurchList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Create(1)(</span><span style="color: #2b91af;">ChurchList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Null);
+        </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; node2 = </span><span style="color: #2b91af;">ChurchList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Create(2)(node1);
+        </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; node3 = </span><span style="color: #2b91af;">ChurchList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Create(3)(node2);
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(1, node1.Value());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(</span><span style="color: #2b91af;">ChurchList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Null, node1.Next());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(2, node2.Value());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(node1, node2.Next());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(3, node3.Value());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(node2, node3.Next());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(node2.Value(), node3.Next().Value());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(node1.Value(), node3.Next().Next().Value());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(</span><span style="color: #2b91af;">ChurchList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Null, node3.Next().Next().Next());
+        </span><span style="color: blue;">try
+        </span><span style="color: black;">{
+            </span><span style="color: #2b91af;">ChurchList</span><span style="color: black;">&lt;</span><span style="color: blue;">object</span><span style="color: black;">&gt;.Null.Next();
+            </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.Fail();
+        }
+        </span><span style="color: blue;">catch </span><span style="color: black;">(</span><span style="color: #2b91af;">InvalidCastException </span><span style="color: black;">exception)
+        {
+            </span><span style="color: black;">exception.WriteLine();
+        }
+    }
+
+    [</span><span style="color: #2b91af;">TestMethod</span><span style="color: black;">]
+    </span><span style="color: blue;">public void </span><span style="color: black;">IsNullTest()
+    {
+        </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; node1 = </span><span style="color: #2b91af;">ChurchList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Create(1)(</span><span style="color: #2b91af;">ChurchList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Null);
+        </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; node2 = </span><span style="color: #2b91af;">ChurchList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Create(2)(node1);
+        </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; node3 = </span><span style="color: #2b91af;">ChurchList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Create(3)(node2);
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsTrue(</span><span style="color: #2b91af;">ChurchList</span><span style="color: black;">&lt;</span><span style="color: blue;">object</span><span style="color: black;">&gt;.Null.IsNull().Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsFalse(node1.IsNull().Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsFalse(node2.IsNull().Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsFalse(node3.IsNull().Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsTrue(node1.Next().IsNull().Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsFalse(node2.Next().IsNull().Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsFalse(node3.Next().IsNull().Unchurch());
+    }
+
+    [</span><span style="color: #2b91af;">TestMethod</span><span style="color: black;">]
+    </span><span style="color: blue;">public void </span><span style="color: black;">IndexTest()
+    {
+        </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; node1 = </span><span style="color: #2b91af;">ChurchList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Create(1)(</span><span style="color: #2b91af;">ChurchList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Null);
+        </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; node2 = </span><span style="color: #2b91af;">ChurchList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Create(2)(node1);
+        </span><span style="color: #2b91af;">ListNode</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; node3 = </span><span style="color: #2b91af;">ChurchList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Create(3)(node2);
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(node3, node3.NodeAt(0U.Church()));
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(node2, node3.NodeAt(1U.Church()));
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(node1, node3.NodeAt(2U.Church()));
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsTrue(node3.NodeAt(3U.Church()).IsNull().Unchurch());
+        </span><span style="color: blue;">try
+        </span><span style="color: black;">{
+            node3.NodeAt(4U.Church());
+            </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.Fail();
+        }
+        </span><span style="color: blue;">catch </span><span style="color: black;">(</span><span style="color: #2b91af;">InvalidCastException </span><span style="color: black;">exception)
+        {
+            </span><span style="color: black;">exception.WriteLine();
+        }
+    }
+}</span></pre>
+<h1>Aggregate function as list node</h1>
+<p>Remember the LINQ Aggregate query method accepting a seed and a accumulator function:</p>
+<pre class="code"><span style="color: #2b91af;">TAccumulate </span><span style="color: black;">Aggregate&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">TAccumulate </span><span style="color: black;">seed, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">&gt; func);</span></pre>
+<p>Assume seed is x, and accumulator function is f:</p>
+<ul>
+<li>When source is empty, the aggregation result is x</li>
+<li>When source is { 0 }, the aggregation result is f(x, 0)</li>
+<li>When source is { 1, 0 }, the aggregation result is f(f(x, 1), 0)</li>
+<li>When source is { 2, 1, 0 }, the aggregation result is f(f(f(x, 2), 1), 0)</li>
+</ul>
+<p>Church list can also be encoded with a similar Aggregate function with seed and accumulator function:</p>
+<pre class="code"><span style="color: blue;">dynamic </span><span style="color: black;">AggregateListNode&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">dynamic </span><span style="color: black;">x, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt; f);</span></pre>
+<p>Its type parameter T is the type of node value. And since the seed can be anything, just leave it as dynamic as usual. So the list node is of above aggregate function type (dynamic, (dynamic , T) -&gt; dynamic) -&gt; dynamic. After currying the aggregate function and the accumulator function, it becomes dynamic -&gt; (dynamic –&gt; T -&gt; dynamic) -&gt; dynamic. So this is the function type of list node, and an alias can be defined as:</p>
+<pre class="code"><span style="color: green;">// Curried from: (dynamic, dynamic -&gt; T -&gt; dynamic) -&gt; dynamic.
+// AggregateListNode is the alias of: dynamic -&gt; (dynamic -&gt; T -&gt; dynamic) -&gt; dynamic.
+</span><span style="color: blue;">public delegate </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;&gt;, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt; </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">dynamic </span><span style="color: black;">x);</span></pre>
+<p>And this is the creation and definition of list node:</p>
+<pre class="code"><span style="color: black;">CreateListNode := λv.λn.λx.λf.f (n x f) v
+ListNode := λx.λf.f (n x f) v</span></pre>
+<p>In C#:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ChurchAggregateList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{</span><span style="color: green;">
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt;&gt;
+        Create = value =&gt; next =&gt; x =&gt; f =&gt; f(next(x)(f))(value);
+}</span></pre>
+<p>Similarly, here variable v is the value of current node, variable n is the next node of the current node. And variable x is the seed for aggregation, variable f is the accumulator function. The list is still modeled as a linked list, so Null is also needed to represent the end of list:</p>
+<pre class="code"><span style="color: black;">Null := λx.λf.x</span></pre>
+<p>Null is defined to call f for 0 times. For example, to create a linked list { 2, 1, 0 }, first create the last list node, with value 2 and Null as its next node:</p>
+<pre class="code">  <span style="color: black;">CreateListNode 0 Null
+≡ (λv.λn.λx.λf.f (n x f) v) 0 (λx.λf.x)
+≡ (λn.λx.λf.f (n x f) 0) (λx.λf.x)
+≡ λx.λf.f ((λx.λf.x) x f) 0
+≡ λx.λf.f x 0</span></pre>
+<p>Then the previous node can be created with value 1 and the above node:</p>
+<pre class="code">  <span style="color: black;">CreateListNode 1 (CreateListNode 0 Null)
+≡ CreateListNode 1 (λx.λf.f x 0)
+≡ (λv.λn.λx.λf.f (n x f) v) 1 (λx.λf.f x 0)
+≡ (λn.λx.λf.f (n x f) 1) (λx.λf.f x 0)
+≡ λx.λf.f ((λx.λf.f x 0) x f) 1
+≡ λx.λf.f (f x 0) 1</span></pre>
+<p>And the first node has value 0:</p>
+<pre class="code">  <span style="color: black;">CreateListNode 2 (CreateListNode 1 (CreateListNode 0 Null))
+≡ CreateListNode 2 (λx.λf.f (f x 0) 1)
+≡ (λv.λn.λx.λf.f (n x f) v) 2 (λx.λf.f (f x 0) 1)
+≡ (λn.λx.λf.f (n x f) 2) (λx.λf.f (f x 0) 1)
+≡ λx.λf.f (λx.λf.f (f x 0) 1) x f) 2
+≡ λx.λf.f (f (f x 0) 1) 2</span></pre>
+<p>So the list nodes are represented in the same pattern as LINQ aggregation.</p>
+<p>The IsNull predicate can be defined as following:</p>
+<pre class="code"><span style="color: black;">IsNull := λl.l True (λx.λv.False)</span></pre>
+<p>The variable l is the list node, which is an aggregate function, and is applied with seed True and accumulate function λv.λx.False. When IsNull is applied with a null node, the accumulate function is not applied, and seed True is directly returned:</p>
+<pre class="code">  <span style="color: black;">IsNull Null
+≡ (λl.l True (λx.λv.False)) (λx.λf.x)
+≡ (λx.λf.x) True (λx.λv.False)
+≡ (λf.True) (λx.λv.False)
+≡ True</span></pre>
+<p>And when IsNull is applied with a non null node, the accumulator function is applied and constantly returns False, so IsNull returns False:</p>
+<pre class="code">  <span style="color: black;">IsNull (CreateListNode 2 Null)
+≡ IsNull (λx.λf.f x 2)
+≡ (λl.l True (λx.λv.False)) (λx.λf.f x 2)
+≡ (λx.λf.f x 2) True (λx.λv.False)
+≡ (λf.f True 2) (λx.λv.False)
+≡ (λx.λv.False) True 2
+≡ False</span></pre>
+<p>In C#:</p>
+<pre class="code"><span style="color: blue;">using static </span><span style="color: #2b91af;">ChurchBoolean</span><span style="color: black;">;
+</span><span style="color: black;">
+</span><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ChurchAggregateList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+        Null = x =&gt; f =&gt; x;
+
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">&gt;
+        IsNull = node =&gt; node(True)(x =&gt; value =&gt; False);</span><span style="color: black;">
+}</span></pre>
+<p>The following function returns the value from the specified node:</p>
+<pre class="code"><span style="color: black;">Value := λl.l Id (λx.λv.v)</span></pre>
+<p>When Value is applied with a node, which has value v and next node n:</p>
+<pre class="code">  <span style="color: black;">Value (CreateListNode v n)
+≡ Value (λx.λf.f (n x f) v)
+≡ (λl.l Id (λx.λv.v)) (λx.λf.f (n x f) v)
+≡ (λx.λf.f (n x f) v) Id (λx.λv.v)
+≡ (λf.f (n Id f) v) (λx.λv.v)
+≡ (λx.λv.v) (n Id f) v
+≡ (λv.v) v
+≡ v</span></pre>
+<p>In C#:</p>
+<pre class="code"><span style="color: green;">// Value = node =&gt; node(Id)(x =&gt; value =&gt; value)
+</span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+    Value = node =&gt; </span><span style="color: black;">node(</span><span style="color: #2b91af;">Functions</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;.Id)(x =&gt; value =&gt; value);</span></pre>
+<p>It is not very intuitive to get a node’s next node:</p>
+<pre class="code"><span style="color: black;">Next := λl.λx.λf.l (λf.x) (λx.λv.λg.g (x f) v) (λx.λv.v)</span></pre>
+<p>In C#:</p>
+<pre class="code"><span style="color: green;">// Next = node =&gt; x =&gt; f =&gt; node(_ =&gt; x)(accumulate =&gt; value =&gt; (g =&gt; g(accumulate(f))(value)))(accumulate =&gt; value =&gt; accumulate);
+</span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt;
+    Next = node =&gt; x =&gt; f =&gt; node(</span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;&gt;, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;(_ =&gt; x))(accumulate =&gt; value =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;&gt;, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;(g =&gt; g(accumulate(f))(value)))(</span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;&gt;(accumulate =&gt; value =&gt; accumulate));</span></pre>
+<p>The above definition is similar to the the pattern of initial version Subtract function for Church numeral. So it can be defined by shifting tuple too. Again, list node with value v and next node n is a aggregate function, it can be applied with a tuple of Null nodes as seed, and a accumulator function to swap the tuple:</p>
+<pre class="code">  <span style="color: black;">(CreateListNode v n) (Null, Null) (λt.λv.Shift (CreateListNode v) t)
+≡ (λx.λf.f (n x f) v) (Null, Null) (λt.λv.Shift (CreateListNode v) t)
+≡ (λf.f (n (Null, Null) f) v) (λt.λv.Shift (CreateListNode v) t)
+≡ (λt.λv.Shift (CreateListNode v) t) (n (Null, Null) (λt.λv.Shift (CreateListNode v)) t) v
+≡ (λv.Shift (CreateListNode v) (n (Null, Null) (λt.λv.Shift (CreateListNode v)) t)) v
+≡ Shift (CreateListNode v) (n (Null, Null) (λt.λv.Shift (CreateListNode v)) t)</span></pre>
+<p>Take list { n, n – 1, …, 2, 1, 0 } as example, assume its nodes are ListNode<sub>n</sub>, ListNode<sub>n - 1</sub>, …, ListNode<sub>2</sub>, ListNode<sub>1</sub>, ListNode<sub>0</sub>:</p>
+<ul>
+<li>the last node&nbsp; is: CreateListNode 0 Null</li>
+<li>the second last node is: CreateListNode 1 (CreateListNode 0 Null)</li>
+<li>the third last node is: CreateListNode 2 (CreateListNode 1 (CreateListNode 0 Null))</li>
+<li>…</li>
+</ul>
+<p>Now apply these nodes with above tuple seed and tuple shifting accumulator function:</p>
+<pre class="code">  <span style="color: black;">ListNode<sub>0</sub> (Null, Null) (λt.λv.Shift (CreateListNode v) t)
+≡ (CreateListNode 0 Null) (Null, Null) (λt.λv.Shift (CreateListNode v) t)
+≡ Shift (CreateListNode 0) (Null (Null, Null) (λt.λv.Shift (CreateListNode v)) t)
+≡ Shift (CreateListNode 0) ((λx.λf.λx) (Null, Null) (λt.λv.Shift (CreateListNode v)) t)
+≡ Shift (CreateListNode 0) (Null, Null)
+≡ (Null, CreateListNode 0 Null)
+≡ (Null, ListNode<sub>0</sub>)
+
+  ListNode<sub>1</sub> (Null, Null) (λt.λv.Shift (CreateListNode v) t)
+≡ (CreateListNode 1 (CreateListNode 0 Null)) (Null, Null) (λt.λv.Shift (CreateListNode v) t)
+≡ Shift (CreateListNode 1) ((CreateListNode 0 Null) (Null, Null) (λt.λv.Shift (CreateListNode v)) t)
+≡ Shift (CreateListNode 1) (Null, Create ListNode 0 Null)
+≡ (CreateListNode 0 Null, (CreateListNode 1 (CreateListNode 0 Null))
+≡ (ListNode<sub>0</sub>, ListNode<sub>1</sub>)
+
+  ListNode<sub>2</sub> (Null, Null) (λt.λv.Shift (CreateListNode v) t)
+≡ (CreateListNode 2 (CreateListNode 1 (CreateListNode 0 Null))) (Null, Null) (λt.λv.Shift (CreateListNode v) t)
+≡ Shift (CreateListNode 2) ((CreateListNode 1 (CreateListNode 0 Null)) (Null, Null) (λt.λv.Shift (CreateListNode v)) t)
+≡ Shift (CreateListNode 2) (CreateListNode 0 Null, (CreateListNode 1 (CreateListNode 0 Null))
+≡ ((CreateListNode 1 (CreateListNode 0 Null), CreateListNode 2 (CreateListNode 1 (CreateListNode 0 Null)))
+≡ (ListNode<sub>1</sub>, ListNode<sub>2</sub>)
+
+...
+
+  ListNode<sub>n</sub> (Null, Null) (λt.λv.Shift (CreateListNode v) t)
+≡ (ListNode<sub>n - 1</sub>, ListNode<sub>n</sub>)</span></pre>
+<p>Generally, there is:</p>
+<pre class="code">  <span style="color: black;">(CreateListNode v n) (Null, Null) (λt.λv.Shift (CreateListNode v) t)
+≡ (n, Create v n)</span></pre>
+<p>So Next can be defined as:</p>
+<pre class="code"><span style="color: black;">Next := λl.Item2 (l (CreateTuple Null Null) (λt.λv.Shift (CreateListNode v) t))</span></pre>
+<p>In C#:</p>
+<pre class="code"><span style="color: green;">// Next = node =&gt; node((Null, Null))(tuple =&gt; value =&gt; tuple.Shift(ChurchTuple.Create(value))).Item1()
+</span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt;
+    Next = node =&gt;
+        ((</span><span style="color: #2b91af;">Tuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt;)node
+            (</span><span style="color: #2b91af;">ChurchTuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt;.Create(Null)(Null))
+            (tuple =&gt; value =&gt; ((</span><span style="color: #2b91af;">Tuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt;)tuple).Shift(Create(value))))
+        .Item1();</span></pre>
+<p>The indexer can be defined the same as above:</p>
+<pre class="code"><span style="color: black;">ListNodeAt := λl.λi.i Next l</span></pre>
+<p>In C#;</p>
+<pre class="code"><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt;&gt;
+    ListNodeAt = start =&gt; index =&gt; </span><span style="color: black;">index(node =&gt; Next(</span><span style="color: black;">node))(start);</span></pre>
+<p>The following are the extension methods wrapping the list operators:</p>
+<pre class="code"><span style="color: blue;">public static class </span><span style="color: #2b91af;">AggregateListNodeExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">IsNull&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; node) =&gt; </span><span style="color: #2b91af;">ChurchAggregateList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;.IsNull(node);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">T </span><span style="color: black;">Value&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; node) =&gt; </span><span style="color: #2b91af;">ChurchAggregateList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;.Value(node);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; Next&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; node) =&gt;
+        </span><span style="color: #2b91af;">ChurchAggregateList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;.Next(node);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; ListNodeAt&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; start, </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">index) =&gt;
+        </span><span style="color: #2b91af;">ChurchAggregateList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;.ListNodeAt(start)(index);
+}</span></pre>
+<p>And the following code demonstrate how the list works:</p>
+<pre class="code"><span style="color: black;">[</span><span style="color: #2b91af;">TestClass</span><span style="color: black;">]
+</span><span style="color: blue;">public class </span><span style="color: #2b91af;">ChurchAggregateListTests
+</span><span style="color: black;">{
+    [</span><span style="color: #2b91af;">TestMethod</span><span style="color: black;">]
+    </span><span style="color: blue;">public void </span><span style="color: black;">CreateValueNextTest()
+    {
+        </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; node1 = </span><span style="color: #2b91af;">ChurchAggregateList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Create(1)(</span><span style="color: #2b91af;">ChurchAggregateList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Null);
+        </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; node2 = </span><span style="color: #2b91af;">ChurchAggregateList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Create(2)(node1);
+        </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; node3 = </span><span style="color: #2b91af;">ChurchAggregateList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Create(3)(node2);
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(1, node1.Value());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsTrue(node1.Next().IsNull().Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(2, node2.Value());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(node1.Value(), node2.Next().Value());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(3, node3.Value());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(node2.Value(), node3.Next().Value());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(node1.Value(), node3.Next().Next().Value());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsTrue(node3.Next().Next().Next().IsNull().Unchurch());
+    }
+
+    [</span><span style="color: #2b91af;">TestMethod</span><span style="color: black;">]
+    </span><span style="color: blue;">public void </span><span style="color: black;">IsNullTest()
+    {
+        </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; node1 = </span><span style="color: #2b91af;">ChurchAggregateList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Create(1)(</span><span style="color: #2b91af;">ChurchAggregateList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Null);
+        </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; node2 = </span><span style="color: #2b91af;">ChurchAggregateList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Create(2)(node1);
+        </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; node3 = </span><span style="color: #2b91af;">ChurchAggregateList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Create(3)(node2);
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsTrue(</span><span style="color: #2b91af;">ChurchAggregateList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Null.IsNull().Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsFalse(node1.IsNull().Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsFalse(node2.IsNull().Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsFalse(node3.IsNull().Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsTrue(node1.Next().IsNull().Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsFalse(node2.Next().IsNull().Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsFalse(node3.Next().IsNull().Unchurch());
+    }
+
+    [</span><span style="color: #2b91af;">TestMethod</span><span style="color: black;">]
+    </span><span style="color: blue;">public void </span><span style="color: black;">IndexTest()
+    {
+        </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; node1 = </span><span style="color: #2b91af;">ChurchAggregateList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Create(1)(</span><span style="color: #2b91af;">ChurchAggregateList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Null);
+        </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; node2 = </span><span style="color: #2b91af;">ChurchAggregateList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Create(2)(node1);
+        </span><span style="color: #2b91af;">AggregateListNode</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; node3 = </span><span style="color: #2b91af;">ChurchAggregateList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;.Create(3)(node2);
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(node3.Value(), node3.NodeAt(0U.Church()).Value());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(node2.Value(), node3.NodeAt(1U.Church()).Value());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(node1.Value(), node3.NodeAt(2U.Church()).Value());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsTrue(node3.NodeAt(3U.Church()).IsNull().Unchurch());
+    }
+}</span></pre>
+<h1>Model everything</h1>
+<p>Once again, in lambda calculus the only primitive is anonymous function. So far many data types and operations are modeled by anonymous functions, including Boolean, unsigned and signed numeral, tuple, list, logic, arithmetic (except division, which will be implemented later), predicate, etc. With these facilities, many other data types and operations can be modeled too. For example:</p>
+<ul>
+<li><a href="https://en.wikipedia.org/wiki/Floating_point" target="_blank">Floating point number</a> can be represented in the form of significand * base<sup>exponent</sup>. In <a href="https://en.wikipedia.org/wiki/IEEE_floating_point" target="_blank">IEEE 754 (aka IEC 60559)</a>, floating point numbers are <a href="https://www.h-schmidt.net/FloatConverter/IEEE754.html" target="_blank">represented</a> as binary format (sign) significand * 2<sup>exponent</sup> (<a href="http://www.ecma-international.org/publications/standards/Ecma-335.htm" target="_blank">System.Single and System.Double</a> in .NET), and decimal format (sign) significand * 10<sup>exponent</sup> (System.Decimal). So either representation can be modeled with a 3-tuple of (Boolean, unsigned numeral, signed numeral).</li>
+<li>Character (System.Char in .NET) can be represented by unsigned numeral.</li>
+<li>String (System.String in .NET) can be modeled by a list of characters.</li>
+<li>Tuple and list can represent other data structures, like tree, stack, queue, etc.</li>
+<li>…</li>
+</ul>
+<p>And eventually everything can be modeled with anonymous function represented by lambda expression. Actually, lambda calculus is a classic example of <a href="https://en.wikipedia.org/wiki/Turing_completeness" target="_blank">Turing completeness</a>. Lambda calculus is introduced by Alonzo Church before <a href="https://en.wikipedia.org/wiki/Turing_machine" target="_blank">Turing machine</a> was introduced by Alan Turing, and they are equivalent. Lambda calculus, as a universal model of computation, is the rationale and foundations of functional programming. Functional languages (or the functional subset of languages) can be viewed as lambda calculus with more specific syntax, and the execution of functional program can be viewed as reduction of lambda calculus expression.</p>
+
+
+</div>
+</body>
+</html>

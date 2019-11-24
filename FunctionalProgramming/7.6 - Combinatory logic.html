@@ -1,0 +1,564 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+<h1>Lambda Calculus via C# (6) Combinatory Logic</h1>
+
+<p>In lambda calculus, the primitive is function, which can have free variables and bound variables. <a href="http://en.wikipedia.org/wiki/Combinatory_logic" target="_blank">Combinatory logic</a> was introduced by <a href="http://en.wikipedia.org/wiki/Moses_Sch%C3%B6nfinkel" target="_blank">Moses Schönfinkel</a> and <a href="http://en.wikipedia.org/wiki/Haskell_Curry" target="_blank">Haskell Curry</a> in 1920s. It is equivalent variant lambda calculus, with combinator as primitive. A combinator can be viewed as an expression with no free variables in its body.</p>
+<h1>Combinator</h1>
+<p>The following is the simplest function definition expression, with only bound variable and no free variable:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">I := λx.x</span></pre>
+<p>In combinatory logic it is called I (Id) combinator. The following functions are combinators too:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">S := λx.λy.λz.x z (y z)
+K := λx.λy.x
+</span></pre>
+<p>Here S (Slider) combinator slides z to between x and y (In some materials S is called Substitution; In <a href="https://www.youtube.com/watch?v=7cPtCpyBPNI" target="_blank">presentation</a> of <a href="http://en.wikipedia.org/wiki/Dana_Scott" target="_blank">Dana Scott</a> S is called Slider), and K (Killer) combinator kills y.</p>
+<p>In C#, just leave the each combinator’s variables as dynamic:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">SkiCombinators
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;&gt;&gt;
+        S = x =&gt; y =&gt; z =&gt; x(z)(y(z));
+
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;&gt;
+        K = x =&gt; y =&gt; x;
+
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;
+        I = x =&gt; x;
+}</span></pre>
+<p>ω is the self application combinator. It applies variable f to f itself:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">ω := λf.f f</span></pre>
+<p>Just like above f, ω can also be applied with ω itself, which is the definition of Ω:</p>
+<pre class="code"><span style="color: black;">Ω := ω ω ≡ (λf.f f) (λf.f f)</span></pre>
+<p>Here ω is a function definition expression without free variables, and Ω is a function application expression, which contains no free variables. For Ω, its function application can be beta reduced forever:</p>
+<pre class="code">  <span style="color: black;">(λf.f f) (λf.f f)
+≡ (λf.f f) (λf.f f)
+≡ (λf.f f) (λf.f f)
+≡ ...</span></pre>
+<p>So ω ω is an infinite application. Ω is called the looping combinator.</p>
+<p>In C#, it is easy to define the type of self applicable function, like above f. Assume the function’s return type is TResult, then this function is of type input –&gt; TResult:</p>
+<pre class="code"><span style="color: blue;">public delegate </span><span style="color: #2b91af;">TResult Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(?);</span></pre>
+<p>The input type is the function type itself, so it is:</p>
+<pre class="code"><span style="color: blue;">public delegate </span><span style="color: #2b91af;">TResult Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; self)</span></pre>
+<p>Above Func&lt;TResult&gt; is the self applicable function type. To be unambiguous with System.Func&lt;TResult&gt;, it can be renamed to SelfApplicableFunc&lt;TResult&gt;:</p>
+<pre class="code"><span style="color: blue;">public delegate </span><span style="color: #2b91af;">TResult SelfApplicableFunc</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">SelfApplicableFunc</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; self);</span></pre>
+<p>So SelfApplicableFunc&lt;TResult&gt; is equivalent to SelfApplicableFunc&lt;TResult&gt; -&gt; TResult. Since f is of type SelfApplicableFunc&lt;TResult&gt;, f(f) returns TResult. And since ω accept f and returns TResult. ω is of type SelfApplicableFunc&lt;TResult&gt; -&gt; TResult, which is the definition of SelfApplicableFunc&lt;TResult&gt;, so ω is still of type SelfApplicableFunc&lt;TResult&gt;, ω(ω) is still of type TResult:</p>
+<pre class="code"><span style="color: blue;">public static class </span><span style="color: #2b91af;">OmegaCombinators</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;
+{</span><span style="color: green;">
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">SelfApplicableFunc</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;
+        ω = f =&gt; f(f);
+</span><span style="color: green;">
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">TResult
+        </span><span style="color: black;">Ω = ω(ω);
+}</span></pre>
+<h1>SKI combinator calculus</h1>
+<p>The <a href="http://en.wikipedia.org/wiki/SKI_combinator_calculus" target="_blank">SKI combinator calculus</a> is a kind of combinatory logic. As a variant of lambda calculus, SKI combinatory logic has no general expression definition rules, or general expression reduction rules. It only has the above S, K, I combinators as the only 3 primitives, and the only 3 function application rules. It can be viewed as a reduced version of lambda calculus, and an extremely simple Turing complete language with only 3 elements: S, K, I.</p>
+<p>Take the Boolean values as a simple example. Remember in lambda calculus, True and False are defined as:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">True := λt.λf.t
+False := λt.λf.f</span></pre>
+<p>So that when they are applied:</p>
+<pre class="code">  <span style="color: black;">True t f
+≡ (λt.λf.t) t f
+≡ t
+
+  False t f
+≡ (λt.λf.f) t f
+≡ f</span></pre>
+<p>Here in SKI combinator calculus, SKI combinators are the only primitives, so True and False can be defined as:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">True := K
+False := S K</span></pre>
+<p>So that when they are applied, they return the same result as the lambda calculus definition:</p>
+<pre class="code">  <span style="color: black;">True t f
+≡ K t f
+≡ t
+
+  False t f
+≡ S K t f
+≡ K f (t f)
+≡ f</span></pre>
+<p>Remember function composition is defined as:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">(f<sub>2</sub> ∘ f<sub>1</sub>) x := f<sub>2</sub> (f<sub>1</sub> x)</span></pre>
+<p>In SKI, the composition operator can be equivalently defined as:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">Compose := S (K S) K</span></pre>
+<p>And this is how it works:</p>
+<pre class="code">  <span style="color: black;">Compose f<sub>2</sub> f<sub>1</sub> x
+≡ S (K S) K f<sub>2</sub> f<sub>1</sub> x
+≡ (K S) f<sub>2</sub> (K f<sub>2</sub>) f<sub>1</sub> x
+≡ S (K f<sub>2</sub>) f<sub>1</sub> x
+≡ (K f<sub>2</sub>) x (f<sub>1</sub> x)
+≡ f<sub>2</sub> (f<sub>1</sub> x)</span></pre>
+<p>In lambda calculus, numerals are defined as:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">0 := λf.λx.x
+1 := λf.λx.f x
+2 := λf.λx.f (f x)
+3 := λf.λx.f (f (f x))
+...</span></pre>
+<p>In SKI, numerals are equivalently defined as:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">0 := K I                     ≡ K I
+1 := I                       ≡ I
+2 := S Compose I             ≡ S (S (K S) K) I
+3 := S Compose (S Compose I) ≡ S (S (K S) K) (S (S (K S) K) I)
+...</span></pre>
+<p>When these numerals are applied, they return the same results as lambda calculus definition:</p>
+<pre class="code">  <span style="color: black;">0 f x
+≡ K I f x
+≡ I x
+≡ x
+
+  1 f x
+≡ I f x
+≡ f x
+
+  2 f x
+≡ S Compose I f x
+≡ Compose f (I f) x
+≡ Compose f f x
+≡ f (f x)
+
+  3 f x
+≡ S Compose (S Compose I) f x
+≡ Compose f (S Compose I f) x
+≡ Compose f (Compose f f) x
+≡ f (f (f x))
+
+...</span></pre>
+<p>In SKI, the self application combinator ω is:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">ω := S I I</span></pre>
+<p>When it is applied with f, it returns f f:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">  S I I f
+≡ I x (I f)
+≡ f f</span></pre>
+<p>So naturally, Ω is defined as:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">Ω := (S I I) (S I I)
+</span></pre>
+<p>And it is infinite as in lambda calculus:</p>
+<pre class="code">  <span style="color: black;">S I I (S I I)
+≡ I (S I I) (I (S I I))
+≡ I (S I I) (S I I)
+≡ S I I (S I I)
+...</span></pre>
+<p>Actually, I combinator can be defined with S and K in either of the following ways:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">I := S K K
+I := S K S</span></pre>
+<p>And they work the same:</p>
+<pre class="code">  <span style="color: black;">I x
+≡ S K K x
+≡ K x (K x)
+≡ x
+
+  I x
+≡ S K S x
+≡ K x (S x)
+≡ x</span></pre>
+<p>So I is just a syntactic sugar in SKI calculus.</p>
+<p>In C#, these combinators can be implemented as:</p>
+<pre class="code"><span style="color: blue;">using static </span><span style="color: #2b91af;">SkiCombinators</span><span style="color: black;">;
+
+</span><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">SkiCalculus
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Boolean
+        </span><span style="color: black;">True = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">(K);
+
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Boolean
+        </span><span style="color: black;">False = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">(S(K));
+
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;
+        Compose = S(K(S))(K);
+
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;
+        Zero = K(I);
+
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;
+        One = I;
+
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;
+        Two = S(Compose)(I);
+
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;
+        Three = S(Compose)(S(Compose)(I));
+
+    </span><span style="color: green;">// ...
+
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;&gt;
+        Increase = S(Compose);
+
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;
+        ω = S(I)(I);
+
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;
+        Ω = S(I)(I)(S(I)(I));
+
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;
+        IWithSK = S(K)(K); </span><span style="color: green;">// Or S(K)(S).
+</span><span style="color: black;">}</span></pre>
+<h2>SKI compiler: compile lambda calculus expression to SKI calculus combinator</h2>
+<p>The S, K, I combinators can be composed to new combinator that equivalent to any lambda calculus expression. An arbitrary expression in lambda calculus can be converted to combinator in SKI calculus. Assume v is a variable in lambda calculus, and E is an expression in lambda calculus, the conversion ToSki is defined as:</p>
+<ol>
+<li>ToSki (v) =&gt; v</li>
+<li>ToSki (E<sub>1</sub> E<sub>2</sub>) =&gt; (ToSki (E<sub>1</sub>) (ToSki (E<sub>2</sub>)))</li>
+<li>ToSki (λv.E) =&gt; (K (ToSki (E))), if x does not occur free in E</li>
+<li>ToSki (λv.v) =&gt; I</li>
+<li>ToSki (λv<sub>1</sub>.λv<sub>2</sub>.E) =&gt; ToSki (λv<sub>1</sub>.ToSki (λv<sub>2</sub>.E))</li>
+<li>ToSki (λv.(E<sub>1</sub> E<sub>2</sub>)) =&gt; (S (ToSki (λ.v.E<sub>1</sub>)) (ToSki (λv.E<sub>2</sub>)))</li>
+</ol>
+<p>Based on these rules, a compiler can be implemented to compile a expression in lambda calculus to combinator in SKI calculus. As mentioned before, the C# lambda expression can be compiled as function, and also expression tree data representing the logic of that function:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">FunctionAsData&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;()
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; idFunction = value =&gt; value;
+    </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt; idExpression = value =&gt; value;
+}</span></pre>
+<p>The above idFunction and idExpression shares the same lambda expression syntax, but is executable function, while the idExpression is a abstract syntax tree data structure, representing the logic of idFunction:</p>
+<pre class="code"><span style="color: black;">Expression&lt;Func&lt;T, T&gt;&gt; (NodeType = Lambda, Type = Func&lt;T, T&gt;)
+|_Parameters
+| |_ParameterExpression (NodeType = Parameter, Type = T)
+|   |_Name = "value"
+|_Body
+  |_ParameterExpression (NodeType = Parameter, Type = T)
+    |_Name = "value"</span></pre>
+<p>This metaprogramming feature provides great convenience for the conversion – just build the lambda calculus expression as .NET expression tree, traverse the tree and apply the above rules, and convert the tree to another tree representing the SKI calculus combinator.</p>
+<p>A SKI calculus combinator, like above Ω combinator (S I I) (S I I), is a composition of S, K, I. The S, K, I primitives can be represented with a constant expression:</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">CombinatorExpression </span><span style="color: black;">: </span><span style="color: #2b91af;">Expression
+</span><span style="color: black;">{
+    </span><span style="color: blue;">private </span><span style="color: black;">CombinatorExpression(</span><span style="color: blue;">string </span><span style="color: black;">name) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.Name = name;
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">CombinatorExpression </span><span style="color: black;">S { </span><span style="color: blue;">get</span><span style="color: black;">; } = </span><span style="color: blue;">new </span><span style="color: #2b91af;">CombinatorExpression</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(S));
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">CombinatorExpression </span><span style="color: black;">K { </span><span style="color: blue;">get</span><span style="color: black;">; } = </span><span style="color: blue;">new </span><span style="color: #2b91af;">CombinatorExpression</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(K));
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">CombinatorExpression </span><span style="color: black;">I { </span><span style="color: blue;">get</span><span style="color: black;">; } = </span><span style="color: blue;">new </span><span style="color: #2b91af;">CombinatorExpression</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(I));
+
+    </span><span style="color: blue;">public string </span><span style="color: black;">Name { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">public override </span><span style="color: #2b91af;">ExpressionType </span><span style="color: black;">NodeType { </span><span style="color: blue;">get</span><span style="color: black;">; } = </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Constant;
+
+    </span><span style="color: blue;">public override </span><span style="color: #2b91af;">Type </span><span style="color: black;">Type { </span><span style="color: blue;">get</span><span style="color: black;">; } = </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: blue;">object</span><span style="color: black;">);
+}</span></pre>
+<p>The composition can be represented with a function application expression:</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">ApplicationExpression </span><span style="color: black;">: </span><span style="color: #2b91af;">Expression
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal </span><span style="color: black;">ApplicationExpression(</span><span style="color: #2b91af;">Expression </span><span style="color: black;">function, </span><span style="color: #2b91af;">Expression </span><span style="color: black;">variable)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.Function = function;
+        </span><span style="color: blue;">this</span><span style="color: black;">.Variable = variable;
+    }
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">Expression </span><span style="color: black;">Function { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">Expression </span><span style="color: black;">Variable { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">public override </span><span style="color: #2b91af;">ExpressionType </span><span style="color: black;">NodeType { </span><span style="color: blue;">get</span><span style="color: black;">; } = </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Invoke;
+
+    </span><span style="color: blue;">public override </span><span style="color: #2b91af;">Type </span><span style="color: black;">Type { </span><span style="color: blue;">get</span><span style="color: black;">; } = </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: blue;">object</span><span style="color: black;">);
+}</span></pre>
+<p>So the above Ω combinator (S I I) (S I I) can be represented by the following expression tree:</p>
+<pre class="code"><span style="color: black;">ApplicationExpression (NodeType = Invoke, Type = object)
+|_Function
+| |_ApplicationExpression (NodeType = Invoke, Type = object)
+|   |_Function
+|   | |_ApplicationExpression (NodeType = Invoke, Type = object)
+|   |   |_Function
+|   |   | |_CombinatorExpression (NodeType = Constant, Type = object)
+|   |   |   |_Name = "S"
+|   |   |_Variable
+|   |     |_CombinatorExpression (NodeType = Constant, Type = object)
+|   |       |_Name = "I"
+|   |_Variable
+|     |_CombinatorExpression (NodeType = Constant, Type = object)
+|       |_Name = "I"
+|_Variable
+  |_ApplicationExpression (NodeType = Invoke, Type = object)
+    |_Function
+    | |_ApplicationExpression (NodeType = Invoke, Type = object)
+    |   |_Function
+    |   | |_CombinatorExpression (NodeType = Constant, Type = object)
+    |   |   |_Name = "S"
+    |   |_Variable
+    |     |_CombinatorExpression (NodeType = Constant, Type = object)
+    |       |_Name = "I"
+    |_Variable
+      |_CombinatorExpression (NodeType = Constant, Type = object)
+        |_Name = "I"</span></pre>
+<p>So in the following SkiCompiler type, the ToSki is implemented to traverse the input abstract syntax tree recursively, and apply the above conversion rules:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">SkiCompiler
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Expression </span><span style="color: black;">ToSki(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Expression </span><span style="color: black;">lambdaCalculus)
+    {
+        </span><span style="color: green;">// Ignore type convertion specified in code or generated by C# compiler.
+        </span><span style="color: black;">lambdaCalculus = lambdaCalculus.IgnoreTypeConvertion();
+
+        </span><span style="color: blue;">switch </span><span style="color: black;">(lambdaCalculus.NodeType)
+        {
+            </span><span style="color: blue;">case </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Constant:
+                </span><span style="color: green;">// 0. ToSki(S) = S, ToSki(K) = K, ToSki(I) = I.
+                </span><span style="color: blue;">if </span><span style="color: black;">(lambdaCalculus </span><span style="color: blue;">is </span><span style="color: #2b91af;">CombinatorExpression</span><span style="color: black;">)
+                {
+                    </span><span style="color: blue;">return </span><span style="color: black;">lambdaCalculus;
+                }
+                </span><span style="color: blue;">break</span><span style="color: black;">;
+
+            </span><span style="color: blue;">case </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Parameter:
+                </span><span style="color: green;">// 1. ToSki(v) = v.
+                </span><span style="color: blue;">return </span><span style="color: black;">lambdaCalculus;
+
+            </span><span style="color: blue;">case </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Invoke:
+                </span><span style="color: green;">// 2. ToSki(E1(E2)) = ToSki(E1)(ToSKi(E2)).
+                </span><span style="color: #2b91af;">ApplicationExpression </span><span style="color: black;">application = lambdaCalculus.ToApplication();
+                </span><span style="color: blue;">return new </span><span style="color: #2b91af;">ApplicationExpression</span><span style="color: black;">(ToSki(application.Function), ToSki(application.Variable));
+
+            </span><span style="color: blue;">case </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Lambda:
+                </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">function = (</span><span style="color: #2b91af;">LambdaExpression</span><span style="color: black;">)lambdaCalculus;
+                </span><span style="color: #2b91af;">ParameterExpression </span><span style="color: black;">variable = function.Parameters.Single();
+                </span><span style="color: #2b91af;">Expression </span><span style="color: black;">body = function.Body.IgnoreTypeConvertion();
+
+                </span><span style="color: green;">// 3. ToSki(v =&gt; E) = K(ToSki(E)), if v does not occur free in E.
+                </span><span style="color: blue;">if </span><span style="color: black;">(!variable.IsFreeIn(body))
+                {
+                    </span><span style="color: blue;">return new </span><span style="color: #2b91af;">ApplicationExpression</span><span style="color: black;">(</span><span style="color: #2b91af;">CombinatorExpression</span><span style="color: black;">.K, ToSki(body));
+                }
+
+                </span><span style="color: blue;">switch </span><span style="color: black;">(body.NodeType)
+                {
+                    </span><span style="color: blue;">case </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Parameter:
+                        </span><span style="color: green;">// 4. ToSki(v =&gt; v) = I
+                        </span><span style="color: blue;">if </span><span style="color: black;">(variable == (</span><span style="color: #2b91af;">ParameterExpression</span><span style="color: black;">)body)
+                        {
+                            </span><span style="color: blue;">return </span><span style="color: #2b91af;">CombinatorExpression</span><span style="color: black;">.I;
+                        }
+                        </span><span style="color: blue;">break</span><span style="color: black;">;
+
+                    </span><span style="color: blue;">case </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Lambda:
+                        </span><span style="color: green;">// 5. ToSki(v1 =&gt; v2 =&gt; E) = ToSki(v1 =&gt; ToSki(v2 =&gt; E)), if v1 occurs free in E.
+                        </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">bodyFunction = (</span><span style="color: #2b91af;">LambdaExpression</span><span style="color: black;">)body;
+                        </span><span style="color: blue;">if </span><span style="color: black;">(variable.IsFreeIn(bodyFunction.Body))
+                        {
+                            </span><span style="color: blue;">return </span><span style="color: black;">ToSki(</span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Lambda(ToSki(bodyFunction), variable));
+                        }
+                        </span><span style="color: blue;">break</span><span style="color: black;">;
+
+                    </span><span style="color: blue;">case </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Invoke:
+                        </span><span style="color: green;">// 6. ToSki(v =&gt; E1(E2)) = S(ToSki(v =&gt; E1))(ToSki(v =&gt; E2)).
+                        </span><span style="color: #2b91af;">ApplicationExpression </span><span style="color: black;">bodyApplication = body.ToApplication();
+                        </span><span style="color: blue;">return new </span><span style="color: #2b91af;">ApplicationExpression</span><span style="color: black;">(
+                            </span><span style="color: blue;">new </span><span style="color: #2b91af;">ApplicationExpression</span><span style="color: black;">(
+                                </span><span style="color: #2b91af;">CombinatorExpression</span><span style="color: black;">.S,
+                                ToSki(</span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Lambda(bodyApplication.Function, variable))),
+                            ToSki(</span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Lambda(bodyApplication.Variable, variable)));
+                }
+                </span><span style="color: blue;">break</span><span style="color: black;">;
+        }
+        </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(lambdaCalculus));
+    }
+}</span></pre>
+<p>It calls a few helper functions:</p>
+<pre class="code"><span style="color: blue;">private static </span><span style="color: #2b91af;">Expression </span><span style="color: black;">IgnoreTypeConvertion(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Expression </span><span style="color: black;">lambdaCalculus) =&gt;
+    lambdaCalculus.NodeType == </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Convert
+        ? ((</span><span style="color: #2b91af;">UnaryExpression</span><span style="color: black;">)lambdaCalculus).Operand
+        : lambdaCalculus;
+
+</span><span style="color: blue;">private static </span><span style="color: #2b91af;">ApplicationExpression </span><span style="color: black;">ToApplication(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Expression </span><span style="color: black;">expression)
+{
+    </span><span style="color: blue;">switch </span><span style="color: black;">(expression)
+    {
+        </span><span style="color: blue;">case </span><span style="color: #2b91af;">ApplicationExpression </span><span style="color: black;">application:
+            </span><span style="color: blue;">return </span><span style="color: black;">application;
+        </span><span style="color: blue;">case </span><span style="color: #2b91af;">InvocationExpression </span><span style="color: black;">invocation:
+            </span><span style="color: blue;">return new </span><span style="color: #2b91af;">ApplicationExpression</span><span style="color: black;">(invocation.Expression, invocation.Arguments.Single());
+    }
+    </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(expression));
+}
+
+</span><span style="color: blue;">private static bool </span><span style="color: black;">IsFreeIn(</span><span style="color: blue;">this </span><span style="color: #2b91af;">ParameterExpression </span><span style="color: black;">variable, </span><span style="color: #2b91af;">Expression </span><span style="color: black;">lambdaCalculus)
+{
+    </span><span style="color: green;">// Ignore type convertion specified in code or generated by C# compiler.
+    </span><span style="color: black;">lambdaCalculus = lambdaCalculus.IgnoreTypeConvertion();
+
+    </span><span style="color: blue;">switch </span><span style="color: black;">(lambdaCalculus.NodeType)
+    {
+        </span><span style="color: blue;">case </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Invoke:
+            </span><span style="color: #2b91af;">ApplicationExpression </span><span style="color: black;">application = lambdaCalculus.ToApplication();
+            </span><span style="color: blue;">return </span><span style="color: black;">variable.IsFreeIn(application.Function) || variable.IsFreeIn(application.Variable);
+        </span><span style="color: blue;">case </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Lambda:
+            </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">function = (</span><span style="color: #2b91af;">LambdaExpression</span><span style="color: black;">)lambdaCalculus;
+            </span><span style="color: blue;">return </span><span style="color: black;">variable != function.Parameters.Single() &amp;&amp; variable.IsFreeIn(function.Body);
+        </span><span style="color: blue;">case </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Parameter:
+            </span><span style="color: blue;">return </span><span style="color: black;">variable == (</span><span style="color: #2b91af;">ParameterExpression</span><span style="color: black;">)lambdaCalculus;
+        </span><span style="color: blue;">case </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Constant:
+            </span><span style="color: blue;">return false</span><span style="color: black;">;
+    }
+    </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(lambdaCalculus));
+}</span></pre>
+<p>Sometimes, in order to make the lambda calculus expression be compiled, some type information has to be added manually or automatically by C# compiler. These type conversion information is not needed, and can be removed by IgnoreTypeConvertion. In lambda expression, function invocation is compiled as InvocationExpression node with node type Invoke, which is the same as ApplicationExpression. For convenience, ToApplication unifies all Invoke nodes to ApplicationExpression. And IsFreeIn recursively test whether the specified variable occurs free in the specified lambda calculus expression.</p>
+<p>Finally, for readability, the following ToSkiString method Converts the compiled SKI calculus expression to string representation:</p>
+<pre class="code"><span style="color: blue;">public static string </span><span style="color: black;">ToSkiString(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Expression </span><span style="color: black;">skiCalculus) =&gt; skiCalculus.ToSkiString(</span><span style="color: blue;">false</span><span style="color: black;">);
+
+</span><span style="color: blue;">private static string </span><span style="color: black;">ToSkiString(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Expression </span><span style="color: black;">skiCalculus, </span><span style="color: blue;">bool </span><span style="color: black;">parentheses)
+{
+    </span><span style="color: blue;">switch </span><span style="color: black;">(skiCalculus.NodeType)
+    {
+        </span><span style="color: blue;">case </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Invoke:
+            </span><span style="color: #2b91af;">ApplicationExpression </span><span style="color: black;">application = (</span><span style="color: #2b91af;">ApplicationExpression</span><span style="color: black;">)skiCalculus;
+            </span><span style="color: blue;">return </span><span style="color: black;">parentheses
+                ? </span><span style="color: #a31515;">$"(</span><span style="color: black;">{application.Function.ToSkiString(</span><span style="color: blue;">false</span><span style="color: black;">)} {application.Variable.ToSkiString(</span><span style="color: blue;">true</span><span style="color: black;">)}</span><span style="color: #a31515;">)"
+                </span><span style="color: black;">: </span><span style="color: #a31515;">$"</span><span style="color: black;">{application.Function.ToSkiString(</span><span style="color: blue;">false</span><span style="color: black;">)} {application.Variable.ToSkiString(</span><span style="color: blue;">true</span><span style="color: black;">)}</span><span style="color: #a31515;">"</span><span style="color: black;">;
+        </span><span style="color: blue;">case </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Parameter:
+            </span><span style="color: blue;">return </span><span style="color: black;">((</span><span style="color: #2b91af;">ParameterExpression</span><span style="color: black;">)skiCalculus).Name;
+        </span><span style="color: blue;">case </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Constant:
+            </span><span style="color: blue;">return </span><span style="color: black;">((</span><span style="color: #2b91af;">CombinatorExpression</span><span style="color: black;">)skiCalculus).Name;
+    }
+    </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(skiCalculus));
+}</span></pre>
+<p>The following example demonstrates how to represent 2-tuple in SKI calculus combinator:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Tuple&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt;()
+{
+    </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">Tuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt;&gt;&gt;&gt;
+        createTupleLambda = item1 =&gt; item2 =&gt; f =&gt; f(item1)(item2);
+    </span><span style="color: #2b91af;">Expression </span><span style="color: black;">createTupleSki = createTupleLambda.ToSki();
+    createTupleSki.ToSkiString().WriteLine();
+    </span><span style="color: green;">// S (S (K S) (S (K K) (S (K S) (S (K (S I)) (S (K K) I))))) (K (S (K K) I))
+</span><span style="color: black;">}</span></pre>
+<p>To verify the result, a tuple can be created with x as first item, and y as the second item:</p>
+<pre class="code">  <span style="color: black;">CreateTuple x y
+≡ S (S (K S) (S (K K) (S (K S) (S (K (S I)) (S (K K) I))))) (K (S (K K) I)) x y
+≡ S (K S) (S (K K) (S (K S) (S (K (S I)) (S (K K) I)))) x (K (S (K K) I) x) y
+≡ K S x (S (K K) (S (K S) (S (K (S I)) (S (K K) I))) x) (K (S (K K) I) x) y
+≡ S (S (K K) (S (K S) (S (K (S I)) (S (K K) I))) x) (K (S (K K) I) x) y
+≡ S (K K) (S (K S) (S (K (S I)) (S (K K) I))) x y (K (S (K K) I) x y)
+≡ K K x (S (K S) (S (K (S I)) (S (K K) I)) x) y (K (S (K K) I) x y)
+≡ K (S (K S) (S (K (S I)) (S (K K) I)) x) y (K (S (K K) I) x y)
+≡ S (K S) (S (K (S I)) (S (K K) I)) x (K (S (K K) I) x y)
+≡ K S x (S (K (S I)) (S (K K) I) x) (K (S (K K) I) x y)
+≡ S (S (K (S I)) (S (K K) I) x) (K (S (K K) I) x y)
+≡ S (K (S I) x (S (K K) I x)) (K (S (K K) I) x y)
+≡ S (S I (S (K K) I x)) (K (S (K K) I) x y)
+≡ S (S I ((K K) x (I x))) (K (S (K K) I) x y)
+≡ S (S I (K (I x))) (K (S (K K) I) x y)
+≡ S (S I (K x)) (K (S (K K) I) x y)
+≡ S (S I (K x)) (S (K K) I y)
+≡ S (S I (K x)) (K K y (I y))
+≡ S (S I (K x)) (K (I y))
+≡ S (S I (K x)) (K y)</span></pre>
+<p>To get the first/second item of the above tuple, apply it with True/False:</p>
+<pre class="code">  <span style="color: black;">Item1 (CreateTuple x y)
+≡ (CreateTuple x y) True
+≡ S (S I (K x)) (K y) True
+≡ S (S I (K x)) (K y) K
+≡ S I (K x) K (K y K)
+≡ I K (K x K) (K y K)
+≡ K (K x K) (K y K)
+≡ K x K
+≡ x
+
+  Item2 (CreateTuple x y)
+≡ (CreateTuple x y) False
+≡ S (S I (K x)) (K y) False
+≡ S (S I (K x)) (K y) (S K)
+≡ S I (K x) (S K) (K y (S K))
+≡ I (S K) (K x (S K)) (K y (S K))
+≡ S K (K x (S K)) (K y (S K))
+≡ K y (K x (S K) y)
+≡ y</span></pre>
+<p>So the compiled 2-tuple SKI calculus combinator is equivalent to the lambda calculus expression.</p>
+<p>Another example is the logic operator And:</p>
+<pre class="code"><span style="color: black;">And := λa.λb.a b False ≡ λa.λb.a b (λt.λf.f)</span></pre>
+<p>So in C#:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">And()
+{
+    </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">, </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">&gt;&gt;&gt;
+        andLambda = a =&gt; b =&gt; a(b)((</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">)(@true =&gt; @false =&gt; @false));
+    </span><span style="color: #2b91af;">Expression </span><span style="color: black;">andSki = andLambda.ToSki();
+    </span><span style="color: black;">andSki.ToSkiString().WriteLine();;</span><span style="color: green;">
+</span><span style="color: black;">}</span></pre>
+<p>Unfortunately, above expression tree cannot be compiled, with error CS1963: An expression tree may not contain a dynamic operation. The reason is, Boolean is the alias of Func&lt;dynamic, Func&lt;dynamic, dynamic&gt;&gt;, and C# compiler does not support dynamic operations in expression tree, like calling a(b) here. At compile time, dynamic is just object, so the solution is to replace dynamic with object, and replace Boolean with object –&gt; object -&gt; object, then the following code can be compiled:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">And()
+{
+    </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">object</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">object</span><span style="color: black;">, </span><span style="color: blue;">object</span><span style="color: black;">&gt;&gt;, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">object</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">object</span><span style="color: black;">, </span><span style="color: blue;">object</span><span style="color: black;">&gt;&gt;, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">object</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">object</span><span style="color: black;">, </span><span style="color: blue;">object</span><span style="color: black;">&gt;&gt;&gt;&gt;&gt;
+        andLambda = a =&gt; b =&gt; (</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">object</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">object</span><span style="color: black;">, </span><span style="color: blue;">object</span><span style="color: black;">&gt;&gt;)a(b)((</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">object</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">object</span><span style="color: black;">, </span><span style="color: blue;">object</span><span style="color: black;">&gt;&gt;)(@true =&gt; @false =&gt; @false));
+    </span><span style="color: #2b91af;">Expression </span><span style="color: black;">andSki = andLambda.ToSki();
+    </span><span style="color: black;">andSki.ToSkiString().WriteLine();
+    </span><span style="color: green;">// S (S (K S) (S (S (K S) (S (K K) I)) (K I))) (K (K (K I)))
+</span><span style="color: black;">}</span></pre>
+<p>The compilation result can be verified in similar way:</p>
+<pre class="code">  <span style="color: black;">And True True
+≡ S (S (K S) (S (S (K S) (S (K K) I)) (K I))) (K (K (K I))) True True
+≡ S (S (K S) (S (S (K S) (S (K K) I)) (K I))) (K (K (K I))) K K
+≡ S (K S) (S (S (K S) (S (K K) I)) (K I)) K (K (K (K I)) K) K
+≡ K S K (S (S (K S) (S (K K) I)) (K I) K) (K (K (K I)) K) K
+≡ S (S (S (K S) (S (K K) I)) (K I) K) (K (K (K I)) K) K
+≡ S (S (K S) (S (K K) I)) (K I) K K (K (K (K I)) K K)
+≡ S (K S) (S (K K) I) K (K I K) K (K (K (K I)) K K)
+≡ K S K (S (K K) I K) (K I K) K (K (K (K I)) K K)
+≡ S (S (K K) I K) (K I K) K (K (K (K I)) K K)
+≡ S (K K) I K K (K I K K) (K (K (K I)) K K)
+≡ K K K (I K) K (K I K K) (K (K (K I)) K K)
+≡ K (I K) K (K I K K) (K (K (K I)) K K)
+≡ I K (K I K K) (K (K (K I)) K K)
+≡ K (K I K K) (K (K (K I)) K K)
+≡ K I K K
+≡ I K
+≡ K
+≡ True
+
+  And True False
+≡ S (S (K S) (S (S (K S) (S (K K) I)) (K I))) (K (K (K I))) True False
+≡ S (S (K S) (S (S (K S) (S (K K) I)) (K I))) (K (K (K I))) K (S K)
+≡ (S (K S)) (S (S (K S) (S (K K) I)) (K I)) K (K (K (K I)) K) (S K)
+≡ K S K (S (S (K S) (S (K K) I)) (K I) K) (K (K (K I)) K) (S K)
+≡ S (S (S (K S) (S (K K) I)) (K I) K) (K (K (K I)) K) (S K)
+≡ S (S (K S) (S (K K) I)) (K I) K (S K) (K (K (K I)) K (S K))
+≡ S (K S) (S (K K) I) K (K I K) (S K) (K (K (K I)) K (S K))
+≡ K S K (S (K K) I K) (K I K) (S K) (K (K (K I)) K (S K))
+≡ S (S (K K) I K) (K I K) (S K) (K (K (K I)) K (S K))
+≡ S (K K) I K (S K) (K I K (S K)) (K (K (K I)) K (S K))
+≡ K K K (I K) (S K) (K I K (S K)) (K (K (K I)) K (S K))
+≡ K (I K) (S K) (K I K (S K)) (K (K (K I)) K (S K))
+≡ I K (K I K (S K)) (K (K (K I)) K (S K))
+≡ K (K I K (S K)) (K (K (K I)) K (S K))
+≡ K I K (S K)
+≡ I (S K)
+≡ S K
+≡ False
+
+...</span></pre>
+<h1>Iota combinator calculus</h1>
+<p>Another interesting example of combinator logic is <a href="http://en.wikipedia.org/wiki/Iota_and_Jot" target="_blank">Iota</a> combinator calculus. It has only one combinator:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">ι := λf.f S K ≡ λf.f (λx.λy.λz.x z (y z)) (λx.λy.x)</span></pre>
+<p>That’s <a href="https://web.archive.org/web/20150121065142/http://semarch.linguistics.fas.nyu.edu/barker/Iota/" target="_blank">the whole combinatory logic</a>. It is an <a href="http://en.wikipedia.org/wiki/Esoteric_programming_language" target="_blank">esoteric programming language</a> with minimum element – only 1 single element, but still <a href="http://en.wikipedia.org/wiki/Turing-complete" target="_blank">Turing-complete</a>. With Iota combinator, SKI can be implemented as:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">S := ι (ι (ι (ι ι)))
+K := ι (ι (ι ι))
+I := ι ι</span></pre>
+<p>So Iota is as Turing-complete as&nbsp; SKI. For example:</p>
+<pre class="code">  <span style="color: black;">I x
+≡ ι ι x
+≡ (λf.f S K) (λf.f S K) x
+≡ (λf.f S K) S K x
+≡ (S S K) K x
+≡ S K (K K) x
+≡ K x ((K K) x)
+≡ x</span></pre>
+<p>In C#, these combinators can be implemented as:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">IotaCombinator
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;
+        ι = f =&gt; f
+            (</span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;&gt;&gt;(x =&gt; y =&gt; z =&gt; x(z)(y(z)))) </span><span style="color: green;">// S
+            </span><span style="color: black;">(</span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;&gt;(x =&gt; y =&gt; x)); </span><span style="color: green;">// K
+</span><span style="color: black;">}
+
+</span><span style="color: blue;">public static class </span><span style="color: #2b91af;">IotaCalculus
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;&gt;&gt;
+        S = ι(ι(ι(ι(ι))));
+
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;&gt;
+        K = ι(ι(ι(ι)));
+
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;
+        I = ι(ι);
+}</span>
+
+
+</div>
+</body>
+</html>

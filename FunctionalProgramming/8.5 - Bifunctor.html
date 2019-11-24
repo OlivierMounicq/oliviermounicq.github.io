@@ -1,0 +1,111 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+<h1>Category Theory via C# (5) Bifunctor</h1>
+<h1>Bifunctor</h1>
+<p>A functor is the mapping from 1 object to another object, with a “Select” ability to map 1 morphism to another morphism. A <a href="http://en.wikipedia.org/wiki/Functor#Bifunctors_and_multifunctors" target="_blank">bifunctor</a> (binary functor), as the name implies, is the mapping from 2 objects and from 2 morphisms. Giving category C, D and E, bifunctor F from category C, D to E is a structure-preserving morphism from C, D to E, denoted F: C × D → E:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Category-Theory-via-C-9-Functor-Category_8A55/image1.png"><img title="image" style="border-width: 0px; padding-top: 0px; padding-right: 0px; padding-left: 0px; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Category-Theory-via-C-9-Functor-Category_8A55/image1_thumb.png" width="640" height="744" border="0"></a></p>
+<ul>
+<li>F maps objects X ∈ ob(C), Y ∈ ob(D) to object F(X, Y) ∈ ob(E)</li>
+<li>F also maps morphisms m<sub>C</sub>: X → X’ ∈ hom(C), m<sub>D</sub>: Y → Y’ ∈ hom(D) to morphism m<sub>E</sub>: F(X, Y) → F(X’, Y’) ∈ hom(E)</li>
+</ul>
+<p>In DotNet category, bifunctors are binary endofunctors, and can be defined as:</p>
+<pre class="code"><span style="color: green;">// Cannot be compiled.
+</span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IBifunctor</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TBifunctor<span style="color: #2b91af;"></span><span style="color: black;">&lt;,&gt;</span></span><span style="color: black;">&gt; </span><span style="color: blue;">where </span><span style="color: #2b91af;">TBifunctor</span><span style="color: black;">&lt;,&gt; : </span><span style="color: #2b91af;">IBifunctor</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TBifunctor<span style="color: #2b91af;"></span><span style="color: black;">&lt;,&gt;</span></span><span style="color: black;">&gt;
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TBifunctor<span style="color: #2b91af;"></span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource1</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource2</span><span style="color: black;">&gt;</span></span><span style="color: black;">, </span><span style="color: #2b91af;">TBifunctor<span style="color: #2b91af;"></span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult1</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult2</span><span style="color: black;">&gt;</span></span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TSource1</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource2</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult1</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult2</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource1</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult1</span><span style="color: black;">&gt; selector1, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource2</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult2</span><span style="color: black;">&gt; selector2);
+}</span></pre>
+<p>The most intuitive built-in bifunctor is ValueTuple&lt;,&gt;. Apparently ValueTuple&lt;,&gt; can be viewed as a type constructor of kind * –&gt; * –&gt; *, which accepts 2 concrete types to and return another concrete type. Its Select implementation is also straightforward:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ValueTupleExtensions </span><span style="color: green;">// ValueTuple&lt;T1, T2&gt; : IBifunctor&lt;ValueTuple&lt;,&gt;&gt;
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Bifunctor Select: (TSource1 -&gt; TResult1, TSource2 -&gt; TResult2) -&gt; (ValueTuple&lt;TSource1, TSource2&gt; -&gt; ValueTuple&lt;TResult1, TResult2&gt;).
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource1</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource2</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult1</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult2</span><span style="color: black;">&gt;&gt; Select&lt;</span><span style="color: #2b91af;">TSource1</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource2</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult1</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult2</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource1</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult1</span><span style="color: black;">&gt; selector1, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource2</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult2</span><span style="color: black;">&gt; selector2) =&gt; source =&gt;
+            Select(source, selector1, selector2);
+
+    </span><span style="color: green;">// LINQ-like Select: (ValueTuple&lt;TSource1, TSource2&gt;, TSource1 -&gt; TResult1, TSource2 -&gt; TResult2) -&gt; ValueTuple&lt;TResult1, TResult2&gt;).
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult1</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult2</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TSource1</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource2</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult1</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult2</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource1</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource2</span><span style="color: black;">&gt; source,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource1</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult1</span><span style="color: black;">&gt; selector1,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource2</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult2</span><span style="color: black;">&gt; selector2) =&gt;
+            (selector1(source.Item1), selector2(source.Item2));
+}</span></pre>
+<p>However, similar to ValueTuple&lt;&gt; functor’s Select method, ValueTuple&lt;,&gt; bifunctor’s Select method has to call selector1 and selector2 immediately. To implement deferred execution, the following Lazy&lt;,&gt; bifunctor can be defined:</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">)&gt; lazy;
+
+    </span><span style="color: blue;">public </span><span style="color: black;">Lazy(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">)&gt; factory) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.lazy = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">)&gt;(factory);
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">T1 </span><span style="color: black;">Value1 =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.lazy.Value.Item1;
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">T2 </span><span style="color: black;">Value2 =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.lazy.Value.Item2;
+
+    </span><span style="color: blue;">public override string </span><span style="color: black;">ToString() =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.lazy.Value.ToString();
+}</span></pre>
+<p>Lazy&lt;,&gt; is simply the lazy version of ValueTuple&lt;,&gt;. Jut like Lazy&lt;&gt;, Lazy&lt;,&gt; can be constructed with a factory function, so that the call to selector1 and selector2 are deferred:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">LazyExtensions </span><span style="color: green;">// Lazy&lt;T1, T2&gt; : IBifunctor&lt;Lazy&lt;,&gt;&gt;
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Bifunctor Select: (TSource1 -&gt; TResult1, TSource2 -&gt; TResult2) -&gt; (Lazy&lt;TSource1, TSource2&gt; -&gt; Lazy&lt;TResult1, TResult2&gt;).
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource1</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource2</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult1</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult2</span><span style="color: black;">&gt;&gt; Select&lt;</span><span style="color: #2b91af;">TSource1</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource2</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult1</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult2</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource1</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult1</span><span style="color: black;">&gt; selector1, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource2</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult2</span><span style="color: black;">&gt; selector2) =&gt; source =&gt;
+            Select(source, selector1, selector2);
+
+    </span><span style="color: green;">// LINQ-like Select: (Lazy&lt;TSource1, TSource2&gt;, TSource1 -&gt; TResult1, TSource2 -&gt; TResult2) -&gt; Lazy&lt;TResult1, TResult2&gt;).
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult1</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult2</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TSource1</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource2</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult1</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult2</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource1</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource2</span><span style="color: black;">&gt; source,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource1</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult1</span><span style="color: black;">&gt; selector1,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource2</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult2</span><span style="color: black;">&gt; selector2) =&gt;
+            </span><span style="color: blue;">new </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult1</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult2</span><span style="color: black;">&gt;(() =&gt; (selector1(source.Value1), selector2(source.Value2)));
+}</span></pre>
+<h1>Monoidal category</h1>
+<p>With the help of bifunctor, <a href="http://en.wikipedia.org/wiki/Monoidal_category" target="_blank">monoidal category</a> can be defined. A <a href="http://en.wikipedia.org/wiki/Monoidal_category" target="_blank">monoidal category</a> is a category C equipped with:</p>
+<ul>
+<li>A bifunctor ⊗ as the monoid binary multiplication operation: bifunctor ⊗ maps 2 objects in C to another object in C, denoted C ⊗ C → C, which is also called the <a href="http://en.wikipedia.org/wiki/Tensor_product" target="_blank">monoidal product</a> or <a href="https://en.wikipedia.org/wiki/Tensor_product">tensor product</a>.</li>
+<li>An unit object I ∈ ob(C) as the monoid unit, also called tensor unit</li>
+</ul>
+<p>For (C, ⊗, I) to be a monoid, it also needs to be equipped with the following natural transformations, so that the monoid laws are satisfied:</p>
+<ul><!--StartFragment-->
+<li>Associator α<sub>X, Y, Z</sub>: (X ⊗ Y) ⊗ Z ⇒ X ⊗ (Y ⊗ Z) for the associativity law, where X, Y, Z ∈ ob(C)</li>
+<li>Left unitor λ<sub>X</sub>: I ⊗ X ⇒ X for the left unit law, and right unitor ρ<sub>X</sub>: X ⊗ I ⇒ X for the right unit law, where X ∈ ob(C)</li>
+<li><!--EndFragment--></li>
+</ul>
+<p>The following monoid triangle identity and pentagon identity diagrams still commute for monoidal category:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Category-Theory-via-C-5-Bifunctor_548F/image_thumb12_thumb_2.png"><img title="image_thumb12_thumb" style="margin: 0px; border: 0px currentcolor; padding-top: 0px; padding-right: 0px; padding-left: 0px; display: inline; background-image: none;" alt="image_thumb12_thumb" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Category-Theory-via-C-5-Bifunctor_548F/image_thumb12_thumb_thumb.png" width="640" height="252" border="0"></a></p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Category-Theory-via-C-5-Bifunctor_548F/Untitled-2.fw_thumb_thumb_2.png"><img title="Untitled-2.fw_thumb_thumb" style="border: 0px currentcolor; padding-top: 0px; padding-right: 0px; padding-left: 0px; display: inline; background-image: none;" alt="Untitled-2.fw_thumb_thumb" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Category-Theory-via-C-5-Bifunctor_548F/Untitled-2.fw_thumb_thumb_thumb.png" width="640" height="376" border="0"></a></p>
+<p>Here for monoidal category, the above ⊙ (general multiplication operator) becomes ⊗ (bifunctor).</p>
+<p>Monoidal category can be simply defined as:</p>
+<pre class="code"><span style="color: blue;">public interface </span><span style="color: #2b91af;">IMonoidalCategory</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TObject</span><span style="color: black;">, </span><span style="color: #2b91af;">TMorphism</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">ICategory</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TObject</span><span style="color: black;">, </span><span style="color: #2b91af;">TMorphism</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IMonoid</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TObject</span><span style="color: black;">&gt; { }</span></pre>
+<p>DotNet category is monoidal category, with the most intuitive bifunctor ValueTuple&lt;,&gt; as the monoid multiplication, and Unit type as the monoid unit:</p>
+<pre class="code"><span style="color: blue;">public partial class </span><span style="color: #2b91af;">DotNetCategory </span><span style="color: black;">: </span><span style="color: #2b91af;">IMonoidalCategory</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Type</span><span style="color: black;">, </span><span style="color: #2b91af;">Delegate</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">Type </span><span style="color: black;">Multiply(</span><span style="color: #2b91af;">Type </span><span style="color: black;">value1, </span><span style="color: #2b91af;">Type </span><span style="color: black;">value2) =&gt; </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;,&gt;).MakeGenericType(value1, value2);
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">Type </span><span style="color: black;">Unit() =&gt; </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">Unit</span><span style="color: black;">);
+}</span></pre>
+<p>To have (DotNet, ValueTuple&lt;,&gt;, Unit) satisfy the monoid laws, the associator, left unitor and right unitor are easy to implement:</p>
+<pre class="code"><span style="color: blue;">public partial class </span><span style="color: #2b91af;">DotNetCategory
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Associator: (T1 x T2) x T3 -&gt; T1 x (T2 x T3)
+    // Associator: ValueTuple&lt;ValueTuple&lt;T1, T2&gt;, T3&gt; -&gt; ValueTuple&lt;T1, ValueTuple&lt;T2, T3&gt;&gt;
+    </span><span style="color: blue;">public static </span><span style="color: black;">(</span><span style="color: #2b91af;">T1</span><span style="color: black;">, (</span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">)) Associator&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">&gt;(((</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">), </span><span style="color: #2b91af;">T3</span><span style="color: black;">) product) =&gt;
+        (product.Item1.Item1, (product.Item1.Item2, product.Item2));
+
+    </span><span style="color: green;">// LeftUnitor: Unit x T -&gt; T
+    // LeftUnitor: ValueTuple&lt;Unit, T&gt; -&gt; T
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">T </span><span style="color: black;">LeftUnitor&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;((</span><span style="color: #2b91af;">Unit</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">) product) =&gt; product.Item2;
+
+    </span><span style="color: green;">// RightUnitor: T x Unit -&gt; T
+    // RightUnitor: ValueTuple&lt;T, Unit&gt; -&gt; T
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">T </span><span style="color: black;">RightUnitor&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;((</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">Unit</span><span style="color: black;">) product) =&gt; product.Item1;
+}</span>
+
+
+</div>
+</body>
+</html>

@@ -1,0 +1,1011 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+<h1>C# functional programming in-depth (1) C# language fundamentals</h1>
+
+<p>C# 1.0 was initially released in 2002, as its first language specification says at the beginning, C# is a “simple, modern, object oriented, and type-safe” programming language for general purpose. Now C# has evolved to 7.2. During the years, a lot of great language features, especially rich functional programming features, has been added to C#. Now C# language has been productive and elegant, imperative and declarative, object-oriented and functional. With frameworks like .NET Framework, .NET Core, Mono, Xamarin, Unity, etc., C# is used by millions of people cross different platforms, including Windows, Linux, Mac, iOS, Android, etc.</p>
+<p>This tutorial is totally for C# language focusing on its functional aspects. The readers are assumed to have the general concepts on programming and C# language. This chapter reviews the basic but important elements and syntax of C# 1.0 - 7.x, to warm up the beginner level readers, as well as readers who are not yet familiar with some new syntax introduced in recent C# releases. The other advanced features and concepts will be discussed in detail in later chapters. This tutorial does not cover the topics and language features out of the scope of functional programming and LINQ, like inheritance of object-oriented programming, pointer in unsafe code, interop with other unmanaged code, dynamic programming, etc..</p>
+<table width="635" cellspacing="0" cellpadding="0" border="0">
+<tbody>
+<tr>
+<td width="48" valign="top">C#</td>
+<td width="180" valign="top">Features in this chapter</td>
+<td width="249" valign="top">Features in other chapters</td>
+<td width="156" valign="top">Features not covered</td>
+</tr>
+<tr>
+<td width="48" valign="top">1.0</td>
+<td width="180" valign="top">Class<br>Structure<br>Interface<br>Enumeration<br>using statement</td>
+<td width="249" valign="top">Delegate<br>Event<br>Function member<br>ref parameter<br>out parameter<br>Parameter array<br>foreach statement</td>
+<td width="156" valign="top">Inheritance<br>Pointer<br>Interop</td>
+</tr>
+<tr>
+<td width="48" valign="top">1.1</td>
+<td width="180" valign="top">&nbsp;</td>
+<td width="249" valign="top">&nbsp;</td>
+<td width="156" valign="top">pragma directive</td>
+</tr>
+<tr>
+<td width="48" valign="top">1.2</td>
+<td width="180" valign="top">&nbsp;</td>
+<td width="249" valign="top">foreach for IDisposable</td>
+<td width="156" valign="top">&nbsp;</td>
+</tr>
+<tr>
+<td width="48" valign="top">2.0</td>
+<td width="180" valign="top">Static class<br>Partial type<br>Generic type<br>Nullable value type<br>Null coalescing operator</td>
+<td width="249" valign="top">Anonymous method<br>Generator<br>Covariance and contravariance<br>Generic method</td>
+<td width="156" valign="top">&nbsp;</td>
+</tr>
+<tr>
+<td width="48" valign="top">3.0</td>
+<td width="180" valign="top">Auto property<br>Object initializer<br>Collection initializer</td>
+<td width="249" valign="top">Anonymous type<br>Implicitly typed local variable<br>Query expression<br>Lambda expression<br>Extension method<br>Partial method</td>
+<td width="156" valign="top">&nbsp;</td>
+</tr>
+<tr>
+<td width="48" valign="top">4.0</td>
+<td width="180" valign="top">&nbsp;</td>
+<td width="249" valign="top">Named argument<br>Optional argument<br>Generic covariance and contravariance</td>
+<td width="156" valign="top">Dynamic binding</td>
+</tr>
+<tr>
+<td width="48" valign="top">5.0</td>
+<td width="180" valign="top">&nbsp;</td>
+<td width="249" valign="top">Asynchronous function<br>Caller info argument</td>
+<td width="156" valign="top">&nbsp;</td>
+</tr>
+<tr>
+<td width="48" valign="top">6.0</td>
+<td width="180" valign="top">Property initializer<br>Dictionary initializer<br>Null propagation operator<br>Exception filter<br>String interpolation<br>nameof operator</td>
+<td width="249" valign="top">Static import<br>Expression bodied member<br>await in catch/finally block</td>
+<td width="156" valign="top">&nbsp;</td>
+</tr>
+<tr>
+<td width="48" valign="top">7.0</td>
+<td width="180" valign="top">throw expression<br>Digit separator</td>
+<td width="249" valign="top">Out variable<br>Tuple and deconstruction<br>Local function<br>Expanded expression bodied member<br>ref return and local<br>Discard<br>Generalized asynchronous return<br>throw expression<br>Pattern matching</td>
+<td width="156" valign="top">&nbsp;</td>
+</tr>
+<tr>
+<td width="48" valign="top">7.1</td>
+<td width="180" valign="top">default literal expression</td>
+<td width="249" valign="top">Async Main method<br>Inferred tuple element name</td>
+<td width="156" valign="top">&nbsp;</td>
+</tr>
+<tr>
+<td width="48" valign="top">7.2</td>
+<td width="180" valign="top">ref structure<br>Leading underscores in numeric literals</td>
+<td width="249" valign="top">Non-trailing named arguments<br>in parameter<br>ref readonly return and local<br>Readonly structure</td>
+<td width="156" valign="top">private protected modifier</td>
+</tr>
+</tbody>
+</table>
+<h1>Types and members</h1>
+<p>C# is strongly typed. In C#, any value has a type. C# supports <a href="https://msdn.microsoft.com/en-us/library/zcx1eb1e.aspx">5 kinds of types</a>: class, structure, enumeration, delegate, and interface.</p>
+<p>A class is a reference type defined with the class keyword. It can have fields, properties, methods, events, operators, indexers, constructors, destructor, and nested class, structure, enumeration, delegate, and interface types. A class is always derived from <strong>System.Object</strong> class.</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">Object
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public </span><span style="color: black;">Object();
+
+        </span><span style="color: blue;">public static bool </span><span style="color: black;">Equals(Object objA, Object objB);
+
+        </span><span style="color: blue;">public static bool </span><span style="color: black;">ReferenceEquals(Object objA, Object objB);
+
+        </span><span style="color: blue;">public virtual bool </span><span style="color: black;">Equals(Object obj);
+
+        </span><span style="color: blue;">public virtual int </span><span style="color: black;">GetHashCode();
+
+        </span><span style="color: blue;">public </span><span style="color: black;">Type GetType();
+
+        </span><span style="color: blue;">public virtual string </span><span style="color: black;">ToString();
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>Object has a static Equals method to test whether 2 instances are considered equal, an instance Equals method to test whether the current instance and the other instance are considered equal, and a static ReferenceEquals method to test whether 2 instances are the same instance. It has a GetHashCode method as the default hash function to return a hash code number for quick test of instances. It also has a GetType method to return the type of current instance, and a ToString method to return the text representation of the current instance.</p>
+<p>The following example is a segment of System.Exception class implementation in .NET Framework. It demonstrates the syntax to define a class and different kinds of members<strong>.</strong> This class implements the System.ISerializable interface, and derives the System._Exception class. When defining a class, base class System.Object can be omitted.</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{</span><span style="color: black;">
+    [</span><span style="color: #2b91af;">Serializable</span><span style="color: black;">]
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">Exception </span><span style="color: black;">: </span><span style="color: #2b91af;">ISerializable</span><span style="color: black;">, </span><span style="color: #2b91af;">_Exception <span style="color: black;"></span><span style="color: green;">// , System.Object</span>
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">internal string </span><span style="color: black;">_message; </span><span style="color: green;">// Field.
+
+        </span><span style="color: blue;">private </span><span style="color: #2b91af;">Exception </span><span style="color: black;">_innerException; </span><span style="color: green;">// Field.
+
+        </span><span style="color: black;">[</span><span style="color: #2b91af;">OptionalField</span><span style="color: black;">(VersionAdded = 4)]
+        </span><span style="color: blue;">private </span><span style="color: #2b91af;">SafeSerializationManager </span><span style="color: black;">_safeSerializationManager; </span><span style="color: green;">// Field.
+
+        </span><span style="color: blue;">public </span><span style="color: #2b91af;">Exception </span><span style="color: black;">InnerException { </span><span style="color: blue;">get </span><span style="color: black;">{ </span><span style="color: blue;">return this</span><span style="color: black;">._innerException; } } </span><span style="color: green;">// Property.
+
+        </span><span style="color: blue;">public </span><span style="color: black;">Exception(</span><span style="color: blue;">string </span><span style="color: black;">message, </span><span style="color: #2b91af;">Exception </span><span style="color: black;">innerException) </span><span style="color: green;">// Constructor.
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">this</span><span style="color: black;">.Init();
+            </span><span style="color: blue;">this</span><span style="color: black;">._message = message;
+            </span><span style="color: blue;">this</span><span style="color: black;">._innerException = innerException;
+        }
+
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">Exception </span><span style="color: black;">GetBaseException() </span><span style="color: green;">// Method.
+        </span><span style="color: black;">{
+            </span><span style="color: #2b91af;">Exception </span><span style="color: black;">innerException = </span><span style="color: blue;">this</span><span style="color: black;">.InnerException;
+            </span><span style="color: #2b91af;">Exception </span><span style="color: black;">result = </span><span style="color: blue;">this</span><span style="color: black;">;
+            </span><span style="color: blue;">while </span><span style="color: black;">(innerException != </span><span style="color: blue;">null</span><span style="color: black;">)
+            {
+                result = innerException;
+                innerException = innerException.InnerException;
+            }
+            </span><span style="color: blue;">return </span><span style="color: black;">result;
+        }
+</span><span style="color: black;">
+        </span><span style="color: blue;">protected event </span><span style="color: #2b91af;">EventHandler</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">SafeSerializationEventArgs</span><span style="color: black;">&gt; SerializeObjectState </span><span style="color: green;">// Event.
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">add
+            </span><span style="color: black;">{
+                </span><span style="color: blue;">this</span><span style="color: black;">._safeSerializationManager.SerializeObjectState += </span><span style="color: blue;">value</span><span style="color: black;">;
+            }
+            </span><span style="color: blue;">remove
+            </span><span style="color: black;">{
+                </span><span style="color: blue;">this</span><span style="color: black;">._safeSerializationManager.SerializeObjectState -= </span><span style="color: blue;">value</span><span style="color: black;">;
+            }
+        }
+
+        </span><span style="color: blue;">internal enum </span><span style="color: #2b91af;">ExceptionMessageKind </span><span style="color: green;">// Nested enumeration type.
+        </span><span style="color: black;">{
+            ThreadAbort = 1,
+            ThreadInterrupted = 2,
+            OutOfMemory = 3
+        }
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>A structure is value type defined with the struct keyword, which is then derived from <strong>System.Object</strong> class. It can have all kinds of members of class except destructor. A structure always derives from <strong>System.ValueType</strong> class, and interestingly, System.ValueType is a reference type derived from System.Object. In practice, a structure is usually defined to represent very small and immutable data structure, in order to <a href="https://msdn.microsoft.com/en-us/library/ms229017.aspx">improve the performance</a> of memory allocation/deallocation. For example, the . In .NET Core System. is implemented as:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{
+    </span><span style="color: blue;">public struct </span><span style="color: #2b91af;">TimeSpan </span><span style="color: black;">: </span><span style="color: #2b91af;">IComparable</span><span style="color: black;">, </span><span style="color: #2b91af;">IComparable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TimeSpan</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEquatable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TimeSpan</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IFormattable </span><span style="color: green;">// , System.ValueType
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public const long </span><span style="color: black;">TicksPerMillisecond = 10000; </span><span style="color: green;">// Constant.
+
+        </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">TimeSpan </span><span style="color: black;">Zero = </span><span style="color: blue;">new </span><span style="color: #2b91af;">TimeSpan</span><span style="color: black;">(0); </span><span style="color: green;">// Field.
+
+        </span><span style="color: blue;">internal long </span><span style="color: black;">_ticks; </span><span style="color: green;">// Field.
+
+        </span><span style="color: blue;">public </span><span style="color: black;">TimeSpan(</span><span style="color: blue;">long </span><span style="color: black;">ticks) </span><span style="color: green;">// Constructor.
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">this</span><span style="color: black;">._ticks = ticks;
+        }
+
+        </span><span style="color: blue;">public long </span><span style="color: black;">Ticks { </span><span style="color: blue;">get </span><span style="color: black;">{ </span><span style="color: blue;">return </span><span style="color: black;">_ticks; } } </span><span style="color: green;">// Property.
+
+        </span><span style="color: blue;">public int </span><span style="color: black;">Milliseconds </span><span style="color: green;">// Property.
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">get </span><span style="color: black;">{ </span><span style="color: blue;">return </span><span style="color: black;">(</span><span style="color: blue;">int</span><span style="color: black;">)((_ticks / TicksPerMillisecond) % 1000); }
+        }
+
+        </span><span style="color: blue;">public static bool </span><span style="color: black;">Equals(</span><span style="color: #2b91af;">TimeSpan </span><span style="color: black;">t1, </span><span style="color: #2b91af;">TimeSpan </span><span style="color: black;">t2) </span><span style="color: green;">// Method.
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">return </span><span style="color: black;">t1._ticks == t2._ticks;
+        }
+
+        </span><span style="color: blue;">public static bool operator </span><span style="color: black;">==(</span><span style="color: #2b91af;">TimeSpan </span><span style="color: black;">t1, </span><span style="color: #2b91af;">TimeSpan </span><span style="color: black;">t2) </span><span style="color: green;">// Operator.
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">return </span><span style="color: black;">t1._ticks == t2._ticks;
+        }
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>An enumeration is a value type derived from System.Enum class, which is derived from System.ValueType class. It can only have constant fields of the specified underlying integral type (<strong>int</strong> by default). For example:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{</span><span style="color: black;">
+    [</span><span style="color: #2b91af;">Serializable</span><span style="color: black;">]
+    </span><span style="color: blue;">public enum </span><span style="color: #2b91af;">DayOfWeek <span style="color: black;"></span><span style="color: green;">// : int</span>
+    </span><span style="color: black;">{
+        Sunday = 0,
+        Monday = 1,
+        Tuesday = 2,
+        Wednesday = 3,
+        Thursday = 4,
+        Friday = 5,
+        Saturday = 6,
+    }
+}</span></pre>
+<p>A delegate is a reference type derived from <strong>System.MulticastDelegate</strong> class, which is derived from <strong>System.Delegate</strong> class. Delegate type represents function type, and is discussed in detail in the functional programming chapter.</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{
+    </span><span style="color: blue;">public delegate void </span><span style="color: #2b91af;">Action</span><span style="color: black;">();
+}</span></pre>
+<p>An interface is a contract to be implemented by class or structure. Interface can only have public and abstract properties, methods, and events without implementation. For example:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.ComponentModel
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">INotifyDataErrorInfo
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">event </span><span style="color: #2b91af;">EventHandler</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">DataErrorsChangedEventArgs</span><span style="color: black;">&gt; ErrorsChanged; </span><span style="color: green;">// Event.
+
+        </span><span style="color: blue;">bool </span><span style="color: black;">HasErrors { </span><span style="color: blue;">get</span><span style="color: black;">; } </span><span style="color: green;">// Property.
+
+        </span><span style="color: #2b91af;">IEnumerable </span><span style="color: black;">GetErrors(</span><span style="color: blue;">string </span><span style="color: black;">propertyName); </span><span style="color: green;">// Method.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>Any class or structure implementing the above interface must have the specified 3 members as public.</p>
+<h2>Built-in types</h2>
+<p>There are basic. NET types most commonly used in C# programming, so C# provides language keywords as aliases of those types, which are called built-in types of C#:</p>
+<table width="320" cellspacing="0" cellpadding="2" border="1">
+<tbody>
+<tr>
+<td width="140" valign="top">C# keyword</td>
+<td width="178" valign="top">.NET type</td>
+</tr>
+<tr>
+<td width="140" valign="top">bool</td>
+<td width="178" valign="top">System.Boolean</td>
+</tr>
+<tr>
+<td width="140" valign="top">sbyte</td>
+<td width="178" valign="top">System.SByte</td>
+</tr>
+<tr>
+<td width="140" valign="top">byte</td>
+<td width="178" valign="top">System.Byte</td>
+</tr>
+<tr>
+<td width="140" valign="top">char</td>
+<td width="178" valign="top">System.Char</td>
+</tr>
+<tr>
+<td width="140" valign="top">short</td>
+<td width="178" valign="top">System.Init16</td>
+</tr>
+<tr>
+<td width="140" valign="top">ushort</td>
+<td width="178" valign="top">System.UInit16</td>
+</tr>
+<tr>
+<td width="140" valign="top">int</td>
+<td width="178" valign="top">System.Init32</td>
+</tr>
+<tr>
+<td width="140" valign="top">uint</td>
+<td width="178" valign="top">System.UInit32</td>
+</tr>
+<tr>
+<td width="140" valign="top">long</td>
+<td width="178" valign="top">System.Init54</td>
+</tr>
+<tr>
+<td width="140" valign="top">ulong</td>
+<td width="178" valign="top">System.UInit54</td>
+</tr>
+<tr>
+<td width="140" valign="top">float</td>
+<td width="178" valign="top">System.Single</td>
+</tr>
+<tr>
+<td width="140" valign="top">double</td>
+<td width="178" valign="top">System.Double</td>
+</tr>
+<tr>
+<td width="140" valign="top">decimal</td>
+<td width="178" valign="top">System.Decimal</td>
+</tr>
+<tr>
+<td width="140" valign="top">object</td>
+<td width="178" valign="top">System.Object</td>
+</tr>
+<tr>
+<td width="140" valign="top">string</td>
+<td width="178" valign="top">System.String</td>
+</tr>
+</tbody>
+</table>
+<h1>Reference type vs. value type</h1>
+<p>In C#/.NET, classes are reference types, including object, string, array, etc.. Delegates is also reference type, which is discussed later. Structures are value types, including primitive types (<strong>bool</strong>, <strong>sbyte</strong>, <strong>byte</strong>, <strong>char</strong>, <strong>short</strong>, <strong>ushort</strong>, <strong>int</strong>, <strong>uint</strong>, <strong>long</strong>, <strong>ulong</strong>, <strong>float</strong>, <strong>double</strong>), <strong>decimal</strong>, <strong>System.DateTime</strong>, <strong>System.DateTimeOffset</strong>, <strong>System.TimeSpan</strong>, <strong>System.Guid</strong>, <strong>System.Nullable&lt;T&gt;</strong>, enumeration (since enumeration’s underlying type is always a numeric primitive type), etc. The following example defines a reference type and a value type, which look similar to each other:</p>
+<pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">Point
+</span><span style="color: black;">{
+    </span><span style="color: blue;">private readonly int </span><span style="color: black;">x;
+
+    </span><span style="color: blue;">private readonly int </span><span style="color: black;">y;
+
+    </span><span style="color: blue;">internal </span><span style="color: black;">Point(</span><span style="color: blue;">int </span><span style="color: black;">x, </span><span style="color: blue;">int </span><span style="color: black;">y)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.x = x;
+        </span><span style="color: blue;">this</span><span style="color: black;">.y = y;
+    }
+
+    </span><span style="color: blue;">internal int </span><span style="color: black;">X { </span><span style="color: blue;">get </span><span style="color: black;">{ </span><span style="color: blue;">return this</span><span style="color: black;">.x; } }
+
+    </span><span style="color: blue;">internal int </span><span style="color: black;">Y { </span><span style="color: blue;">get </span><span style="color: black;">{ </span><span style="color: blue;">return this</span><span style="color: black;">.y; } }
+}
+
+</span><span style="color: blue;">internal readonly struct </span><span style="color: #2b91af;">ValuePoint
+</span><span style="color: black;">{
+    </span><span style="color: blue;">private readonly int </span><span style="color: black;">x;
+
+    </span><span style="color: blue;">private readonly int </span><span style="color: black;">y;
+
+    </span><span style="color: blue;">internal </span><span style="color: black;">ValuePoint(</span><span style="color: blue;">int </span><span style="color: black;">x, </span><span style="color: blue;">int </span><span style="color: black;">y)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.x = x;
+        </span><span style="color: blue;">this</span><span style="color: black;">.y = y;
+    }
+
+    </span><span style="color: blue;">internal int </span><span style="color: black;">X { </span><span style="color: blue;">get </span><span style="color: black;">{ </span><span style="color: blue;">return this</span><span style="color: black;">.x; } }
+
+    </span><span style="color: blue;">internal int </span><span style="color: black;">Y { </span><span style="color: blue;">get </span><span style="color: black;">{ </span><span style="color: blue;">return this</span><span style="color: black;">.y; } }
+}</span></pre>
+<p>Instances of reference type and value type are allocated differently. Reference type is always allocated on the managed heap, and deallocated by garbage collection. Value type is either allocated on the stack and deallocated by stack unwinding, or is allocated and deallocated inline with the container. So generally value type can have better performance for allocation and deallocation. Usually, a type <a href="https://msdn.microsoft.com/en-us/library/ms229017.aspx" target="_blank">can be designed as value type</a> if it is small, immutable, and logically similar to a primitive type. The above <strong>System.TimeSpan</strong> type structure represents a duration of time, it is designed to be value type, because it is just a immutable wrapper of a long value, which represents ticks. The following example demonstrates this difference:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Fundamentals
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">ValueTypeReferenceType()
+    {
+        Point reference1 = </span><span style="color: blue;">new </span><span style="color: black;">Point(1, 2);
+        Point reference2 = reference1;
+        Trace.WriteLine(</span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(reference1, reference2)); </span><span style="color: green;">// True
+
+        </span><span style="color: black;">ValuePoint value1 = </span><span style="color: blue;">new </span><span style="color: black;">ValuePoint(3, 4);
+        ValuePoint value2 = value1;
+        Trace.WriteLine(</span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(value1, value2)); </span><span style="color: green;">// False
+
+        </span><span style="color: black;">Point[] referenceArray = </span><span style="color: blue;">new </span><span style="color: black;">Point[] { </span><span style="color: blue;">new </span><span style="color: black;">Point(5, 6) };
+        ValuePoint[] valueArray = </span><span style="color: blue;">new </span><span style="color: black;">ValuePoint[] { </span><span style="color: blue;">new </span><span style="color: black;">ValuePoint(7, 8) };
+    }
+}</span></pre>
+<p>When a <strong>Point</strong> instance is constructed as a local variable, since it is reference type, it is allocated in the managed heap. Its fields are value types, so the fields are allocated inline on the managed heap too. The local variable <strong>reference1</strong> can be viewed as a pointer, pointing to managed heap location that holds the data. When assigning <strong>reference1</strong> to <strong>reference2</strong>, the pointer is copied. So <strong>reference1</strong> and <strong>reference2</strong> both point to the same <strong>Point</strong> instance in the managed heap. When <strong>ValuePoint</strong> is constructed as a local variable, since it is value type. it is allocated in the stack. Its fields are also allocated inline in the stack. The local variable <strong>value1</strong> holds the actual data. When assigning value1 to <strong>value2</strong>, the entire instance is copied, so <strong>value1</strong> and <strong>value2</strong> are 2 different <strong>ValuePoint</strong> instances in stack. In C#, array always derives from System.Array class and is reference type. So referenceArray and valueArray are both allocated on heap, and their elements are both on heap too.</p>
+<p>Reference type can be null and value type cannot:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Default()
+{
+    </span><span style="color: #2b91af;">Point </span><span style="color: black;">defaultReference = </span><span style="color: blue;">default</span><span style="color: black;">(</span><span style="color: #2b91af;">Point</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(defaultReference </span><span style="color: blue;">is null</span><span style="color: black;">); </span><span style="color: green;">// True
+
+    </span><span style="color: #2b91af;">ValuePoint </span><span style="color: black;">defaultValue = </span><span style="color: blue;">default</span><span style="color: black;">(</span><span style="color: #2b91af;">ValuePoint</span><span style="color: black;">);</span><span style="color: green;">
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(defaultValue.X); </span><span style="color: green;">// 0
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(defaultValue.Y); </span><span style="color: green;">// 0
+</span><span style="color: black;">}</span></pre>
+<p>The default value of reference type is simply null. The default of value type is an actual instance, with all fields initialized to their default values. Actually, the above local variables’ initialization is compiled to:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledDefault()
+{
+    Point defaultReference = </span><span style="color: blue;">null</span><span style="color: black;">;
+
+    ValuePoint defaultValue = </span><span style="color: blue;">new </span><span style="color: black;">ValuePoint();
+}</span></pre>
+<p>A structure always virtually has a parameterless default constructor. Calling this default constructor instantiates the structure and sets all its fields to default values. Here <strong>defaultValue</strong>’s <strong>int</strong> fields are initialized to 0. If <strong>ValuePoint</strong> has a reference type field, the reference type field is initialized to null.</p>
+<h2>default literal expression</h2>
+<p>Since C# 7.1, the type in the default value expression can be omitted, if the type can be inferred. So the above default value syntax can be simplified to:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">DefaultLiteralExpression()
+{
+    Point defaultReference = </span><span style="color: blue;">default</span><span style="color: black;">;
+
+    ValuePoint defaultValue = </span><span style="color: blue;">default</span><span style="color: black;">;
+}</span></pre>
+<h2>ref structure</h2>
+<p>C# 7.2 enables the ref keyword for structure definition, so that the structure can be only allocated on stack. This can be helpful for performance critical scenarios, where memory allocation/deallocation on heap can be performance overhead.</p>
+<pre class="code"><span style="color: blue;">internal ref struct </span><span style="color: #2b91af;">OnStackOnly </span><span style="color: black;">{ }
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">Allocation()
+{
+    OnStackOnly valueOnStack = </span><span style="color: blue;">new </span><span style="color: black;">OnStackOnly();
+    OnStackOnly[] arrayOnHeap = </span><span style="color: blue;">new </span><span style="color: black;">OnStackOnly[10]; </span><span style="color: green;">// Cannot be compiled.
+</span><span style="color: black;">}
+
+</span><span style="color: blue;">internal class </span><span style="color: #2b91af;">OnHeapOnly
+</span><span style="color: black;">{
+    </span><span style="color: blue;">private </span><span style="color: black;">OnStackOnly fieldOnHeap; </span><span style="color: green;">// Cannot be compiled.
+</span><span style="color: black;">}
+
+</span><span style="color: blue;">internal struct </span><span style="color: #2b91af;">OnStackOrHeap
+</span><span style="color: black;">{
+    </span><span style="color: blue;">private </span><span style="color: black;">OnStackOnly fieldOnStackOrHeap; </span><span style="color: green;">// Cannot be compiled.
+</span><span style="color: black;">}</span></pre>
+<p>As fore mentioned, array is reference type allocated on heap, so the compiler does not allow an array of ref structure. A instance of class is always instantiated on heap, so ref structure cannot be used as its field. A instance of normal structure can be on stack or heap, so ref structure cannot be used as its field either.</p>
+<h1>Static class</h1>
+<p>C# 2.0 enables <strong>static</strong> modifier for class definition. Take System.Math as example:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Math
+    </span><span style="color: black;">{
+        </span><span style="color: green;">// Static members only.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>A static class can only have static members, and cannot be instantiated. Static class is compiled to abstract sealed class. In C# static is frequently used to host a series of static methods.</p>
+<h1>Partial type</h1>
+<p>C# 2.0 introduces the <strong>partial</strong> keyword to split the definition of class, structure, or interface at design time.</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">Device
+</span><span style="color: black;">{
+    </span><span style="color: blue;">private string </span><span style="color: black;">name;
+
+    </span><span style="color: blue;">internal string </span><span style="color: black;">Name
+    {
+        </span><span style="color: blue;">get </span><span style="color: black;">{ </span><span style="color: blue;">return this</span><span style="color: black;">.name; }
+        </span><span style="color: blue;">set </span><span style="color: black;">{ </span><span style="color: blue;">this</span><span style="color: black;">.name = value; }
+    }
+}
+
+</span><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">Device
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public string </span><span style="color: black;">FormattedName
+    {
+        </span><span style="color: blue;">get </span><span style="color: black;">{ </span><span style="color: blue;">return this</span><span style="color: black;">.name.ToUpper(); }
+    }
+}</span></pre>
+<p>This is good for managing large type by splitting it into multiple smaller files. Partial type are also frequently used in code generation, so that user can append custom code to types generated by tool. At compile time, the multiple parts of a type are merged.</p>
+<h1>Interface and implementation</h1>
+<p>When a type implements an interface, this type can implement each interface member either implicitly or explicitly. The following interface has 2 member methods:</p>
+<pre class="code"><span style="color: blue;">internal interface </span><span style="color: #2b91af;">IInterface
+</span><span style="color: black;">{
+    </span><span style="color: blue;">void </span><span style="color: black;">Implicit();
+
+    </span><span style="color: blue;">void </span><span style="color: black;">Explicit();
+}</span></pre>
+<p>And the following type implementing this interface:</p>
+<pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">Implementation </span><span style="color: black;">: </span><span style="color: #2b91af;">IInterface
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public void </span><span style="color: black;">Implicit() { }
+
+    </span><span style="color: blue;">void </span><span style="color: #2b91af;">IInterface</span><span style="color: black;">.Explicit() { }
+}</span></pre>
+<p>This <strong>Implementations</strong> type has a public <strong>Implicit</strong> method with the same signature as the <strong>IInterface</strong>’s <strong>Implicit</strong> method, so C# compiler takes <strong>Implementations.</strong>Implicit method as the implementation of <strong>IInterface.</strong>Implicit method. This syntax is called implicit interface implementation. The other method Explicit, is implemented explicitly as a interface member, not as a member method of Implementations type. The following example demonstrates how to use these interface members:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">InterfaceMembers()
+{
+    </span><span style="color: #2b91af;">Implementation </span><span style="color: black;">@object = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Implementation</span><span style="color: black;">();
+    @object.Implicit(); </span><span style="color: green;">// @object.Explicit(); cannot be compiled.
+
+    </span><span style="color: #2b91af;">IInterface </span><span style="color: black;">@interface = @object;
+    @interface.Implicit();
+    @interface.Explicit();
+}</span></pre>
+<p>An implicitly implemented interface member can be accessed from the instance of the implementation type and interface type, but an explicitly implemented interface member can only be accessed from the instance of the interface type. Here the variable name <strong>@object</strong> and <strong>@interface</strong> are prefixed with special character @, because <strong>object</strong> and <strong>interface</strong> are C# language keywords, and cannot be directly used as identifier.</p>
+<h2>IDisposable interface and using statement</h2>
+<p>At runtime, CLR/CoreCLR manage memory automatically. It allocates memory for .NET objects and release the memory with garbage collector. A .NET object can also allocate other resources unmanaged by CLR/CoreCLR, like opened files, window handles, database connections, etc. .NET provides a standard contract for these types:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IDisposable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">void </span><span style="color: black;">Dispose();
+    }
+}</span></pre>
+<p>A type implementing the above System.IDisposable interface must have a Dispose method, which explicitly releases its unmanaged resources when called. For example, System.Data.SqlClient.SqlConnection represents a connection to a SQL database, it implements IDisposable and provides Dispose method to release the underlying database connection. The following example is the standard try-finally pattern to use IDisposable object and call Dispose method:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Dispose(</span><span style="color: blue;">string </span><span style="color: black;">connectionString)
+{
+    </span><span style="color: #2b91af;">SqlConnection </span><span style="color: black;">connection = </span><span style="color: blue;">new </span><span style="color: #2b91af;">SqlConnection</span><span style="color: black;">(connectionString);
+    </span><span style="color: blue;">try
+    </span><span style="color: black;">{
+        connection.Open();
+        </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(connection.ServerVersion);
+        </span><span style="color: green;">// Work with connection.
+    </span><span style="color: black;">}
+    </span><span style="color: blue;">finally
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">if </span><span style="color: black;">((</span><span style="color: blue;">object</span><span style="color: black;">)connection != </span><span style="color: blue;">null</span><span style="color: black;">)
+        {
+            ((</span><span style="color: #2b91af;">IDisposable</span><span style="color: black;">)connection).Dispose();
+        }
+    }
+}</span></pre>
+<p>The Dispose method is called in finally block, so it is ensured to be called, even if exception is thrown from the operations in the try block, or if the current thread is aborted. IDisposable is widely used, so C# introduces a using statement syntactic sugar since 1.0. The above code is equivalent to:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Using(</span><span style="color: blue;">string </span><span style="color: black;">connectionString)
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">SqlConnection </span><span style="color: black;">connection = </span><span style="color: blue;">new </span><span style="color: #2b91af;">SqlConnection</span><span style="color: black;">(connectionString))
+    {
+        connection.Open();
+        </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(connection.ServerVersion);
+        </span><span style="color: green;">// Work with connection.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>This is more declarative at design time, and the try-finally is generated at compile time. Disposable instances should <a href="https://msdn.microsoft.com/en-us/library/yh598w02.aspx" target="_blank">be always used with this syntax</a>, to ensure its Dispose method is called in the right way.</p>
+<h1>Generic type</h1>
+<p>C# 2.0 introduces generic programming. Generic programming is a paradigm that supports type parameters, so that type information are allowed to be provided later. The following stack data structure of <strong>int</strong> values is non generic:</p>
+<pre class="code"><span style="color: blue;">internal interface </span><span style="color: #2b91af;">IInt32Stack
+</span><span style="color: black;">{
+    </span><span style="color: blue;">void </span><span style="color: black;">Push(</span><span style="color: blue;">int </span><span style="color: black;">value);
+
+    </span><span style="color: blue;">int </span><span style="color: black;">Pop();
+}
+
+</span><span style="color: blue;">internal class </span><span style="color: #2b91af;">Int32Stack </span><span style="color: black;">: </span><span style="color: #2b91af;">IInt32Stack
+</span><span style="color: black;">{
+    </span><span style="color: blue;">private int</span><span style="color: black;">[] values = </span><span style="color: blue;">new int</span><span style="color: black;">[0];
+
+    </span><span style="color: blue;">public void </span><span style="color: black;">Push(</span><span style="color: blue;">int </span><span style="color: black;">value)
+    {
+        </span><span style="color: #2b91af;">Array</span><span style="color: black;">.Resize(</span><span style="color: blue;">ref this</span><span style="color: black;">.values, </span><span style="color: blue;">this</span><span style="color: black;">.values.Length + 1);
+        </span><span style="color: blue;">this</span><span style="color: black;">.values[</span><span style="color: blue;">this</span><span style="color: black;">.values.Length - 1] = value;
+    }
+
+    </span><span style="color: blue;">public int </span><span style="color: black;">Pop()
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(</span><span style="color: blue;">this</span><span style="color: black;">.values.Length == 0)
+        {
+            </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">InvalidOperationException</span><span style="color: black;">(</span><span style="color: #a31515;">"Stack empty."</span><span style="color: black;">);
+        }
+        </span><span style="color: blue;">int </span><span style="color: black;">value = </span><span style="color: blue;">this</span><span style="color: black;">.values[</span><span style="color: blue;">this</span><span style="color: black;">.values.Length - 1];
+        </span><span style="color: #2b91af;">Array</span><span style="color: black;">.Resize(</span><span style="color: blue;">ref this</span><span style="color: black;">.values, </span><span style="color: blue;">this</span><span style="color: black;">.values.Length - 1);
+        </span><span style="color: blue;">return </span><span style="color: black;">value;
+    }
+}</span></pre>
+<p>This code is not very reusable. Later, if stacks are needed for values of other data types, like string, decimal, etc., then there are some options:</p>
+<ul>
+<li>For each new data type, make a copy of above code and modify the int type information. So <strong>IStringStack</strong> and <strong>StringStack</strong> can be defined for <strong>string</strong>, <strong>IDecimalStack</strong> and Decimal<strong>Stack</strong> for <strong>decimal</strong>, and so on and on. Apparently this way is not feasible.</li>
+<li>Since every type is derived from <strong>object</strong>, a general stack for <strong>object</strong> can be defined, which is <strong>IObjectStack</strong> and <strong>ObjectStack</strong>. The <strong>Push</strong> method accepts <strong>object</strong>, and <strong>Pop</strong> method returns <strong>object</strong>, so the stack can be used for values of any data type. However, this design loses the compile time type checking. Calling <strong>Push</strong> with any argument can be compiled. Also, at runtime, whenever <strong>Pop</strong> is called, the returned object has to be casted to the expected type, which is a performance overhead and a chance to fail.</li>
+</ul>
+<h2>Type parameter</h2>
+<p>With generics, a much better option is to replace the concrete type int with a type parameter T, which is declared in angle brackets following the stack type name:</p>
+<pre class="code"><span style="color: blue;">internal interface </span><span style="color: #2b91af;">IStack</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">void </span><span style="color: black;">Push(</span><span style="color: #2b91af;">T </span><span style="color: black;">value);
+
+    </span><span style="color: #2b91af;">T </span><span style="color: black;">Pop();
+}
+
+</span><span style="color: blue;">internal class </span><span style="color: #2b91af;">Stack</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IStack</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">private </span><span style="color: #2b91af;">T</span><span style="color: black;">[] values = </span><span style="color: blue;">new </span><span style="color: #2b91af;">T</span><span style="color: black;">[0];
+
+    </span><span style="color: blue;">public void </span><span style="color: black;">Push(</span><span style="color: #2b91af;">T </span><span style="color: black;">value)
+    {
+        </span><span style="color: #2b91af;">Array</span><span style="color: black;">.Resize(</span><span style="color: blue;">ref this</span><span style="color: black;">.values, </span><span style="color: blue;">this</span><span style="color: black;">.values.Length + 1);
+        </span><span style="color: blue;">this</span><span style="color: black;">.values[</span><span style="color: blue;">this</span><span style="color: black;">.values.Length - 1] = value;
+    }
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">T </span><span style="color: black;">Pop()
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(</span><span style="color: blue;">this</span><span style="color: black;">.values.Length == 0)
+        {
+            </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">InvalidOperationException</span><span style="color: black;">(</span><span style="color: #a31515;">"Stack empty."</span><span style="color: black;">);
+        }
+        </span><span style="color: #2b91af;">T </span><span style="color: black;">value = </span><span style="color: blue;">this</span><span style="color: black;">.values[</span><span style="color: blue;">this</span><span style="color: black;">.values.Length - 1];
+        </span><span style="color: #2b91af;">Array</span><span style="color: black;">.Resize(</span><span style="color: blue;">ref this</span><span style="color: black;">.values, </span><span style="color: blue;">this</span><span style="color: black;">.values.Length - 1);
+        </span><span style="color: blue;">return </span><span style="color: black;">value;
+    }
+}</span></pre>
+<p>When using this generic stack, specify a concrete type for parameter T:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Stack()
+{
+    </span><span style="color: #2b91af;">Stack</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; stack1 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Stack</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;();
+    stack1.Push(</span><span style="color: blue;">int</span><span style="color: black;">.MaxValue);
+    </span><span style="color: blue;">int </span><span style="color: black;">value1 = stack1.Pop();
+
+    </span><span style="color: #2b91af;">Stack</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; stack2 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Stack</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;();
+    stack2.Push(</span><span style="color: #2b91af;">Environment</span><span style="color: black;">.MachineName);
+    </span><span style="color: blue;">string </span><span style="color: black;">value2 = stack2.Pop();
+
+    </span><span style="color: #2b91af;">Stack</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Uri</span><span style="color: black;">&gt; stack3 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Stack</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Uri</span><span style="color: black;">&gt;();
+    stack3.Push(</span><span style="color: blue;">new </span><span style="color: #2b91af;">Uri</span><span style="color: black;">(</span><span style="color: #a31515;">"https://weblogs.asp.net/dixin"</span><span style="color: black;">));
+    </span><span style="color: #2b91af;">Uri </span><span style="color: black;">value3 = stack3.Pop();
+}</span></pre>
+<p>So generics enables code reuse with type safety. <strong>IStack&lt;T&gt;</strong> and <strong>Stack&lt;T&gt;</strong> are strong typed, where <strong>IStack&lt;T&gt;.</strong><strong>Push</strong>/<strong>Stack&lt;T&gt;.Push </strong>accept a value of type <strong>T</strong>, and <strong>IStack&lt;T&gt;</strong><strong>Pop</strong>/<strong>IStack&lt;T&gt;.Pop</strong> return a value of type <strong>T</strong>. For example, When <strong>T</strong> is <strong>int</strong>, <strong>IStack&lt;int&gt;</strong>.<strong>Push</strong>/<strong>Stack&lt;int&gt;.Push</strong> accept an <strong>int</strong> value; When <strong>T</strong> is <strong>string</strong>, <strong>IStack&lt;string&gt;.Pop</strong>/<strong>Stack&lt;int&gt;.Pop</strong> returns a <strong>string</strong> value; etc. So <strong>IStack&lt;T&gt;</strong> and <strong>Stack&lt;T&gt;</strong> are polymorphic types, and this is called parametric polymorphism.</p>
+<p>In .NET, a generic type with type parameters are called open type (or open constructed type). If generic type’s all type parameters are specified with concrete types, then it is called closed type (or closed constructed type). Here <strong>Stack&lt;T&gt;</strong> is open type, and <strong>Stack&lt;int&gt;</strong>, <strong>Stack&lt;string&gt;</strong>, <strong>Stack&lt;Uri&gt;</strong> are closed types.</p>
+<p>The syntax for generic structure is the same as above generic class. Generic delegate and generic method will be discussed later.</p>
+<h2>Type parameter constraints</h2>
+<p>For above generic types and the following generic type, the type parameter can be arbitrary value:</p>
+<pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">Constraint</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">internal void </span><span style="color: black;">Method()
+    {
+        </span><span style="color: #2b91af;">T </span><span style="color: black;">value = </span><span style="color: blue;">null</span><span style="color: black;">;
+    }
+}</span></pre>
+<p>Above code cannot be compiled, with error CS0403: Cannot convert null to type parameter 'T' because it could be a non-nullable value type. The reason is, as fore mentioned, only values of reference types (instances of classes) can be <strong>null</strong>, but here <strong>T</strong> is allowed be structure type too. For this kind of scenario, C# supports constraints for type parameters, with the where keyword:</p>
+<pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">Constraint</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; </span><span style="color: blue;">where </span><span style="color: #2b91af;">T</span><span style="color: black;">: </span><span style="color: blue;">class
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Method()
+    {
+        </span><span style="color: #2b91af;">T </span><span style="color: black;">value1 = </span><span style="color: blue;">null</span><span style="color: black;">;
+    }
+}</span></pre>
+<p>Here T must be reference type, for example, <strong>Constraint&lt;string&gt;</strong> is allowed by compiler, and <strong>Constraint&lt;int&gt;</strong> causes a compiler error. Here are some more examples of constraints syntax:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">Constraints</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">T4</span><span style="color: black;">, </span><span style="color: #2b91af;">T5</span><span style="color: black;">, </span><span style="color: #2b91af;">T6</span><span style="color: black;">, </span><span style="color: #2b91af;">T7</span><span style="color: black;">&gt;
+    </span><span style="color: blue;">where </span><span style="color: #2b91af;">T1 </span><span style="color: black;">: </span><span style="color: blue;">struct
+    where </span><span style="color: #2b91af;">T2 </span><span style="color: black;">: </span><span style="color: blue;">class
+    where </span><span style="color: #2b91af;">T3 </span><span style="color: black;">: </span><span style="color: #2b91af;">DbConnection
+    </span><span style="color: blue;">where </span><span style="color: #2b91af;">T4 </span><span style="color: black;">: </span><span style="color: #2b91af;">IDisposable
+    </span><span style="color: blue;">where </span><span style="color: #2b91af;">T5 </span><span style="color: black;">: </span><span style="color: blue;">struct</span><span style="color: black;">, </span><span style="color: #2b91af;">IComparable</span><span style="color: black;">, </span><span style="color: #2b91af;">IComparable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T5</span><span style="color: black;">&gt;
+    </span><span style="color: blue;">where </span><span style="color: #2b91af;">T6 </span><span style="color: black;">: </span><span style="color: blue;">new</span><span style="color: black;">()
+    </span><span style="color: blue;">where </span><span style="color: #2b91af;">T7 </span><span style="color: black;">: </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">T4</span><span style="color: black;">, <span style="color: black;"></span><span style="color: #2b91af;">IDisposable</span></span><span style="color: #2b91af;"></span><span style="color: black;">, </span><span style="color: blue;">new</span><span style="color: black;">() { }</span></pre>
+<p>The above generic type has 7 type parameters:</p>
+<ul>
+<li><strong>T1</strong> must be value type (structure)</li>
+<li><strong>T2</strong> must be reference type (class)</li>
+<li><strong>T3</strong> must be the specified type, or derive from the specified type</li>
+<li><strong>T4</strong> must be the specified interface, or implement the specified interface</li>
+<li><strong>T5</strong> must be value type (structure), and must implement all the specified interfaces</li>
+<li><strong>T6</strong> must have a public parameterless constructor</li>
+<li><strong>T7</strong> must be or derive from or implement <strong>T2</strong>, <strong>T3</strong>, <strong>T4</strong>, and must implement the specified interface, and must have a public parameterless constructor</li>
+</ul>
+<p>Take <strong>T3</strong> as example:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">Constraints</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">T4</span><span style="color: black;">, </span><span style="color: #2b91af;">T5</span><span style="color: black;">, </span><span style="color: #2b91af;">T6</span><span style="color: black;">, </span><span style="color: #2b91af;">T7</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Method(</span><span style="color: #2b91af;">T3 </span><span style="color: black;">connection)
+    {
+        </span><span style="color: blue;">using </span><span style="color: black;">(connection) </span><span style="color: green;">// DbConnection implements IDisposable.
+        </span><span style="color: black;">{
+            </span><span style="color: black;">connection.Open(); </span><span style="color: green;">// DbConnection has Open method.
+        </span><span style="color: black;">}
+    }
+}</span></pre>
+<p>Regarding <strong>System.Data.Common.DbConnection</strong> implements <strong>System.IDisposable</strong>, and has a <strong>CreateCommand</strong> method, so the above t3 object can be used with using statement, and the <strong>CreateCommand</strong> call can be compiled too.</p>
+<p>The following is an example closed type of <strong>Constraints&lt;T1, T2, T3, T4, T5, T6, T7&gt;</strong>:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CloseType()
+{
+    </span><span style="color: #2b91af;">Constraints</span><span style="color: black;">&lt;</span><span style="color: blue;">bool</span><span style="color: black;">, </span><span style="color: blue;">object</span><span style="color: black;">, </span><span style="color: #2b91af;">DbConnection</span><span style="color: black;">, </span><span style="color: #2b91af;">IDbConnection</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Exception</span><span style="color: black;">, </span><span style="color: #2b91af;">SqlConnection</span><span style="color: black;">&gt; closed = </span><span style="color: blue;">default</span><span style="color: black;">;
+}</span></pre>
+<p>Here:</p>
+<ul>
+<li>bool is value type</li>
+<li>object is reference type</li>
+<li>DbConnection is DbConnection</li>
+<li>System.Data.Common.IDbConnection implements IDisposable</li>
+<li>int is value type, implements System.IComparable, and implements System.IComparable&lt;int&gt; too</li>
+<li>System.Exception has a public parameterless constructor</li>
+<li>System.Data.SqlClient.SqlConnection derives from object, derives from DbConnection, implements IDbConnection, and has a public parameterless constructor</li>
+</ul>
+<h1>Nullable value type</h1>
+<p>As fore mentioned, In C#/.NET, instance of type cannot be null. However, there are still some scenarios for value type to represent logical null. A typical example is database table. A value retrieved from a nullable integer column can be either integer value, or null. C# 2.0 introduces a nullable value type syntax T?, for example int? reads nullable int. T? is just a shortcut of the System.Nullable&lt;T&gt; generic structure:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{
+    </span><span style="color: blue;">public struct </span><span style="color: #2b91af;">Nullable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; </span><span style="color: blue;">where </span><span style="color: #2b91af;">T </span><span style="color: black;">: </span><span style="color: blue;">struct
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">private bool </span><span style="color: black;">hasValue;
+
+        </span><span style="color: blue;">internal </span><span style="color: #2b91af;">T </span><span style="color: black;">value;
+
+        </span><span style="color: blue;">public </span><span style="color: black;">Nullable(</span><span style="color: #2b91af;">T </span><span style="color: black;">value)
+        {
+            </span><span style="color: blue;">this</span><span style="color: black;">.value = value;
+            </span><span style="color: blue;">this</span><span style="color: black;">.hasValue = </span><span style="color: blue;">true</span><span style="color: black;">;
+        }
+
+        </span><span style="color: blue;">public bool </span><span style="color: black;">HasValue
+        {
+            </span><span style="color: blue;">get </span><span style="color: black;">{ </span><span style="color: blue;">return this</span><span style="color: black;">.hasValue; }
+        }
+
+        </span><span style="color: blue;">public </span><span style="color: #2b91af;">T </span><span style="color: black;">Value
+        {
+            </span><span style="color: blue;">get
+            </span><span style="color: black;">{
+                </span><span style="color: blue;">if </span><span style="color: black;">(!</span><span style="color: blue;">this</span><span style="color: black;">.hasValue)
+                {
+                    </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">InvalidOperationException</span><span style="color: black;">(</span><span style="color: #a31515;">"Nullable object must have a value."</span><span style="color: black;">);
+                }
+                </span><span style="color: blue;">return this</span><span style="color: black;">.value;
+            }
+        }
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>The following example demonstrates how to use nullable int:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Nullable()
+{
+    </span><span style="color: blue;">int</span><span style="color: black;">? nullable = </span><span style="color: blue;">null</span><span style="color: black;">;
+    nullable = 1;
+    </span><span style="color: blue;">if </span><span style="color: black;">(nullable != </span><span style="color: blue;">null</span><span style="color: black;">)
+    {
+        </span><span style="color: blue;">int </span><span style="color: black;">value = (</span><span style="color: blue;">int</span><span style="color: black;">)nullable;
+    }
+}</span></pre>
+<p>Apparently, int? is the Nullable&lt;int&gt; structure, and cannot be real null. Above code is syntactic sugar and compiled to normal structure usage:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledNullable()
+{
+    </span><span style="color: #2b91af;">Nullable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; nullable = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Nullable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;();
+    </span><span style="color: black;">nullable = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Nullable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(</span><span style="color: blue;">1</span><span style="color: black;">);
+    </span><span style="color: blue;">if </span><span style="color: black;">(nullable.HasValue)
+    {
+        </span><span style="color: blue;">int </span><span style="color: black;">value = nullable.Value;
+    }
+}</span></pre>
+<p>When nullable is assigned with null, it is actually assigned with a instance of Nullable&lt;int&gt; instance. Here the structure’s default parameterless constructor is called, so a Nullable&lt;int&gt; instance is initialized, with each data field is initialized with its default value. So nullable’s hasValue field is false, indicating this instance logically represents null. Then nullable is reassigned with normal int value, it is actually assigned with another Nullable&lt;int&gt; instance, where hasValue field is set to true and value field is set to the specified int value. The non null check is compiled to HasValue property call. And the type conversion from int? to int is compiled to the Value property call.</p>
+<h1>Auto property</h1>
+<p>A property is essentially a getter with body and/or a setter with body. In many cases, a property’s setter and getter just wraps a data field, like the above Device type’s Name property. This pattern can be annoying when a type has many properties for wrapping data fields, so C# 3.0 introduces auto property syntactic sugar:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">Device
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal decimal </span><span style="color: black;">Price { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+}</span></pre>
+<p>The backing field definition and the body of getter/setter are generated by compiler:</p>
+<pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">CompiledDevice
+</span><span style="color: black;">{
+    [</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
+    </span><span style="color: blue;">private decimal </span><span style="color: black;">priceBackingField;
+
+    </span><span style="color: blue;">internal decimal </span><span style="color: black;">Price
+    {
+        [</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
+        </span><span style="color: blue;">get </span><span style="color: black;">{ </span><span style="color: blue;">return this</span><span style="color: black;">.priceBackingField; }
+
+        [</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
+        </span><span style="color: blue;">set </span><span style="color: black;">{ </span><span style="color: blue;">this</span><span style="color: black;">.priceBackingField = </span><span style="color: blue;">value</span><span style="color: black;">; }
+    }
+
+    </span><span style="color: green;">// Other members.
+</span><span style="color: black;">}</span></pre>
+<p>Since C# 6.0, auto property can be getter only:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">Category
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal </span><span style="color: black;">Category(</span><span style="color: blue;">string </span><span style="color: black;">name)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.Name = name;
+    }
+
+    </span><span style="color: blue;">internal string </span><span style="color: black;">Name { </span><span style="color: blue;">get</span><span style="color: black;">;</span><span style="color: green;"> </span><span style="color: black;">}
+}</span></pre>
+<p>The above Name property is compiled to have getter only, and the backing field becomes read only:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">CompiledCategory
+</span><span style="color: black;">{
+    [</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
+    [</span><span style="color: #2b91af;">DebuggerBrowsable</span><span style="color: black;">(</span><span style="color: #2b91af;">DebuggerBrowsableState</span><span style="color: black;">.Never)]
+    </span><span style="color: blue;">private readonly string </span><span style="color: black;">nameBackingField;
+
+    </span><span style="color: blue;">internal </span><span style="color: black;">CompiledCategory(</span><span style="color: blue;">string </span><span style="color: black;">name)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.nameBackingField = name;
+    }
+
+    </span><span style="color: blue;">internal string </span><span style="color: black;">Name
+    {
+        [</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
+        </span><span style="color: blue;">get </span><span style="color: black;">{ </span><span style="color: blue;">return this</span><span style="color: black;">.nameBackingField; }
+    }
+}</span></pre>
+<h1>Property initializer</h1>
+<p>C# 6.0 introduces property initializer syntactic sugar, so that property’s initial value can be provided inline:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">Category
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal </span><span style="color: #2b91af;">Guid </span><span style="color: black;">Id { </span><span style="color: blue;">get</span><span style="color: black;">; } = </span><span style="color: #2b91af;">Guid</span><span style="color: black;">.NewGuid();
+
+    </span><span style="color: blue;">internal string </span><span style="color: black;">Description { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; } = </span><span style="color: blue;">string</span><span style="color: black;">.Empty;
+}</span></pre>
+<p>The property initializer is compiled to backing field initializer:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">CompiledCategory
+</span><span style="color: black;">{
+    [</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
+    [</span><span style="color: #2b91af;">DebuggerBrowsable</span><span style="color: black;">(</span><span style="color: #2b91af;">DebuggerBrowsableState</span><span style="color: black;">.Never)]
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">Guid </span><span style="color: black;">idBackingField = </span><span style="color: #2b91af;">Guid</span><span style="color: black;">.NewGuid();
+
+    [</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
+    [</span><span style="color: #2b91af;">DebuggerBrowsable</span><span style="color: black;">(</span><span style="color: #2b91af;">DebuggerBrowsableState</span><span style="color: black;">.Never)]
+    </span><span style="color: blue;">private string </span><span style="color: black;">descriptionBackingField = </span><span style="color: blue;">string</span><span style="color: black;">.Empty;
+
+    </span><span style="color: blue;">internal </span><span style="color: #2b91af;">Guid </span><span style="color: black;">Id
+    {
+        [</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
+        </span><span style="color: blue;">get </span><span style="color: black;">{ </span><span style="color: blue;">return this</span><span style="color: black;">.idBackingField; }
+    }
+
+    </span><span style="color: blue;">internal string </span><span style="color: black;">Description
+    {
+        [</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
+        </span><span style="color: blue;">get </span><span style="color: black;">{ </span><span style="color: blue;">return this</span><span style="color: black;">.descriptionBackingField; }
+
+        [</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
+        </span><span style="color: blue;">set </span><span style="color: black;">{ </span><span style="color: blue;">this</span><span style="color: black;">.descriptionBackingField = </span><span style="color: blue;">value</span><span style="color: black;">; }
+    }
+}</span></pre>
+<h1>Object initializer</h1>
+<p>A Device instance can be initialized with a sequence of imperative property assignment statements:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">SetProperties()
+{
+    </span><span style="color: #2b91af;">Device </span><span style="color: black;">device = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Device</span><span style="color: black;">();
+    device.Name = </span><span style="color: #a31515;">"Surface Book"</span><span style="color: black;">;
+    device.Price = 1349M;
+}</span></pre>
+<p>C# 3.0 introduces object initializer syntactic sugar, above call constructor and set properties code can be merged in a declarative style:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ObjectInitializer()
+{
+    </span><span style="color: #2b91af;">Device </span><span style="color: black;">device = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Device</span><span style="color: black;">() { Name = </span><span style="color: #a31515;">"Surface Book"</span><span style="color: black;">, Price = 1349M };
+}</span></pre>
+<p>The object initializer syntax in the second example is compiled to a sequence of assignments in the first example.</p>
+<h1>Collection initializer</h1>
+<p>Similarly, C# 3.0 also introduces collection initializer syntactic sugar for type that implements System.Collections.IEnumerable interface and has a parameterized Add method. Take the following device collection as example:</p>
+<pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">DeviceCollection </span><span style="color: black;">: </span><span style="color: #2b91af;">IEnumerable
+</span><span style="color: black;">{
+    </span><span style="color: blue;">private </span><span style="color: #2b91af;">Device</span><span style="color: black;">[] devices = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Device</span><span style="color: black;">[0];
+
+    </span><span style="color: blue;">internal void </span><span style="color: black;">Add(</span><span style="color: #2b91af;">Device </span><span style="color: black;">device)
+    {
+        </span><span style="color: #2b91af;">Array</span><span style="color: black;">.Resize(</span><span style="color: blue;">ref this</span><span style="color: black;">.devices, </span><span style="color: blue;">this</span><span style="color: black;">.devices.Length + 1);
+        </span><span style="color: blue;">this</span><span style="color: black;">.devices[</span><span style="color: blue;">this</span><span style="color: black;">.devices.Length - 1] = device;
+    }
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">IEnumerator </span><span style="color: black;">GetEnumerator() </span><span style="color: green;">// From IEnumerable.
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">return this</span><span style="color: black;">.devices.GetEnumerator();
+    }
+}</span></pre>
+<p>It can be initialized declaratively too:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CollectionInitializer(</span><span style="color: #2b91af;">Device </span><span style="color: black;">device1, </span><span style="color: #2b91af;">Device </span><span style="color: black;">device2)
+{
+    </span><span style="color: #2b91af;">DeviceCollection </span><span style="color: black;">devices = </span><span style="color: blue;">new </span><span style="color: #2b91af;">DeviceCollection</span><span style="color: black;">() { device1, device2 };
+}</span></pre>
+<p>The above code is compiled to a normal constructor call followed by a sequence of Add method calls:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Compiled<span style="color: blue;"></span><span style="color: black;">CollectionInitializer</span>(</span><span style="color: #2b91af;">Device </span><span style="color: black;">device1, </span><span style="color: #2b91af;">Device </span><span style="color: black;">device2)
+{
+    </span><span style="color: #2b91af;">DeviceCollection </span><span style="color: black;">devices = </span><span style="color: blue;">new </span><span style="color: #2b91af;">DeviceCollection</span><span style="color: black;">();
+    devices.Add(device1);
+    devices.Add(device2);
+}</span></pre>
+<h1>Index initializer</h1>
+<p>C# 6.0 introduces index initializer for type with indexer setter:</p>
+<pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">DeviceDictionary
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal </span><span style="color: #2b91af;">Device </span><span style="color: blue;">this</span><span style="color: black;">[</span><span style="color: blue;">int </span><span style="color: black;">id] { </span><span style="color: blue;">set </span><span style="color: black;">{ } }
+}</span></pre>
+<p>It is another declarative syntactic sugar:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">IndexInitializer(</span><span style="color: #2b91af;">Device </span><span style="color: black;">device1, </span><span style="color: #2b91af;">Device </span><span style="color: black;">device2)
+{
+    </span><span style="color: #2b91af;">DeviceDictionary </span><span style="color: black;">devices = </span><span style="color: blue;">new </span><span style="color: #2b91af;">DeviceDictionary </span><span style="color: black;">{ [10] = device1, [11] = device2 };
+}</span></pre>
+<p>The above syntax is compiled to normal constructor call followed by a sequence of indexer calls:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Compiled<span style="color: blue;"></span><span style="color: black;">IndexInitializer</span>(</span><span style="color: #2b91af;">Device </span><span style="color: black;">device1, </span><span style="color: #2b91af;">Device </span><span style="color: black;">device2)
+{
+    </span><span style="color: #2b91af;">DeviceDictionary </span><span style="color: black;">devices = </span><span style="color: blue;">new </span><span style="color: #2b91af;">DeviceDictionary</span><span style="color: black;">();
+    devices[0] = device1;
+    devices[1] = device2;
+}</span></pre>
+<h1>Null coalescing operator</h1>
+<p>C# 2.0 introduces a null coalescing operator ??. It works with 2 operand as left ?? right. If the left operand is not null, it returns the left operand, otherwise, it returns the right operand. For example, when working with reference or nullable value, it is very common to have null check at runtime, and have null replaced:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">Point
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static </span><span style="color: black;">Point Default { </span><span style="color: blue;">get</span><span style="color: black;">; } = </span><span style="color: blue;">new </span><span style="color: black;">Point(0, 0);
+}
+
+</span><span style="color: blue;">internal partial struct </span><span style="color: #2b91af;">ValuePoint
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static </span><span style="color: black;">ValuePoint Default { </span><span style="color: blue;">get</span><span style="color: black;">; } = </span><span style="color: blue;">new </span><span style="color: black;">ValuePoint(0, 0);
+}
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">DefaultValueForNull(Point reference, ValuePoint? nullableValue)
+{
+    Point point = reference != </span><span style="color: blue;">null </span><span style="color: black;">? reference : Point.Default;
+
+    ValuePoint valuePoint = nullableValue != </span><span style="color: blue;">null </span><span style="color: black;">? (ValuePoint)nullableValue : ValuePoint.Default;
+}</span></pre>
+<p>This can be simplified with the null coalescing operator:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">DefaultValueForNullWithNullCoalescing(Point reference, ValuePoint? nullableValue)
+{
+    Point point = reference ?? Point.Default;
+    ValuePoint valuePoint = nullableValue ?? ValuePoint.Default;
+}</span></pre>
+<h1>Null conditional operators</h1>
+<p>It is also very common to check null before member or indexer access:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">NullCheck(Category category, Device[] devices)
+{
+    </span><span style="color: blue;">string </span><span style="color: black;">categoryText = </span><span style="color: blue;">null</span><span style="color: black;">;
+    </span><span style="color: blue;">if </span><span style="color: black;">(category != </span><span style="color: blue;">null</span><span style="color: black;">)
+    {
+        categoryText = category.ToString();
+    }
+    </span><span style="color: blue;">string </span><span style="color: black;">firstDeviceName;
+    </span><span style="color: blue;">if </span><span style="color: black;">(devices != </span><span style="color: blue;">null</span><span style="color: black;">)
+    {
+        Device firstDevice = devices[0];
+        </span><span style="color: blue;">if </span><span style="color: black;">(first != </span><span style="color: blue;">null</span><span style="color: black;">)
+        {
+            firstDeviceName = firstDevice.Name;
+        }
+    }
+}</span></pre>
+<p>C# 6.0 introduces null conditional operators (also called null propagation operators), ?. for member access and ?[] for indexer access, to simplify this:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">NullCheckWithNullConditional(Category category, Device[] devices)
+{
+    </span><span style="color: blue;">string </span><span style="color: black;">categoryText = category?.ToString();
+    </span><span style="color: blue;">string </span><span style="color: black;">firstDeviceName = devices?[0]?.Name;
+}</span></pre>
+<h1>throw expression</h1>
+<p>Since C# 7.0, throw statement can be used as expression. The throw expression is frequently used with the conditional operator and above null coalescing operator to simplify argument check:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">Subcategory
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal </span><span style="color: black;">Subcategory(</span><span style="color: blue;">string </span><span style="color: black;">name, Category category)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.Name = !</span><span style="color: blue;">string</span><span style="color: black;">.IsNullOrWhiteSpace(name) ? name : </span><span style="color: blue;">throw new </span><span style="color: black;">ArgumentNullException(</span><span style="color: #a31515;">"name"</span><span style="color: black;">);
+        </span><span style="color: blue;">this</span><span style="color: black;">.Category = category ?? </span><span style="color: blue;">throw new </span><span style="color: black;">ArgumentNullException(</span><span style="color: #a31515;">"category"</span><span style="color: black;">);
+    }
+
+    </span><span style="color: blue;">internal </span><span style="color: black;">Category Category { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">internal string </span><span style="color: black;">Name { </span><span style="color: blue;">get</span><span style="color: black;">; }
+}</span></pre>
+<h1>Exception filter</h1>
+<p>In C#, it used to be common to catch an exception, filter, and then handle/rethrow. The following example tries to download HTML string from the specified URI, and it can handle the download failure if there is response status of bad request. So it catches the exception to check. If the exception has expected info, it handles the exception; otherwise, it rethrows the exception.</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CatchFilterRethrow(WebClient webClient)
+{
+    </span><span style="color: blue;">try
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">string </span><span style="color: black;">html = webClient.DownloadString(</span><span style="color: #a31515;">"http://weblogs.asp.net/dixin"</span><span style="color: black;">);
+    }
+    </span><span style="color: blue;">catch </span><span style="color: black;">(WebException exception)
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">((exception.Response </span><span style="color: blue;">as </span><span style="color: black;">HttpWebResponse)?.StatusCode == HttpStatusCode.BadRequest)
+        {
+            </span><span style="color: green;">// Handle exception.
+        </span><span style="color: black;">}
+        </span><span style="color: blue;">else
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">throw</span><span style="color: black;">;
+        }
+    }
+}</span></pre>
+<p>C# 6.0 introduces exception filter at the language level. the catch block can have a expression to filter the specified exception before catching. If the expression returns true, the catch block is executed:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ExceptionFilter(WebClient webClient)
+{
+    </span><span style="color: blue;">try
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">string </span><span style="color: black;">html = webClient.DownloadString(</span><span style="color: #a31515;">"http://weblogs.asp.net/dixin"</span><span style="color: black;">);
+    }
+    </span><span style="color: blue;">catch </span><span style="color: black;">(WebException exception) </span><span style="color: blue;">when </span><span style="color: black;">((exception.Response </span><span style="color: blue;">as </span><span style="color: black;">HttpWebResponse)?.StatusCode == HttpStatusCode.BadRequest)
+    {
+        </span><span style="color: green;">// Handle exception.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>Exception filter is not a syntactic sugar, but a CLR feature. The above exception filter expression is compiled to filter clause in CIL. The following cleaned CIL virtually demonstrates the compilation result:</p>
+<pre class="code"><span style="color: black;">.method assembly hidebysig static void ExceptionFilter(class [System]System.Net.WebClient webClient) cil managed
+{
+  .try
+  {
+    // string html = webClient.DownloadString("http://weblogs.asp.net/dixin");
+  }
+  filter
+  {
+    // when ((exception.Response as HttpWebResponse)?.StatusCode == HttpStatusCode.BadRequest)
+  }
+  {
+    // Handle exception.
+  }
+}</span></pre>
+<p>When the filter expression returns false, the catch clause is never executed, so there is no need to rethrow exception. Rethrowing exception causes stack unwinding, as if the exception is from the throw statement, and the original call stack and other info is lost. So this feature is very helpful for diagnostics and debugging.</p>
+<h1>String interpolation</h1>
+<p>For many years, string <a href="https://msdn.microsoft.com/en-us/library/txafckwd.aspx">composite formatting</a> is widely used in C#. It inserts values to indexed placeholders in string format:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Log(Device device)
+{
+    </span><span style="color: blue;">string </span><span style="color: black;">message = </span><span style="color: blue;">string</span><span style="color: black;">.Format(</span><span style="color: #a31515;">"{0}: {1}, {2}"</span><span style="color: black;">, DateTime.Now.ToString(</span><span style="color: #a31515;">"o"</span><span style="color: black;">), device.Name, device.Price);
+    Trace.WriteLine(message);
+}</span></pre>
+<p>C# 6.0 introduces string interpolation syntactic sugar to declare the values in place, without maintaining the orders separately:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">LogWithStringInterpolation(Device device)
+{
+    </span><span style="color: blue;">string </span><span style="color: black;">message = </span><span style="color: blue;">string</span><span style="color: black;">.Format(</span><span style="color: #a31515;">$"</span><span style="color: black;">{DateTime.Now.ToString(</span><span style="color: #a31515;">"o"</span><span style="color: black;">)}</span><span style="color: #a31515;">: </span><span style="color: black;">{device.Name}</span><span style="color: #a31515;">, </span><span style="color: black;">{device.Price}</span><span style="color: #a31515;">"</span><span style="color: black;">);
+    Trace.WriteLine(message);
+}</span></pre>
+<p>The second interpolation version is more declarative and productive, without maintaining a series of indexes. This syntax is actually compiled to the first composite formatting.</p>
+<h1>nameof operator</h1>
+<p>C# 6.0 introduces a nameof operator to obtain the string name of variable, type, or member. Take argument check as example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ArgumentCheck(</span><span style="color: blue;">int </span><span style="color: black;">count)
+{
+    </span><span style="color: blue;">if </span><span style="color: black;">(count &lt; 0)
+    {
+        </span><span style="color: blue;">throw new </span><span style="color: black;">ArgumentOutOfRangeException(</span><span style="color: #a31515;">"count"</span><span style="color: black;">);
+    }
+}</span></pre>
+<p>The parameter name is a hard coded string, and cannot be checked by compiler. Now with nameof operator, the compiler can generated the above parameter name string constant:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">NameOf(</span><span style="color: blue;">int </span><span style="color: black;">count)
+{
+    </span><span style="color: blue;">if </span><span style="color: black;">(count &lt; 0)
+    {
+        </span><span style="color: blue;">throw new </span><span style="color: black;">ArgumentOutOfRangeException(nameof(count));
+    }
+}</span></pre>
+<h1>Digit separator and leading underscore</h1>
+<p>C# 7.0 introduces underscore as the digit separator, as well as the 0b prefix for binary number. C# 7.1 supports an optional underscore at the beginning of the number.</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">DigitSeparator()
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">value1 = 10_000_000;
+    </span><span style="color: blue;">double </span><span style="color: black;">value2 = 0.123_456_789;
+
+    </span><span style="color: blue;">int </span><span style="color: black;">value3 = 0b0001_0000; </span><span style="color: green;">// Binary.
+    </span><span style="color: blue;">int </span><span style="color: black;">value4 = 0b_0000_1000; </span><span style="color: green;">// Binary.
+</span><span style="color: black;">}</span></pre>
+<p>These small features greatly improve the readability of long numbers and binary numbers at design time.</p>
+<h1>Summary</h1>
+<p>This chapter walk through fundamental and important knowledge of C#, like reference type, value type, generic type, nullable value type, and some basic syntax of initializers, operators, expressions, etc., including some new syntax introduced in recent releases of C#. After getting familiar with these basics, the readers should be ready to dive into other advanced topics of C# language, functional programming and LINQ.</p>
+
+
+</div>
+</body>
+</html>

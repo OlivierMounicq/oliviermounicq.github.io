@@ -1,0 +1,423 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+
+<h1>LINQ to XML (3) Manipulating XML</h1>
+<p>Besides creating and querying XML, LINQ to XML also provides APIs for other XML manipulations, including cloning, deleting, replacing, and updating XML structures:</p>
+<ul>
+<li>Clone</li>
+<ul>
+<li>Explicit Clone: constructors of XAttribute, XCData, XComment, XDeclaration, XDocument, XElement, XProcessingInstruction, XText</li>
+</ul>
+<li>Add</li>
+<ul>
+<li>Add annotations: XObject.AddAnnotation</li>
+<li>Add children: XContainer.Add, XContainer.AddFirst, XStreamingElement.Add</li>
+<li>Add siblings: XNode.AddAfterSelf, XNode.AddBeforeSelf</li>
+</ul>
+<li>Delete</li>
+<ul>
+<li>Delete annotations: XObject.RemoveAnnotations</li>
+<li>Delete attributes: XElement.RemoveAttributes, XAttribute.Remove</li>
+<li>Delete self: XNode.Remove</li>
+<li>Delete children: XContainer.RemoveNodes, XElement.RemoveAll</li>
+</ul>
+<li>Replace</li>
+<ul>
+<li>Replace attributes: XElement.ReplaceAttributes</li>
+<li>Replace self: XNode.ReplaceWith</li>
+<li>Replace children: XContainer.ReplaceNodes, XElement.ReplaceAll</li>
+<!--EndFragment--></ul>
+<li>Update</li>
+<ul>
+<li>Update attribute: XAttribute.Value</li>
+<li>Update comment: XComment.Value</li>
+<li>Update declaration: XDeclaration.Encoding, XDeclaration.Standalone, XDeclaration.Version</li>
+<li>Update document: XDocument.XDeclaration, XDocumentType.InternalSubset, XDocumentType.Name, XDocumentType.PublicId, XDocumentType.SystemId</li>
+<li>Update element: XElement.Name, XElement.Value, XElement.SetAttributeValue, XElement.SetElementValue, XElement.SetValue</li>
+</ul>
+</ul>
+<blockquote>
+<p>.NET Framework also provides APIs for validating and transforming XML:</p>
+<ul>
+<li>Validate with XSD</li>
+<ul>
+<li>Query schema: XAttribute.GetSchemaInfo*, XElement.GetSchemaInfo*</li>
+<li>Validate schema: XAttribute.Validate*, XDocument.Validate*, XElement.Validate*</li>
+</ul>
+<li>Transform with XSL: XslCompiledTransform.Transform</li>
+</ul>
+<p>The APIs with * are extension methods provided by System.Xml.Schema.Extensions.</p>
+</blockquote>
+<h1>Clone</h1>
+<p>Most structures can be cloned by calling their constructors with the source instance:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ExplicitClone()
+{
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">sourceElement = </span><span style="color: #2b91af;">XElement</span><span style="color: black;">.Parse(</span><span style="color: #a31515;">"&lt;element /&gt;"</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">clonedElement = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(sourceElement);
+
+    </span><span style="color: #2b91af;">XText </span><span style="color: black;">sourceText = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XText</span><span style="color: black;">(</span><span style="color: #a31515;">"text"</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">XText </span><span style="color: black;">clonedText = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XText</span><span style="color: black;">(sourceText);
+
+    </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">sourceDocument = <span style="color: black;"></span><span style="color: #2b91af;">XDocument</span><span style="color: black;">.Load</span>(</span><span style="color: #a31515;">"https://weblogs.asp.net/dixin/rss"</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">clonedDocument = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XDocument</span><span style="color: black;">(sourceDocument);
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(sourceDocument, clonedDocument).WriteLine(); </span><span style="color: green;">// False
+    </span><span style="color: blue;">object</span><span style="color: black;">.Equals(sourceDocument, clonedDocument).WriteLine(); </span><span style="color: green;">// False
+    </span><span style="color: #2b91af;">EqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">XDocument</span><span style="color: black;">&gt;.Default.Equals(sourceDocument, clonedDocument).WriteLine(); </span><span style="color: green;">// False
+    </span><span style="color: black;">sourceDocument.Equals(clonedDocument).WriteLine(); </span><span style="color: green;">// False
+    </span><span style="color: black;">(sourceDocument == clonedDocument).WriteLine(); </span><span style="color: green;">// False
+    </span><span style="color: #2b91af;">XNode</span><span style="color: black;">.DeepEquals(sourceDocument, clonedDocument).WriteLine(); </span><span style="color: green;">// True
+    </span><span style="color: #2b91af;">XNode</span><span style="color: black;">.EqualityComparer.Equals(sourceDocument, clonedDocument).WriteLine(); </span><span style="color: green;">// True
+</span><span style="color: black;">}</span></pre>
+<p>If an XObject instance is in an XML tree, when it is added to a different XML tree, it is cloned, and the new instance is actually added to the target. The exceptions are XName and XNamespace, which are cached at runtime. For example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ImplicitClone()
+{
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">child = </span><span style="color: #2b91af;">XElement</span><span style="color: black;">.Parse(</span><span style="color: #a31515;">"&lt;child /&gt;"</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">XName </span><span style="color: black;">parentName = </span><span style="color: #a31515;">"parent"</span><span style="color: black;">;
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">parent1 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(parentName, child); </span><span style="color: green;">// Attach.
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(child, parent1.Elements().Single()).WriteLine(); </span><span style="color: green;">// True
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(parentName, parent1.Name).WriteLine(); </span><span style="color: green;">// True
+
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">parent2 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(parentName, child); </span><span style="color: green;">// Clone and attach.
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(child, parent2.Elements().Single()).WriteLine(); </span><span style="color: green;">// False
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(parentName, parent2.Name).WriteLine(); </span><span style="color: green;">// True
+
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">element = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"element"</span><span style="color: black;">);
+    element.Add(element); </span><span style="color: green;">// Clone and attach.
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(element, element.Elements().Single()).WriteLine(); </span><span style="color: green;">// False
+</span><span style="color: black;">}</span></pre>
+<h1>Add, delete, replace, update, and events</h1>
+<p>Most of APIs to add/replace/delete/update XML structures are very intuitive. And when changing a XObject instance, XObject.Changing and XObject.Changed events are fired before and after the change. For example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Manipulate()
+{
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">child = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"child"</span><span style="color: black;">);
+    child.Changing += (sender, e) =&gt;
+        </span><span style="color: #a31515;">$"Before </span><span style="color: black;">{e.ObjectChange}</span><span style="color: #a31515;">: (</span><span style="color: black;">{sender.GetType().Name} {sender}</span><span style="color: #a31515;">) =&gt; </span><span style="color: black;">{child}</span><span style="color: #a31515;">"</span><span style="color: black;">.WriteLine();
+    child.Changed += (sender, e) =&gt;
+        </span><span style="color: #a31515;">$"After </span><span style="color: black;">{e.ObjectChange}</span><span style="color: #a31515;">: (</span><span style="color: black;">{sender.GetType().Name} {sender}</span><span style="color: #a31515;">) =&gt; </span><span style="color: black;">{child}</span><span style="color: #a31515;">"</span><span style="color: black;">.WriteLine();
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">parent = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"parent"</span><span style="color: black;">);
+    parent.Changing += (sender, e) =&gt;
+        </span><span style="color: #a31515;">$"Before </span><span style="color: black;">{e.ObjectChange}</span><span style="color: #a31515;">: (</span><span style="color: black;">{sender.GetType().Name} {sender}</span><span style="color: #a31515;">) =&gt; </span><span style="color: black;">{parent.ToString(</span><span style="color: #2b91af;">SaveOptions</span><span style="color: black;">.DisableFormatting)}</span><span style="color: #a31515;">"</span><span style="color: black;">.WriteLine();
+    parent.Changed += (sender, e) =&gt;
+        </span><span style="color: #a31515;">$"After </span><span style="color: black;">{e.ObjectChange}</span><span style="color: #a31515;">: (</span><span style="color: black;">{sender.GetType().Name} {sender}</span><span style="color: #a31515;">) =&gt; </span><span style="color: black;">{parent.ToString(</span><span style="color: #2b91af;">SaveOptions</span><span style="color: black;">.DisableFormatting)}</span><span style="color: #a31515;">"</span><span style="color: black;">.WriteLine();
+
+    child.Value = </span><span style="color: #a31515;">"value1"</span><span style="color: black;">;
+    </span><span style="color: green;">// Before Add: (XText value1) =&gt; &lt;child /&gt;
+    // After Add: (XText value1) =&gt; &lt;child&gt;value1&lt;/child&gt;
+
+    </span><span style="color: black;">child.Value = </span><span style="color: #a31515;">"value2"</span><span style="color: black;">;
+    </span><span style="color: green;">// Before Remove: (XText value1) =&gt; &lt;child&gt;value1&lt;/child&gt;
+    // After Remove: (XText value1) =&gt; &lt;child /&gt;
+    // Before Add: (XText value2) =&gt; &lt;child /&gt;
+    // After Add: (XText value2) =&gt; &lt;child&gt;value2&lt;/child&gt;
+
+    </span><span style="color: black;">child.Value = </span><span style="color: blue;">string</span><span style="color: black;">.Empty;
+    </span><span style="color: green;">// Before Remove: (XText value2) =&gt; &lt;child&gt;value2&lt;/child&gt;
+    // After Remove: (XText value2) =&gt; &lt;child /&gt;
+    // Before Value: (XElement &lt;child /&gt;) =&gt; &lt;child /&gt;
+    // After Value: (XElement &lt;child&gt;&lt;/child&gt;) =&gt; &lt;child&gt;&lt;/child&gt;
+
+    </span><span style="color: black;">parent.Add(child);
+    </span><span style="color: green;">// Before Add: (XElement &lt;child&gt;&lt;/child&gt;) =&gt; &lt;parent /&gt;
+    // After Add: (XElement &lt;child&gt;&lt;/child&gt;) =&gt; &lt;parent&gt;&lt;child&gt;&lt;/child&gt;&lt;/parent&gt;
+
+    </span><span style="color: black;">child.Add(</span><span style="color: blue;">new </span><span style="color: #2b91af;">XAttribute</span><span style="color: black;">(</span><span style="color: #a31515;">"attribute"</span><span style="color: black;">, </span><span style="color: #a31515;">"value"</span><span style="color: black;">));
+    </span><span style="color: green;">// Before Add: (XAttribute attribute="value") =&gt; &lt;child&gt;&lt;/child&gt;
+    // Before Add: (XAttribute attribute="value") =&gt; &lt;parent&gt;&lt;child&gt;&lt;/child&gt;&lt;/parent&gt;
+    // After Add: (XAttribute attribute="value") =&gt; &lt;child attribute="value"&gt;&lt;/child&gt;
+    // After Add: (XAttribute attribute="value") =&gt; &lt;parent&gt;&lt;child attribute="value"&gt;&lt;/child&gt;&lt;/parent&gt;
+
+    </span><span style="color: black;">child.AddBeforeSelf(0);
+    </span><span style="color: green;">// Before Add: (XText 0) =&gt; &lt;parent&gt;&lt;child attribute="value"&gt;&lt;/child&gt;&lt;/parent&gt;
+    // After Add: (XText 0) =&gt; &lt;parent&gt;0&lt;child attribute="value"&gt;&lt;/child&gt;&lt;/parent&gt;
+
+    </span><span style="color: black;">parent.ReplaceAll(</span><span style="color: blue;">new </span><span style="color: #2b91af;">XText</span><span style="color: black;">(</span><span style="color: #a31515;">"Text."</span><span style="color: black;">));
+    </span><span style="color: green;">// Before Remove: (XText 0) =&gt; &lt;parent&gt;0&lt;child attribute="value"&gt;&lt;/child&gt;&lt;/parent&gt;
+    // After Remove: (XText 0) =&gt; &lt;parent&gt;&lt;child attribute="value"&gt;&lt;/child&gt;&lt;/parent&gt;
+    // Before Remove: (XElement &lt;child attribute="value"&gt;&lt;/child&gt;) =&gt; &lt;parent&gt;&lt;child attribute="value"&gt;&lt;/child&gt;&lt;/parent&gt;
+    // After Remove: (XElement &lt;child attribute="value"&gt;&lt;/child&gt;) =&gt; &lt;parent /&gt;
+    // Before Add: (XText Text.) =&gt; &lt;parent /&gt;
+    // After Add: (XText Text.) =&gt; &lt;parent&gt;Text.&lt;/parent&gt;
+
+    </span><span style="color: black;">parent.Name = </span><span style="color: #a31515;">"name"</span><span style="color: black;">;
+    </span><span style="color: green;">// Before Name: (XElement &lt;parent&gt;Text.&lt;/parent&gt;) =&gt; &lt;parent&gt;Text.&lt;/parent&gt;
+    // After Name: (XElement &lt;name&gt;Text.&lt;/name&gt;) =&gt; &lt;name&gt;Text.&lt;/name&gt;
+
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">clonedChild = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(child);
+    clonedChild.SetValue(</span><span style="color: #2b91af;">DateTime</span><span style="color: black;">.Now); </span><span style="color: green;">// No tracing.
+</span><span style="color: black;">}</span></pre>
+<p>There are many APIs to manipulate XML, but there are only 4 kinds of Changing/Changed events: add object, deleting object, update object value, update element/attribute name. For example, as shown above, the APIs to replace objects are shortcuts of deleting old objects and adding new objects. When setting a string as an element’s value, the element first removes its children if there is any, then add the string as a child text node, if the string is not empty string. Also, an object’s events propagate/bubble up to the ancestors, and children and siblings are not impacted. When an object is cloned, the new object’s events is not observed by the original event handlers.</p>
+<p>XElement.SetAttributeValue and XElement.SetElementValue are different from other APIs. They can</p>
+<ul>
+<li>add a new attribute/child element if it does not exist</li>
+<li>update the attribute/child element value if it exists:</li>
+<li>remove the attribute/child element if it exists and the provided value to null.</li>
+</ul>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">SetAttributeValue()
+{
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">element = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"element"</span><span style="color: black;">);
+    element.Changing += (sender, e) =&gt;
+        </span><span style="color: #a31515;">$"Before </span><span style="color: black;">{e.ObjectChange}</span><span style="color: #a31515;">: (</span><span style="color: black;">{sender.GetType().Name} {sender}</span><span style="color: #a31515;">) =&gt; </span><span style="color: black;">{element}</span><span style="color: #a31515;">"</span><span style="color: black;">.WriteLine();
+    element.Changed += (sender, e) =&gt;
+        </span><span style="color: #a31515;">$"After </span><span style="color: black;">{e.ObjectChange}</span><span style="color: #a31515;">: (</span><span style="color: black;">{sender.GetType().Name} {sender}</span><span style="color: #a31515;">) =&gt; </span><span style="color: black;">{element}</span><span style="color: #a31515;">"</span><span style="color: black;">.WriteLine();
+
+    element.SetAttributeValue(</span><span style="color: #a31515;">"attribute"</span><span style="color: black;">, </span><span style="color: #a31515;">"value1"</span><span style="color: black;">); </span><span style="color: green;">// Equivalent to: child1.Add(new XAttribute("attribute", "value1"));
+    // Before Add: (XAttribute attribute="value1") =&gt; &lt;element /&gt;
+    // After Add: (XAttribute attribute="value1") =&gt; &lt;element attribute="value1" /&gt;
+
+    </span><span style="color: black;">element.SetAttributeValue(</span><span style="color: #a31515;">"attribute"</span><span style="color: black;">, </span><span style="color: #a31515;">"value2"</span><span style="color: black;">); </span><span style="color: green;">// Equivalent to: child1.Attribute("attribute").Value = "value2";
+    // Before Value: (XAttribute attribute="value1") =&gt; &lt;element attribute="value1" /&gt;
+    // After Value: (XAttribute attribute="value2") =&gt; &lt;element attribute="value2" /&gt;
+
+    </span><span style="color: black;">element.SetAttributeValue(</span><span style="color: #a31515;">"attribute"</span><span style="color: black;">, </span><span style="color: blue;">null</span><span style="color: black;">);
+    </span><span style="color: green;">// Before Remove: (XAttribute attribute="value2") =&gt; &lt;element attribute="value2" /&gt;
+    // After Remove: (XAttribute attribute="value2") =&gt; &lt;element /&gt;
+</span><span style="color: black;">}
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">SetElementValue()
+{
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">parent = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"parent"</span><span style="color: black;">);
+    parent.Changing += (sender, e) =&gt;
+        </span><span style="color: #a31515;">$"Before </span><span style="color: black;">{e.ObjectChange}</span><span style="color: #a31515;">: </span><span style="color: black;">{sender} </span><span style="color: #a31515;">=&gt; </span><span style="color: black;">{parent.ToString(</span><span style="color: #2b91af;">SaveOptions</span><span style="color: black;">.DisableFormatting)}</span><span style="color: #a31515;">"</span><span style="color: black;">.WriteLine();
+    parent.Changed += (sender, e) =&gt;
+        </span><span style="color: #a31515;">$"After </span><span style="color: black;">{e.ObjectChange}</span><span style="color: #a31515;">: </span><span style="color: black;">{sender} </span><span style="color: #a31515;">=&gt; </span><span style="color: black;">{parent.ToString(</span><span style="color: #2b91af;">SaveOptions</span><span style="color: black;">.DisableFormatting)}</span><span style="color: #a31515;">"</span><span style="color: black;">.WriteLine();
+
+    parent.SetElementValue(</span><span style="color: #a31515;">"child"</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">.Empty); </span><span style="color: green;">// Add child element.
+    // Before Add: &lt;child&gt;&lt;/child&gt; =&gt; &lt;parent /&gt;
+    // After Add: &lt;child&gt;&lt;/child&gt; =&gt; &lt;parent&gt;&lt;child&gt;&lt;/child&gt;&lt;/parent&gt;
+
+    </span><span style="color: black;">parent.SetElementValue(</span><span style="color: #a31515;">"child"</span><span style="color: black;">, </span><span style="color: #a31515;">"value"</span><span style="color: black;">); </span><span style="color: green;">// Update child element.
+    // Before Value: &lt;child&gt;&lt;/child&gt; =&gt; &lt;parent&gt;&lt;child&gt;&lt;/child&gt;&lt;/parent&gt;
+    // After Value: &lt;child /&gt; =&gt; &lt;parent&gt;&lt;child /&gt;&lt;/parent&gt;
+    // Before Add: value =&gt; &lt;parent&gt;&lt;child /&gt;&lt;/parent&gt;
+    // After Add: value =&gt; &lt;parent&gt;&lt;child&gt;value&lt;/child&gt;&lt;/parent&gt;
+
+    </span><span style="color: black;">parent.SetElementValue(</span><span style="color: #a31515;">"child"</span><span style="color: black;">, </span><span style="color: blue;">null</span><span style="color: black;">); </span><span style="color: green;">// Remove child element.
+    // Before Remove: &lt;child&gt;value&lt;/child&gt; =&gt; &lt;parent&gt;&lt;child&gt;value&lt;/child&gt;&lt;/parent&gt;
+    // After Remove: &lt;child&gt;value&lt;/child&gt; =&gt; &lt;parent /&gt;
+</span><span style="color: black;">}</span></pre>
+<h1>Annotation</h1>
+<p>Annotation is not a part of the XML. It is an separate arbitrary data in the memory, and associated with a XObject instance in the memory. The annotation APIs provided by XObject allows adding/querying/deleting any .NET data. Apparently, when cloning or serializing XObject, annotation is ignored on the the new XObject and the generated string.</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Annotation()
+{
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">element = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"element"</span><span style="color: black;">);
+    element.AddAnnotation(</span><span style="color: blue;">new </span><span style="color: #2b91af;">Uri</span><span style="color: black;">(</span><span style="color: #a31515;">"https://microsoft.com"</span><span style="color: black;">));
+
+    </span><span style="color: #2b91af;">Uri </span><span style="color: black;">annotation = element.Annotation&lt;</span><span style="color: #2b91af;">Uri</span><span style="color: black;">&gt;();
+    annotation.WriteLine(); </span><span style="color: green;">// https://microsoft.com
+    </span><span style="color: black;">element.WriteLine(); </span><span style="color: green;">// &lt;element /&gt;
+
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">clone = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(element); </span><span style="color: green;">// element is cloned.
+    </span><span style="color: black;">clone.Annotations&lt;</span><span style="color: #2b91af;">Uri</span><span style="color: black;">&gt;().Any().WriteLine(); </span><span style="color: green;">// False
+
+    </span><span style="color: black;">element.RemoveAnnotations&lt;</span><span style="color: #2b91af;">Uri</span><span style="color: black;">&gt;();
+    (element.Annotation&lt;</span><span style="color: #2b91af;">Uri</span><span style="color: black;">&gt;() == </span><span style="color: blue;">null</span><span style="color: black;">).WriteLine(); </span><span style="color: green;">// True
+</span><span style="color: black;">}</span></pre>
+<h1>Validate XML with XSD</h1>
+<p><a href="https://en.wikipedia.org/wiki/XML_Schema_(W3C)" target="_blank">XSD (XML Schema Definition)</a> is the metadata of XML tree, including XML's elements, attributes, constrains rules, etc. System.Xml.Schema.Extensions provides a few APIs to validate XML with provided schema. To obtain a schema, one option is to infer it from existing XML:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">XmlSchemaSet </span><span style="color: black;">InferSchema(</span><span style="color: blue;">this </span><span style="color: #2b91af;">XNode </span><span style="color: black;">source)
+{
+    </span><span style="color: #2b91af;">XmlSchemaInference </span><span style="color: black;">schemaInference = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XmlSchemaInference</span><span style="color: black;">();
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">XmlReader </span><span style="color: black;">reader = source.CreateReader())
+    {
+        </span><span style="color: blue;">return </span><span style="color: black;">schemaInference.InferSchema(reader);
+    }
+}
+</span></pre>
+<p>The returned XmlSchemaSet instance contains s sequence of XmlSchema instances, one for each namespace in the source XML. XmlSchema can be converted to XDocument with the help of XmlWriter:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">ToXDocument(</span><span style="color: blue;">this </span><span style="color: #2b91af;">XmlSchema </span><span style="color: black;">source)
+{
+    </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">document = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XDocument</span><span style="color: black;">();
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">XmlWriter </span><span style="color: black;">writer = document.CreateWriter())
+    {
+        source.Write(writer);
+    }
+    </span><span style="color: blue;">return </span><span style="color: black;">document;
+}
+</span></pre>
+<p>Still take an RSS feed as example, the following code outputs the RSS feed’s schema:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">InferSchemas()
+{
+    </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">aspNetRss = <span style="color: black;"></span><span style="color: #2b91af;">XDocument</span><span style="color: black;">.Load</span>(</span><span style="color: #a31515;">"https://www.flickr.com/services/feeds/photos_public.gne?id=64715861@N07&amp;format=rss2"</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">XmlSchemaSet </span><span style="color: black;">schemaSet = aspNetRss.InferSchema();
+    schemaSet.Schemas().Cast&lt;</span><span style="color: #2b91af;">XmlSchema</span><span style="color: black;">&gt;().WriteLines(schema =&gt; schema.ToXDocument().ToString());
+}
+</span></pre>
+<p>The printed schema is:</p>
+<pre class="code"><span style="color: blue;">&lt;</span><span style="color: #a31515;">xs:schema </span><span style="color: red;">attributeFormDefault</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">unqualified</span><span style="color: black;">" </span><span style="color: red;">elementFormDefault</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">qualified</span><span style="color: black;">" </span><span style="color: red;">xmlns:xs</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">http://www.w3.org/2001/XMLSchema</span><span style="color: black;">"</span><span style="color: blue;">&gt;
+  &lt;</span><span style="color: #a31515;">xs:element </span><span style="color: red;">name</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">rss</span><span style="color: black;">"</span><span style="color: blue;">&gt;
+    &lt;</span><span style="color: #a31515;">xs:complexType</span><span style="color: blue;">&gt;
+      &lt;</span><span style="color: #a31515;">xs:sequence</span><span style="color: blue;">&gt;
+        &lt;</span><span style="color: #a31515;">xs:element </span><span style="color: red;">name</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">channel</span><span style="color: black;">"</span><span style="color: blue;">&gt;
+          &lt;</span><span style="color: #a31515;">xs:complexType</span><span style="color: blue;">&gt;
+            &lt;</span><span style="color: #a31515;">xs:sequence</span><span style="color: blue;">&gt;
+              &lt;</span><span style="color: #a31515;">xs:element </span><span style="color: red;">name</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">title</span><span style="color: black;">" </span><span style="color: red;">type</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">xs:string</span><span style="color: black;">" </span><span style="color: blue;">/&gt;
+              &lt;</span><span style="color: #a31515;">xs:element </span><span style="color: red;">name</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">link</span><span style="color: black;">" </span><span style="color: red;">type</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">xs:string</span><span style="color: black;">" </span><span style="color: blue;">/&gt;
+              &lt;</span><span style="color: #a31515;">xs:element </span><span style="color: red;">name</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">description</span><span style="color: black;">" </span><span style="color: red;">type</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">xs:string</span><span style="color: black;">" </span><span style="color: blue;">/&gt;
+              &lt;</span><span style="color: #a31515;">xs:element </span><span style="color: red;">maxOccurs</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">unbounded</span><span style="color: black;">" </span><span style="color: red;">name</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">item</span><span style="color: black;">"</span><span style="color: blue;">&gt;
+                &lt;</span><span style="color: #a31515;">xs:complexType</span><span style="color: blue;">&gt;
+                  &lt;</span><span style="color: #a31515;">xs:sequence</span><span style="color: blue;">&gt;
+                    &lt;</span><span style="color: #a31515;">xs:element </span><span style="color: red;">name</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">title</span><span style="color: black;">" </span><span style="color: red;">type</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">xs:string</span><span style="color: black;">" </span><span style="color: blue;">/&gt;
+                    &lt;</span><span style="color: #a31515;">xs:element </span><span style="color: red;">name</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">link</span><span style="color: black;">" </span><span style="color: red;">type</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">xs:string</span><span style="color: black;">" </span><span style="color: blue;">/&gt;
+                    &lt;</span><span style="color: #a31515;">xs:element </span><span style="color: red;">name</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">description</span><span style="color: black;">" </span><span style="color: red;">type</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">xs:string</span><span style="color: black;">" </span><span style="color: blue;">/&gt;
+                    &lt;</span><span style="color: #a31515;">xs:element </span><span style="color: red;">name</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">pubDate</span><span style="color: black;">" </span><span style="color: red;">type</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">xs:string</span><span style="color: black;">" </span><span style="color: blue;">/&gt;
+                    &lt;</span><span style="color: #a31515;">xs:element </span><span style="color: red;">name</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">guid</span><span style="color: black;">"</span><span style="color: blue;">&gt;
+                      &lt;</span><span style="color: #a31515;">xs:complexType</span><span style="color: blue;">&gt;
+                        &lt;</span><span style="color: #a31515;">xs:simpleContent</span><span style="color: blue;">&gt;
+                          &lt;</span><span style="color: #a31515;">xs:extension </span><span style="color: red;">base</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">xs:string</span><span style="color: black;">"</span><span style="color: blue;">&gt;
+                            &lt;</span><span style="color: #a31515;">xs:attribute </span><span style="color: red;">name</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">isPermaLink</span><span style="color: black;">" </span><span style="color: red;">type</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">xs:boolean</span><span style="color: black;">" </span><span style="color: red;">use</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">required</span><span style="color: black;">" </span><span style="color: blue;">/&gt;
+                          &lt;/</span><span style="color: #a31515;">xs:extension</span><span style="color: blue;">&gt;
+                        &lt;/</span><span style="color: #a31515;">xs:simpleContent</span><span style="color: blue;">&gt;
+                      &lt;/</span><span style="color: #a31515;">xs:complexType</span><span style="color: blue;">&gt;
+                    &lt;/</span><span style="color: #a31515;">xs:element</span><span style="color: blue;">&gt;
+                    &lt;</span><span style="color: #a31515;">xs:element </span><span style="color: red;">maxOccurs</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">unbounded</span><span style="color: black;">" </span><span style="color: red;">name</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">category</span><span style="color: black;">" </span><span style="color: red;">type</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">xs:string</span><span style="color: black;">" </span><span style="color: blue;">/&gt;
+                  &lt;/</span><span style="color: #a31515;">xs:sequence</span><span style="color: blue;">&gt;
+                &lt;/</span><span style="color: #a31515;">xs:complexType</span><span style="color: blue;">&gt;
+              &lt;/</span><span style="color: #a31515;">xs:element</span><span style="color: blue;">&gt;
+            &lt;/</span><span style="color: #a31515;">xs:sequence</span><span style="color: blue;">&gt;
+          &lt;/</span><span style="color: #a31515;">xs:complexType</span><span style="color: blue;">&gt;
+        &lt;/</span><span style="color: #a31515;">xs:element</span><span style="color: blue;">&gt;
+      &lt;/</span><span style="color: #a31515;">xs:sequence</span><span style="color: blue;">&gt;
+      &lt;</span><span style="color: #a31515;">xs:attribute </span><span style="color: red;">name</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">version</span><span style="color: black;">" </span><span style="color: red;">type</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">xs:decimal</span><span style="color: black;">" </span><span style="color: red;">use</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">required</span><span style="color: black;">" </span><span style="color: blue;">/&gt;
+    &lt;/</span><span style="color: #a31515;">xs:complexType</span><span style="color: blue;">&gt;
+  &lt;/</span><span style="color: #a31515;">xs:element</span><span style="color: blue;">&gt;
+&lt;/</span><span style="color: #a31515;">xs:schema</span><span style="color: blue;">&gt;
+</span></pre>
+<p>The data is all gone, and there is only structural description for that RSS feed. Save it to a .xsd file, then it can be visualized in Visual Studio’s XML Schema Explorer:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/LINQ-to-XML-3-Manipulation_1205E/image_2.png"><img title="image" style="border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/LINQ-to-XML-3-Manipulation_1205E/image_thumb.png" width="348" height="348" border="0"></a></p>
+<p>Now, this RSS feed’s schema, represented by XmlSchemaSet, can be used to validate XML. The following example calls the Validate extension methods for XDocument to validate another RSS feed from Flickr. As demonstrated before, Flickr RSS has more elements. Apparently the validation fails:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Validate()
+{
+    </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">aspNetRss = <span style="color: black;"></span><span style="color: #2b91af;">XDocument</span><span style="color: black;">.Load</span>(</span><span style="color: #a31515;">"https://weblogs.asp.net/dixin/rss"</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">XmlSchemaSet </span><span style="color: black;">schemaSet = aspNetRss.InferSchema();
+
+    </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">flickrRss = <span style="color: black;"></span><span style="color: #2b91af;">XDocument</span><span style="color: black;">.Load</span>(</span><span style="color: #a31515;">"https://www.flickr.com/services/feeds/photos_public.gne?id=64715861@N07&amp;format=rss2"</span><span style="color: black;">);
+    flickrRss.Validate(
+        schemaSet,
+        (sender, args) =&gt;
+        {
+            </span><span style="color: #a31515;">$"</span><span style="color: black;">{args.Severity}</span><span style="color: #a31515;">: (</span><span style="color: black;">{sender.GetType().Name}</span><span style="color: #a31515;">) =&gt; </span><span style="color: black;">{args.Message}</span><span style="color: #a31515;">"</span><span style="color: black;">.WriteLine();
+            </span><span style="color: green;">// Error: (XElement) =&gt; The element 'channel' has invalid child element 'pubDate'. List of possible elements expected: 'item'.</span><span style="color: black;">
+            args.Exception?.WriteLine();
+            </span><span style="color: green;">// XmlSchemaValidationException: The element 'channel' has invalid child element 'pubDate'. List of possible elements expected: 'item'.</span><span style="color: black;">
+        });
+}
+</span></pre>
+<p>Validate has another overload accepting a bool parameter addSchemaInfo. When it is called with true for addSchemaInfo, if an element or attribute is validated, the validation details are saved in an IXmlSchemaInfo instance, and associated with this element or attribute as an annotation. Then, the GetSchemaInfo method can be called on each element or attribute, to query that IXmlSchemaInfo annotation, if available. IXmlSchemaInfo can have a lot of information, including a Validity property, intuitively indicating the validation status:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">GetSchemaInfo()
+{
+    </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">aspNetRss = <span style="color: black;"></span><span style="color: #2b91af;">XDocument</span><span style="color: black;">.Load</span>(</span><span style="color: #a31515;">"https://weblogs.asp.net/dixin/rss"</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">XmlSchemaSet </span><span style="color: black;">schemaSet = aspNetRss.InferSchema();
+
+    </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">flickrRss = <span style="color: black;"></span><span style="color: #2b91af;">XDocument</span><span style="color: black;">.Load</span>(</span><span style="color: #a31515;">"https://www.flickr.com/services/feeds/photos_public.gne?id=64715861@N07&amp;format=rss2"</span><span style="color: black;">);
+    flickrRss.Validate(schemaSet, (sender, args) =&gt; { }, addSchemaInfo: </span><span style="color: blue;">true</span><span style="color: black;">);
+    flickrRss
+        .Root
+        .DescendantsAndSelf()
+        .ForEach(element =&gt;
+        {
+            </span><span style="color: #a31515;">$"</span><span style="color: black;">{element.XPath()} </span><span style="color: #a31515;">- </span><span style="color: black;">{element.GetSchemaInfo()?.Validity}</span><span style="color: #a31515;">"</span><span style="color: black;">.WriteLine();
+            element.Attributes().WriteLines(attribute =&gt;
+                </span><span style="color: #a31515;">$"</span><span style="color: black;">{attribute.XPath()} </span><span style="color: #a31515;">- </span><span style="color: black;">{attribute.GetSchemaInfo()?.Validity.ToString() ?? </span><span style="color: #a31515;">"null"</span><span style="color: black;">}</span><span style="color: #a31515;">"</span><span style="color: black;">);
+        });
+    </span><span style="color: green;">// /rss - Invalid
+    // /rss/@version - Valid
+    // /rss/@xmlns:media - null
+    // /rss/@xmlns:dc - null
+    // /rss/@xmlns:creativeCommons - null
+    // /rss/@xmlns:flickr - null
+    // /rss/channel - Invalid
+    // /rss/channel/title - Valid
+    // /rss/channel/link - Valid
+    // /rss/channel/description - Valid
+    // /rss/channel/pubDate - Invalid
+    // /rss/channel/lastBuildDate - NotKnown
+    // ...
+</span><span style="color: black;">}
+</span></pre>
+<h1>Transform XML with XSL</h1>
+<p><a href="https://en.wikipedia.org/wiki/XSL" target="_blank">XSL (Extensible Stylesheet Language)</a> can transform a XML tree to another. XSL transformation can be done with the System.Xml.Xsl.XslCompiledTransform type:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">XslTransform(</span><span style="color: blue;">this </span><span style="color: #2b91af;">XNode </span><span style="color: black;">source, </span><span style="color: #2b91af;">XNode </span><span style="color: black;">xsl)
+{
+    </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">result = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XDocument</span><span style="color: black;">();
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">XmlReader </span><span style="color: black;">sourceReader = source.CreateReader())
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">XmlReader </span><span style="color: black;">xslReader = xsl.CreateReader())
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">XmlWriter </span><span style="color: black;">resultWriter = result.CreateWriter())
+    {
+        </span><span style="color: #2b91af;">XslCompiledTransform </span><span style="color: black;">transform = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XslCompiledTransform</span><span style="color: black;">();
+        transform.Load(xslReader);
+        transform.Transform(sourceReader, resultWriter);
+        </span><span style="color: blue;">return </span><span style="color: black;">result;
+    }
+}
+</span></pre>
+<p>The following example transforms RSS to HTML, the most recent 5 items in RSS are mapped to HTML hyperlinks in an unordered list:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">XslTransform()
+{
+    </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">rss = <span style="color: black;"></span><span style="color: #2b91af;">XDocument</span><span style="color: black;">.Load</span>(</span><span style="color: #a31515;">"https://weblogs.asp.net/dixin/rss"</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">xsl = </span><span style="color: #2b91af;">XDocument</span><span style="color: black;">.Parse(</span><span style="color: maroon;">@"
+        &lt;xsl:stylesheet version='1.0' xmlns:xsl='http://www.w3.org/1999/XSL/Transform'&gt;
+            &lt;xsl:template match='/rss/channel'&gt;
+            &lt;ul&gt;
+                &lt;xsl:for-each select='item[position() &amp;lt;= 5]'&gt;&lt;!--Position is less than or equal to 5.--&gt;
+                &lt;li&gt;
+                    &lt;a&gt;
+                    &lt;xsl:attribute name='href'&gt;&lt;xsl:value-of select='link' /&gt;&lt;/xsl:attribute&gt;
+                    &lt;xsl:value-of select='title' /&gt;
+                    &lt;/a&gt;
+                &lt;/li&gt;
+                &lt;/xsl:for-each&gt;
+            &lt;/ul&gt;
+            &lt;/xsl:template&gt;
+        &lt;/xsl:stylesheet&gt;"</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">html = rss.XslTransform(xsl);
+    html.WriteLine();
+    </span><span style="color: green;">// &lt;ul&gt;
+    //  &lt;li&gt;
+    //    &lt;a href="https://weblogs.asp.net:443/dixin/c-6-0-exception-filter-and-when-keyword"&gt;C# 6.0 Exception Filter and when Keyword&lt;/a&gt;
+    //  &lt;/li&gt;
+    //  &lt;li&gt;
+    //    &lt;a href="https://weblogs.asp.net:443/dixin/use-fiddler-with-node-js"&gt;Use Fiddler with Node.js&lt;/a&gt;
+    //  &lt;/li&gt;
+    //  &lt;li&gt;
+    //    &lt;a href="https://weblogs.asp.net:443/dixin/diskpart-problem-cannot-select-partition"&gt;DiskPart Problem: Cannot Select Partition&lt;/a&gt;
+    //  &lt;/li&gt;
+    //  &lt;li&gt;
+    //    &lt;a href="https://weblogs.asp.net:443/dixin/configure-git-for-visual-studio-2015"&gt;Configure Git for Visual Studio 2015&lt;/a&gt;
+    //  &lt;/li&gt;
+    //  &lt;li&gt;
+    //    &lt;a href="https://weblogs.asp.net:443/dixin/query-operating-system-processes-in-c"&gt;Query Operating System Processes in C#&lt;/a&gt;
+    //  &lt;/li&gt;
+    // &lt;/ul&gt;
+</span><span style="color: black;">}
+</span></pre>
+<p>The above transformation can also be done with LINQ to Objects/XML query:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Transform()
+{
+    </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">rss = <span style="color: black;"></span><span style="color: #2b91af;">XDocument</span><span style="color: black;">.Load</span>(</span><span style="color: #a31515;">"https://weblogs.asp.net/dixin/rss"</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">html = rss
+        .Element(</span><span style="color: #a31515;">"rss"</span><span style="color: black;">)
+        .Element(</span><span style="color: #a31515;">"channel"</span><span style="color: black;">)
+        .Elements(</span><span style="color: #a31515;">"item"</span><span style="color: black;">)
+        .Take(5)
+        .Select(item =&gt;
+        {
+            </span><span style="color: blue;">string </span><span style="color: black;">link = (</span><span style="color: blue;">string</span><span style="color: black;">)item.Element(</span><span style="color: #a31515;">"link"</span><span style="color: black;">);
+            </span><span style="color: blue;">string </span><span style="color: black;">title = (</span><span style="color: blue;">string</span><span style="color: black;">)item.Element(</span><span style="color: #a31515;">"title"</span><span style="color: black;">);
+            </span><span style="color: blue;">return new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"li"</span><span style="color: black;">, </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"a"</span><span style="color: black;">, </span><span style="color: blue;">new </span><span style="color: #2b91af;">XAttribute</span><span style="color: black;">(</span><span style="color: #a31515;">"href"</span><span style="color: black;">, link), title));
+            </span><span style="color: green;">// Equivalent to: return XElement.Parse($"&lt;li&gt;&lt;a href='{link}'&gt;{title}&lt;/a&gt;&lt;/li&gt;");
+        </span><span style="color: black;">})
+        .Aggregate(</span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"ul"</span><span style="color: black;">), (ul, li) =&gt; { ul.Add(li); </span><span style="color: blue;">return </span><span style="color: black;">ul; }, ul =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">XDocument</span><span style="color: black;">(ul));
+    html.WriteLine();
+}
+</span></pre>
+
+
+</div>
+</body>
+</html>

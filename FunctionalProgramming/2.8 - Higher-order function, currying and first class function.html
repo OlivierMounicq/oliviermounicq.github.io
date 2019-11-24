@@ -1,0 +1,605 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+<h1>C# Functional Programming In-Depth (8) Higher-order Function, Currying and First Class Function</h1>
+
+<h1>First order and higher-order function</h1>
+<p><a href="http://en.wikipedia.org/wiki/Higher-order_function" target="_blank" mce_href="http://en.wikipedia.org/wiki/Higher-order_function">Higher-order function</a> is a function accepting one or more function parameters as input, or returning a function as output. The other functions are called first-order functions. C# supports higher-order function from the beginning. Generally, C# function can have almost any data type and function type as its input types and output type, except:</p>
+<ul>
+<li>Static types, like System.Convert, System.Math, etc., because they cannot be instantiated.</li>
+<li>Special types, like fore mentioned System.Void.</li>
+</ul>
+<p>A first-order function can take normal data value as input and output:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">Data </span><span style="color: black;">{ }
+
+</span><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Functions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static </span><span style="color: #2b91af;">Data </span><span style="color: black;">FirstOrder(</span><span style="color: #2b91af;">Data </span><span style="color: black;">value)
+    {
+        </span><span style="color: blue;">return </span><span style="color: black;">value;
+    }
+
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">CallFirstOrder()
+    {
+        </span><span style="color: #2b91af;">Data </span><span style="color: black;">input = </span><span style="color: blue;">default</span><span style="color: black;">;
+        </span><span style="color: #2b91af;">Data </span><span style="color: black;">output = FirstOrder(input);
+    }
+}</span></pre>
+<p>A higher-order function can be defined by replacing above data type with a function type:</p>
+<pre class="code"><span style="color: blue;">internal delegate void </span><span style="color: #2b91af;">Function</span><span style="color: black;">();
+
+</span><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Functions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static </span><span style="color: #2b91af;">Function </span><span style="color: black;">NamedHigherOrder(</span><span style="color: #2b91af;">Function </span><span style="color: black;">value)
+    {
+        </span><span style="color: blue;">return </span><span style="color: black;">value;
+    }
+
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">CallHigherOrder()
+    {
+        </span><span style="color: #2b91af;">Function </span><span style="color: black;">input = </span><span style="color: blue;">default</span><span style="color: black;">;
+        </span><span style="color: #2b91af;">Function </span><span style="color: black;">output = NamedHigherOrder(input);
+    }
+}</span></pre>
+<p>Above HigherOrder is a named higher-order function. Anonymous higher-order functions can also be easily represented with lambda expression:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">LambdaHigherOrder()
+{
+    </span><span style="color: #2b91af;">Action </span><span style="color: black;">firstOrder1 = () =&gt; </span><span style="color: blue;">nameof</span><span style="color: black;">(LambdaHigherOrder).WriteLine();
+    firstOrder1(); </span><span style="color: green;">// LambdaHigherOrder
+
+    // (() -&gt; void) -&gt; void
+    // Input: function of type () -&gt; void. Output: void.
+    </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Action</span><span style="color: black;">&gt; higherOrder1 = action =&gt; action();
+    higherOrder1(firstOrder1); </span><span style="color: green;">// firstOrder1
+    </span><span style="color: black;">higherOrder1(() =&gt; </span><span style="color: blue;">nameof</span><span style="color: black;">(LambdaHigherOrder).WriteLine()); </span><span style="color: green;">// LambdaHigherOrder
+
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; firstOrder2 = () =&gt; 1;
+    firstOrder2().WriteLine(); </span><span style="color: green;">// 1
+
+    // () -&gt; (() -&gt; int)
+    // Input: none. Output: function of type () -&gt; int.
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; higherOrder2 = () =&gt; firstOrder2;
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; output2 = higherOrder2();
+    output2().WriteLine(); </span><span style="color: green;">// 1
+
+    // int -&gt; (() -&gt; int)
+    // Input: value of type int. Output: function of type () -&gt; int.
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; higherOrder3 = int32 =&gt;
+        (() =&gt; int32 + 1);
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; output3 = higherOrder3(1);
+    output3().WriteLine(); </span><span style="color: green;">// 2
+
+    // (() -&gt; void, () -&gt; int) -&gt; (() -&gt; bool)
+    // Input: function of type () -&gt; void, function of type () -&gt; int. Output: function of type () -&gt; bool.
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Action</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">bool</span><span style="color: black;">&gt;&gt; higherOrder4 = (action, int32Factory) =&gt;
+    {
+        action();
+        </span><span style="color: blue;">return </span><span style="color: black;">() =&gt; int32Factory() &gt; 0;
+    };
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">bool</span><span style="color: black;">&gt; output4 = higherOrder4(firstOrder1, firstOrder2); </span><span style="color: green;">// LambdaHigherOrder
+    </span><span style="color: black;">output4().WriteLine(); </span><span style="color: green;">// True
+    </span><span style="color: black;">output4 = higherOrder4(() =&gt; </span><span style="color: blue;">nameof</span><span style="color: black;">(LambdaHigherOrder).WriteLine(), () =&gt; 0); </span><span style="color: green;">// LambdaHigherOrder
+    </span><span style="color: black;">output4().WriteLine(); </span><span style="color: green;">// False
+</span><span style="color: black;">}</span></pre>
+<p>These higher-order functions can be defined and called with IIFE syntax, without any function name involved:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">AnonymousHigherOrder()
+{
+    </span><span style="color: green;">// (() -&gt; void) -&gt; void
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Action</span><span style="color: black;">&gt;(action =&gt; action())(
+        () =&gt; </span><span style="color: blue;">nameof</span><span style="color: black;">(AnonymousHigherOrder).WriteLine());
+
+    </span><span style="color: green;">// () -&gt; (() -&gt; int)
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; output2 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt;(() =&gt; (() =&gt; 1))();
+    output2().WriteLine(); </span><span style="color: green;">// 1
+
+    // int -&gt; (() -&gt; int)
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; output3 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt;(int32 =&gt; (() =&gt; int32 + 1))(1);
+    output3().WriteLine(); </span><span style="color: green;">// 2
+
+    // (() -&gt; int, () -&gt; string) -&gt; (() -&gt; bool)
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">bool</span><span style="color: black;">&gt; output4 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Action</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">bool</span><span style="color: black;">&gt;&gt;((action, int32Factory) =&gt;
+    {
+        action();
+        </span><span style="color: blue;">return </span><span style="color: black;">() =&gt; int32Factory() &gt; 0;
+    })(() =&gt; </span><span style="color: blue;">nameof</span><span style="color: black;">(LambdaHigherOrder).WriteLine(), () =&gt; 0);
+    output4().WriteLine();
+}</span></pre>
+<p>.NET provides many built in higher-order functions, like Array.FindAll:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public abstract class </span><span style="color: #2b91af;">Array </span><span style="color: black;">: </span><span style="color: #2b91af;">ICollection</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">, </span><span style="color: #2b91af;">IList</span><span style="color: black;">, </span><span style="color: #2b91af;">IStructuralComparable</span><span style="color: black;">, </span><span style="color: #2b91af;">IStructuralEquatable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">T</span><span style="color: black;">[] FindAll&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T</span><span style="color: black;">[] array, </span><span style="color: #2b91af;">Predicate</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; match);
+    }
+}</span></pre>
+<p>It iterates all values in the input array, and call the match function for each value. If match function returns true, the value is added to the result array:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">FilterArray(</span><span style="color: #2b91af;">Uri</span><span style="color: black;">[] array)
+{
+    </span><span style="color: #2b91af;">Uri</span><span style="color: black;">[] notNull = </span><span style="color: #2b91af;">Array</span><span style="color: black;">.FindAll(array, uri =&gt; uri != </span><span style="color: blue;">null</span><span style="color: black;">);
+}</span></pre>
+<p>Many LINQ query methods are higher-order functions, like fore mentioned Where, OrderBy, Select:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Linq
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Enumerable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Where&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; predicate);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; OrderBy&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector);
+    }
+}</span></pre>
+<p>Again, LINQ query methods will be discussed in detail in the LINQ to Objects chapter.</p>
+<h1>Curry function</h1>
+<p>In the following example, first order function add2 simply adds 2 int values. Compare this function with the other higher-order function higherOrderAdd2:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">FirstOrderHigherOrder()
+{
+    </span><span style="color: green;">// (int, int) -&gt; int
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; add2 = (a, b) =&gt; a + b;
+    </span><span style="color: blue;">int </span><span style="color: black;">add2Result = add2(1, 2);
+    </span><span style="color: green;">// int -&gt; (int -&gt; int)
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; higherOrderAdd2 = a =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;(b =&gt; a + b);
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; add1 = higherOrderAdd2(1); </span><span style="color: green;">// Equivalent to: b =&gt; 1 + b.
+    </span><span style="color: blue;">int </span><span style="color: black;">curriedAdd2Result = add1(2);
+}</span></pre>
+<p>The first order function of type (int, int) –&gt; int is straightforward. It accepts the first and the second int values, and returns their sum. The higher-order function of type int –&gt; (int –&gt; int) accepts only the first int value, and returns another function of type int –&gt; int, which accepts the second int value and return the sum. Calling these functions are different too. Calling the first order function requires providing the first and second int values, and the result is directly returned. Calling the higher-order function requires only the first int value, it returns function which is a closure of the that int value. Then, calling the returned function requires providing the second int value, and the result is returned.</p>
+<p>Actually, for the higher-order function, its returned function type can be the inferred from the higher-order function type. So it can be simplified as:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">TypeInference()
+{
+    </span><span style="color: green;">// (int, int) -&gt; int
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; add2 = (a, b) =&gt; a + b;
+    </span><span style="color: blue;">int </span><span style="color: black;">add2Result = add2(1, 2);
+    </span><span style="color: green;">// int -&gt; (int -&gt; int)
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; curriedAdd2 = a =&gt; b =&gt; a + b;
+    </span><span style="color: blue;">int </span><span style="color: black;">curriedAdd2Result = curriedAdd2(1)(2);
+}</span></pre>
+<p>These 2 functions represents the same algorithm but in different form. This kind of transformation from a 2-arity first order function of type (T1, T2) –&gt; TResult) to a 1-arity higher-order function of type T1 –&gt; (T2 –&gt; TResult), is called <a href="http://en.wikipedia.org/wiki/Currying" target="_blank">currying</a>. The term "currying" is introduced by <a href="http://en.wikipedia.org/wiki/Christopher_Strachey" target="_blank">Christopher Strachey</a> in 1967, which is the last name of mathematician and logician <a href="http://en.wikipedia.org/wiki/Haskell_Curry" target="_blank">Haskell Curry</a>.</p>
+<p>Similarly, the following function with 3 parameters can be curried into a sequence of 3 1-arity functions:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CurryFunc()
+{
+    </span><span style="color: green;">// (int, int, int) -&gt; int
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; add3 = (a, b, c) =&gt; a + b + c;
+    </span><span style="color: blue;">int </span><span style="color: black;">add3Result = add3(1, 2, 3);
+    </span><span style="color: green;">// int -&gt; int -&gt; int -&gt; int
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt;&gt; curriedAdd3 = a =&gt; b =&gt; c =&gt; a + b + c;
+    </span><span style="color: blue;">int </span><span style="color: black;">curriedAdd3Result = curriedAdd3(1)(2)(3);
+}</span></pre>
+<p>Generally, any N-arity function returning a value can be curried into a sequence of N 1-arity functions:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CurryFunc&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">TN</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;()
+{
+    </span><span style="color: green;">// (T1, T2, T3, ... TN) -&gt; TResult
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: green;">/* T4, ... */ </span><span style="color: #2b91af;">TN</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; function =
+        (value1, value2, value3, </span><span style="color: green;">/* ... */ </span><span style="color: black;">valueN) =&gt; </span><span style="color: blue;">default</span><span style="color: black;">;
+    </span><span style="color: green;">// T1 -&gt; T2 -&gt; T3 -&gt; ... TN -&gt; TResult
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: green;">/* Func&lt;T4, ... */ </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TN</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; </span><span style="color: green;">/* ... */</span><span style="color: black;">&gt;&gt;&gt; curriedFunction =
+        value1 =&gt; value2 =&gt; value3 =&gt; </span><span style="color: green;">/* value4 =&gt; ... */ </span><span style="color: black;">valueN =&gt; </span><span style="color: blue;">default</span><span style="color: black;">;
+}</span></pre>
+<p>The above transformation can be wrapped as the following Curry extension methods for all Func delegate types:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">FuncExtensions
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Transform (T1, T2) -&gt; TResult
+    // to T1 -&gt; T2 -&gt; TResult.
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; Curry&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; function) =&gt;
+            value1 =&gt; value2 =&gt; function(value1, value2);
+
+    </span><span style="color: green;">// Transform (T1, T2, T3) -&gt; TResult
+    // to T1 -&gt; T2 -&gt; T3 -&gt; TResult.
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt;&gt; Curry&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; function) =&gt;
+            value1 =&gt; value2 =&gt; value3 =&gt; function(value1, value2, value3);
+
+    </span><span style="color: green;">// Transform (T1, T2, T3, T4) =&gt; TResult
+    // to T1 -&gt; T2 -&gt; T3 -&gt; T4 -&gt; TResult.
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T4</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt;&gt;&gt; Curry&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">T4</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">T4</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; function) =&gt;
+            value1 =&gt; value2 =&gt; value3 =&gt; value4 =&gt; function(value1, value2, value3, value4);
+
+    </span><span style="color: green;">// ...
+</span><span style="color: black;">}</span></pre>
+<p>Now any function can be curried by just calling the Curry method:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CallCurry()
+{
+    </span><span style="color: green;">// (int, int) -&gt; int
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; add2 = (a, b) =&gt; a + b;
+    </span><span style="color: blue;">int </span><span style="color: black;">add2Result = add2(1, 2);
+    </span><span style="color: green;">// int -&gt; (int -&gt; int)
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; curriedAdd2 = add2.Curry();
+    </span><span style="color: blue;">int </span><span style="color: black;">curriedAdd2Result = curriedAdd2(1)(2);
+
+    </span><span style="color: green;">// (int, int, int) -&gt; int
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; add3 = (a, b, c) =&gt; a + b + c;
+    </span><span style="color: blue;">int </span><span style="color: black;">add3Result = add3(1, 2, 3);
+    </span><span style="color: green;">// int -&gt; int -&gt; int -&gt; int
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt;&gt; curriedAdd3 = add3.Curry();
+    </span><span style="color: blue;">int </span><span style="color: black;">curriedAdd3Result = curriedAdd3(1)(2)(3);
+}</span></pre>
+<p>Function returning void can be curried too:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CurryAction()
+{
+    </span><span style="color: green;">// (int, int) -&gt; void
+    </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; traceAdd2 = (a, b) =&gt; </span><span style="color: black;">(a + b).WriteLine();
+    traceAdd2(1, 2);
+    </span><span style="color: green;">// int -&gt; int -&gt; void
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; curriedTraceAdd2 = a =&gt; b =&gt; </span><span style="color: black;">(a + b).WriteLine();
+    curriedTraceAdd2(1)(2);
+
+    </span><span style="color: green;">// (int, int, int) -&gt; void
+    </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; traceAdd3 = (a, b, c) =&gt; </span><span style="color: black;">(a + b + c).WriteLine();
+    traceAdd3(1, 2, 3);
+    </span><span style="color: green;">// int -&gt; int -&gt; int -&gt; void
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt;&gt; curriedTraceAdd3 = a =&gt; b =&gt; c =&gt; </span><span style="color: black;">(a + b + c).WriteLine();
+    curriedTraceAdd3(1)(2)(3);
+}</span></pre>
+<p>Generally, any N-arity function returning void can be curried into a sequence of N 1-arity functions:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CurryAction&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">TN</span><span style="color: black;">&gt;()
+{
+    </span><span style="color: green;">// (T1, T2, T3, ... TN) -&gt; void
+    </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: green;">/* T4, ... */ </span><span style="color: #2b91af;">TN</span><span style="color: black;">&gt; function =
+        (value1, value2, value3, </span><span style="color: green;">/* ... */ </span><span style="color: black;">valueN) =&gt; { };
+    </span><span style="color: green;">// T1 -&gt; T2 -&gt; T3 -&gt; ... TN -&gt; void
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: green;">/* Func&lt;T4, ... */ </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TN</span><span style="color: black;">&gt; </span><span style="color: green;">/* ... */</span><span style="color: black;">&gt;&gt;&gt; curriedFunction =
+        value1 =&gt; value2 =&gt; value3 =&gt; </span><span style="color: green;">/* value4 =&gt; ... */ </span><span style="color: black;">valueN =&gt; { };
+}</span></pre>
+<p>Similarly, the above transformation can be wrapped as the following Curry extension methods for all Action delegate types:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ActionExtensions
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Transform (T1, T2) -&gt; void
+    // to T1 =&gt; T2 -&gt; void.
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt;&gt; Curry&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt; function) =&gt;
+            value1 =&gt; value2 =&gt; function(value1, value2);
+
+    </span><span style="color: green;">// Transform (T1, T2, T3) -&gt; void
+    // to T1 -&gt; T2 -&gt; T3 -&gt; void.
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T3</span><span style="color: black;">&gt;&gt;&gt; Curry&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">&gt; function) =&gt; value1 =&gt; value2 =&gt; value3 =&gt; function(value1, value2, value3);
+
+    </span><span style="color: green;">// Transform (T1, T2, T3, T4) -&gt; void
+    // to T1 -&gt; T2 -&gt; T3 -&gt; T4 -&gt; void.
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T4</span><span style="color: black;">&gt;&gt;&gt;&gt; Curry&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">T4</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">T4</span><span style="color: black;">&gt; function) =&gt;
+            value1 =&gt; value2 =&gt; value3 =&gt; value4 =&gt; function(value1, value2, value3, value4);
+
+    </span><span style="color: green;">// ...
+</span><span style="color: black;">}</span></pre>
+<h1>Lambda operator associativity</h1>
+<p>As demonstrated above, in a lambda expression, if on the right side of the =&gt; operator there is another lambda expression, the parenthesis for the right side lambda expression can be omitted. For example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">OperatorAssociativity()
+{
+    </span><span style="color: green;">// int -&gt; (int -&gt; int)
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; curriedAdd2 = a =&gt; (b =&gt; a + b);
+    </span><span style="color: green;">// int -&gt; (int -&gt; (int -&gt; int))
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt;&gt; curriedAdd3 = a =&gt; (b =&gt; (c =&gt; a + b + c));
+}</span></pre>
+<p>The above functions are identical to the following functions without parenthesis:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">OperatorAssociativity()
+{
+    </span><span style="color: green;">// int -&gt; int -&gt; int
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; curriedAdd2 =  a =&gt; b =&gt; a + b;
+    </span><span style="color: green;">// int -&gt; int -&gt; int -&gt; int
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt;&gt; curriedAdd3 = a =&gt; b =&gt; c =&gt; a + b + c;
+}</span></pre>
+<p>So that the =&gt; operator can be viewed as right associative.</p>
+<p>In some other functional languages, functions are curried by default. For example, in F#, it is unnecessary to explicitly define a function as curried:</p>
+<pre class="code"><span style="color: blue;">let </span><span style="color: black;">curriedAdd2: </span><span style="color: #2b91af;">int </span><span style="color: blue;">-&gt; </span><span style="color: black;">(</span><span style="color: #2b91af;">int </span><span style="color: blue;">-&gt; </span><span style="color: #2b91af;">int</span><span style="color: black;">) = </span><span style="color: blue;">fun </span><span style="color: black;">a </span><span style="color: blue;">-&gt; <span style="color: blue;"></span><span style="color: black;">(</span>fun </span><span style="color: black;">b </span><span style="color: blue;">-&gt; </span><span style="color: black;">a + b)
+</span><span style="color: blue;">let </span><span style="color: black;">add1<span style="color: black;">: </span><span style="color: #2b91af;">int </span><span style="color: blue;">-&gt; </span><span style="color: #2b91af;">int</span> = curriedAdd2 1
+</span><span style="color: blue;">let </span><span style="color: black;">curriedAdd2esult: </span><span style="color: #2b91af;">int </span><span style="color: black;">= add1 2
+</span></pre>
+<p>The function is curried by default. The above code is equivalent to:</p>
+<pre class="code"><span style="color: blue;">let </span><span style="color: black;">add2: </span><span style="color: #2b91af;">int </span><span style="color: blue;">-&gt; </span><span style="color: #2b91af;">int </span><span style="color: blue;">-&gt; </span><span style="color: #2b91af;">int </span><span style="color: black;">= </span><span style="color: blue;">fun </span><span style="color: black;">a b </span><span style="color: blue;">-&gt; </span><span style="color: black;">a + b</span><span style="color: black;">
+</span><span style="color: blue;">let </span><span style="color: black;">add2Result: </span><span style="color: #2b91af;">int </span><span style="color: black;">= add2 1 2</span></pre>
+<p>To explicitly define a uncurried function, tuple can be used to pass multiple values at one time:</p>
+<pre class="code"><span style="color: blue;">let </span><span style="color: black;">add2Tuple: </span><span style="color: #2b91af;">int </span><span style="color: black;">* </span><span style="color: #2b91af;">int </span><span style="color: blue;">-&gt; </span><span style="color: #2b91af;">int </span><span style="color: black;">= </span><span style="color: blue;">fun </span><span style="color: black;">(a, b) </span><span style="color: blue;">-&gt; </span><span style="color: black;">a + b
+</span><span style="color: blue;">let </span><span style="color: black;">add2TupleResult = add2Tuple (1, 2) </span><span style="color: green;">// add2Tuple(Tuple.Create(1, 2)
+</span></pre>
+<p><a href="http://en.wikipedia.org/wiki/Haskell_(programming_language)" target="_blank">Haskell</a> (that is the first name of <a href="http://en.wikipedia.org/wiki/Haskell_Curry" target="_blank">Haskell Curry</a>) works similarly as F#:</p>
+<pre class="code"><span style="color: black;">-- curriedAdd2 :: Num a =&gt; a –&gt; (a –&gt; a)
+curriedAdd2 = \a –&gt; (\b -&gt; a + b)<span style="color: black;">
+</span>add1 = curriedAdd2 1<span style="color: black;">
+</span>curriedAdd2Result = add1 2
+
+<span style="color: black;">-- add2 :: Num a =&gt; a -&gt; a -&gt; a
+add2 a b = a + b
+</span>add2Result = add2 1 2
+
+-- add2Tuple :: Num a =&gt; (a, a) -&gt; a
+add2Tuple (a, b) = a + b<span style="color: black;">
+</span>add2TupleResult = add2Tuple (1, 2)
+</span></pre>
+<h1>Partial apply function</h1>
+<p>Calling (or applying) a curried function with one argument, is called <a href="http://en.wikipedia.org/wiki/Partial_application" target="_blank">partial application</a>. Since any N-arity function can be curried, any N-arity function can also be partial applied:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">FuncExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Partial&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; function, </span><span style="color: #2b91af;">T1 </span><span style="color: black;">value1) =&gt;
+            value2 =&gt; function(value1, value2);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; Partial&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; function, </span><span style="color: #2b91af;">T1 </span><span style="color: black;">value1) =&gt;
+            value2 =&gt; value3 =&gt; function(value1, value2, value3);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T4</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt;&gt; Partial&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">T4</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">T4</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; function, </span><span style="color: #2b91af;">T1 </span><span style="color: black;">value1) =&gt;
+            value2 =&gt; value3 =&gt; value4 =&gt; function(value1, value2, value3, value4);
+
+    </span><span style="color: green;">// ...
+</span><span style="color: black;">}
+
+</span><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ActionExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt; Partial&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt; function, </span><span style="color: #2b91af;">T1 </span><span style="color: black;">value1) =&gt;
+            value2 =&gt; function(value1, value2);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T3</span><span style="color: black;">&gt;&gt; Partial&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">&gt; function, </span><span style="color: #2b91af;">T1 </span><span style="color: black;">value1) =&gt;
+            value2 =&gt; value3 =&gt; function(value1, value2, value3);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T4</span><span style="color: black;">&gt;&gt;&gt; Partial&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">T4</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">T4</span><span style="color: black;">&gt; function, </span><span style="color: #2b91af;">T1 </span><span style="color: black;">value1) =&gt;
+            value2 =&gt; value3 =&gt; value4 =&gt; function(value1, value2, value3, value4);
+
+    </span><span style="color: green;">// ...
+</span><span style="color: black;">}</span></pre>
+<p>For example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">PartialApplication()
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; add2 = (a, b) =&gt; a + b;
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; add1 = add2.Partial(1);
+    </span><span style="color: blue;">int </span><span style="color: black;">add2Result = add1(2);
+
+    </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; traceAdd2 = (a, b) =&gt; </span><span style="color: black;">(a + b).WriteLine();
+    </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; traceAdd1 = traceAdd2.Partial(1);
+    traceAdd1(2);
+}</span></pre>
+<p>In some other functional languages where functions are curried by default, functions are partially applied by default too.</p>
+<h1>Uncurry function</h1>
+<p>A sequence of N 1-arity functions can also be transformed back to a N-arity function. This is called uncurrying, which can be generally implemented For Func and Action delegate types as:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">FuncExtensions
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Transform T1 -&gt; T2 -&gt; TResult
+    // to (T1, T2) -&gt; TResult.
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Uncurry&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; function) =&gt;
+            (value1, value2) =&gt; function(value1)(value2);
+
+    </span><span style="color: green;">// Transform T1 -&gt; T2 -&gt; T3 -&gt; TResult
+    // to (T1, T2, T3) -&gt; TResult.
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Uncurry&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt;&gt; function) =&gt;
+            (value1, value2, value3) =&gt; function(value1)(value2)(value3);
+
+    </span><span style="color: green;">// Transform T1 -&gt; T2 -&gt; T3 -&gt; T4 -&gt; TResult
+    // to (T1, T2, T3, T4) -&gt; TResult.
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">T4</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Uncurry&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">T4</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T4</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt;&gt;&gt; function) =&gt;
+            (value1, value2, value3, value4) =&gt; function(value1)(value2)(value3)(value4);
+
+    </span><span style="color: green;">// ...
+</span><span style="color: black;">}
+
+</span><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ActionExtensions
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Transform T1 -&gt; T2 -&gt; void
+    // to (T1, T2) -&gt; void.
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt; Uncurry&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt;&gt; function) =&gt; (value1, value2) =&gt;
+            function(value1)(value2);
+
+    </span><span style="color: green;">// Transform T1 -&gt; T2 -&gt; T3 -&gt; void
+    // to (T1, T2, T3) -&gt; void.
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">&gt; Uncurry&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T3</span><span style="color: black;">&gt;&gt;&gt; function) =&gt;
+            (value1, value2, value3) =&gt; function(value1)(value2)(value3);
+
+    </span><span style="color: green;">// Transform T1 -&gt; T2 -&gt; T3 -&gt; T4 -&gt; void
+    // to (T1, T2, T3, T4) -&gt; void.
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">T4</span><span style="color: black;">&gt; Uncurry&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">T4</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T4</span><span style="color: black;">&gt;&gt;&gt;&gt; function) =&gt;
+            (value1, value2, value3, value4) =&gt; function(value1)(value2)(value3)(value4);
+
+    </span><span style="color: green;">// ...
+</span><span style="color: black;">}</span></pre>
+<p>For example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CallUncurry()
+{
+    </span><span style="color: green;">// int -&gt; int -&gt; int -&gt; int
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt;&gt; curriedAdd3 = a =&gt; (b =&gt; (c =&gt; a + b + c));
+    </span><span style="color: green;">// (int -&gt; int -&gt; int) -&gt; int
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; add3 = curriedAdd3.Uncurry();
+    </span><span style="color: blue;">int </span><span style="color: black;">add3Result = add3(1, 2, 3);
+
+    </span><span style="color: green;">// int -&gt; int -&gt; int -&gt; void
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt;&gt; curriedTraceAdd3 = a =&gt; b =&gt; c =&gt; </span><span style="color: black;">(a + b + c).WriteLine();
+    </span><span style="color: green;">// (int -&gt; int -&gt; int) -&gt; void
+    </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; traceAdd3 = curriedTraceAdd3.Uncurry();
+    traceAdd3(1, 2, 3);
+}</span></pre>
+<h1>First-class function</h1>
+<p>As demonstrated, C# treats function as first class citizen. This can be compared with C# object side by side. First of all, object and function both have type and instance, and instance can be assigned/bound to variable:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Functions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Object()
+    {
+        </span><span style="color: #2b91af;">Data </span><span style="color: black;">value = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Data</span><span style="color: black;">(0);
+    }
+
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Function()
+    {
+        </span><span style="color: #2b91af;">Function </span><span style="color: black;">value1 = Function; </span><span style="color: green;">// Named function.
+        </span><span style="color: #2b91af;">Function </span><span style="color: black;">value2 = () =&gt; { }; </span><span style="color: green;">// Anonymous function.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>Object and function can both be stored as data field:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Functions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">private static </span><span style="color: #2b91af;">Data </span><span style="color: black;">dataField = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Data</span><span style="color: black;">(0);
+
+    <span style="color: black;"></span><span style="color: blue;">private </span></span><span style="color: blue;">static </span><span style="color: #2b91af;">Function </span><span style="color: black;">namedFunctionField = Function;
+
+    <span style="color: black;"></span><span style="color: blue;">private </span></span><span style="color: blue;">static </span><span style="color: #2b91af;">Function </span><span style="color: black;">anonymousFunctionField = () =&gt; { };
+}</span></pre>
+<p>Object and function can both be input and output of function:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Functions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static </span><span style="color: #2b91af;">Data </span><span style="color: black;">Function(</span><span style="color: #2b91af;">Data </span><span style="color: black;">value) =&gt; value;
+
+    </span><span style="color: blue;">internal static </span><span style="color: #2b91af;">Function </span><span style="color: black;">Function(</span><span style="color: #2b91af;">Function </span><span style="color: black;">value) =&gt; value;
+}</span></pre>
+<p>Object and function can both access data out of the scope:</p>
+<pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">OuterClass
+</span><span style="color: black;">{
+    </span><span style="color: blue;">const int </span><span style="color: black;">Outer = 1;
+
+    </span><span style="color: blue;">class </span><span style="color: #2b91af;">AccessOuter
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">const int </span><span style="color: black;">Local = 2;
+        </span><span style="color: blue;">int </span><span style="color: black;">sum = Local + Outer;
+    }
+}
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">OuterFunction()
+{
+    </span><span style="color: blue;">const int </span><span style="color: black;">Outer = 1;
+
+    </span><span style="color: blue;">void </span><span style="color: black;">AccessOuter()
+    {
+        </span><span style="color: blue;">const int </span><span style="color: black;">Local = 2;
+        </span><span style="color: blue;">int </span><span style="color: black;">sum = Local + Outer;
+    }
+
+    </span><span style="color: #2b91af;">Function </span><span style="color: black;">accessOuter = () =&gt;
+    {
+        </span><span style="color: blue;">const int </span><span style="color: black;">Local = 2;
+        </span><span style="color: blue;">int </span><span style="color: black;">sum = Local + Outer;
+    };
+}</span></pre>
+<p>Object and function can both be nested:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">Data
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal </span><span style="color: #2b91af;">Data </span><span style="color: black;">Inner { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+}
+
+</span><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Functions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">NestedObject()
+    {
+        </span><span style="color: #2b91af;">Data </span><span style="color: black;">outer = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Data</span><span style="color: black;">(0)
+        {
+            Inner = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Data</span><span style="color: black;">(1)
+        };
+    }
+
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">NestedFunction()
+    {
+        </span><span style="color: blue;">void </span><span style="color: black;">Outer()
+        {
+            </span><span style="color: blue;">void </span><span style="color: black;">Inner() { }
+        }
+
+        </span><span style="color: #2b91af;">Function </span><span style="color: black;">outer = () =&gt;
+        {
+            </span><span style="color: #2b91af;">Function </span><span style="color: black;">inner = () =&gt; { };
+        };
+    }
+}</span></pre>
+<p>Object and function can both be equality testable:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ObjectEquality()
+{
+    </span><span style="color: #2b91af;">Data </span><span style="color: black;">value1;
+    </span><span style="color: #2b91af;">Data </span><span style="color: black;">value2;
+    value1 = value2 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Data</span><span style="color: black;">(0);
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(value1, value2).WriteLine(); </span><span style="color: green;">// True
+    </span><span style="color: blue;">object</span><span style="color: black;">.Equals(value1, value2).WriteLine(); </span><span style="color: green;">// True
+    </span><span style="color: black;">(value1 == value2).WriteLine(); </span><span style="color: green;">// True
+
+    </span><span style="color: black;">value1 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Data</span><span style="color: black;">(1);
+    value2 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Data</span><span style="color: black;">(1);
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(value1, value2).WriteLine(); </span><span style="color: green;">// False
+    </span><span style="color: blue;">object</span><span style="color: black;">.Equals(value1, value2).WriteLine(); </span><span style="color: green;">// True
+    </span><span style="color: black;">(value1 == value2).WriteLine(); </span><span style="color: green;">// True
+</span><span style="color: black;">}
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">FunctionEquality()
+{
+    </span><span style="color: #2b91af;">Function </span><span style="color: black;">value1;
+    </span><span style="color: #2b91af;">Function </span><span style="color: black;">value2;
+    value1 = value2 = () =&gt; { };
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(value1, value2).WriteLine(); </span><span style="color: green;">// True
+    </span><span style="color: blue;">object</span><span style="color: black;">.Equals(value1, value2).WriteLine(); </span><span style="color: green;">// True
+    </span><span style="color: black;">(value1 == value2).WriteLine(); </span><span style="color: green;">// True
+
+    </span><span style="color: black;">value1 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Function</span><span style="color: black;">(Function);
+    value2 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Function</span><span style="color: black;">(Function);
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(value1, value2).WriteLine(); </span><span style="color: green;">// False
+    </span><span style="color: blue;">object</span><span style="color: black;">.Equals(value1, value2).WriteLine(); </span><span style="color: green;">// True
+    </span><span style="color: black;">(value1 == value2).WriteLine(); </span><span style="color: green;">// True
+</span><span style="color: black;">}</span></pre>
+<p>So C# has <a href="https://en.wikipedia.org/wiki/First-class_function" target="_blank">first class functions</a>. Here is the summary:</p>
+<table width="636" cellspacing="0" cellpadding="0" border="0">
+<tbody>
+<tr>
+<td width="124" valign="top">&nbsp;</td>
+<td width="210" valign="top">Object</td>
+<td width="300" valign="top">Function</td>
+</tr>
+<tr>
+<td width="124" valign="top">Type</td>
+<td width="210" valign="top">Class</td>
+<td width="300" valign="top">Delegate type</td>
+</tr>
+<tr>
+<td width="124" valign="top">Instance</td>
+<td width="210" valign="top">Class instance</td>
+<td width="300" valign="top">Delegate instance</td>
+</tr>
+<tr>
+<td width="124" valign="top">Variable</td>
+<td width="210" valign="top">Can be assigned to variable</td>
+<td width="300" valign="top">Can be assigned to variable</td>
+</tr>
+<tr>
+<td width="124" valign="top">Field</td>
+<td width="210" valign="top">Can be stored as data field</td>
+<td width="300" valign="top">Can be stored as data field</td>
+</tr>
+<tr>
+<td width="124" valign="top">Input</td>
+<td width="210" valign="top">Can be function’s parameter</td>
+<td width="300" valign="top">Can be higher-order function’s parameter</td>
+</tr>
+<tr>
+<td width="124" valign="top">Output</td>
+<td width="210" valign="top">Can be function’s return value</td>
+<td width="300" valign="top">Can be higher-order function’s return value</td>
+</tr>
+<tr>
+<td width="124" valign="top">Outer variable</td>
+<td width="210" valign="top">Can access</td>
+<td width="300" valign="top">Can access via closure</td>
+</tr>
+<tr>
+<td width="124" valign="top">Nesting</td>
+<td width="210" valign="top">Can be nested</td>
+<td width="300" valign="top">Can be nested</td>
+</tr>
+<tr>
+<td width="124" valign="top">Equality</td>
+<td width="210" valign="top">Can be testable</td>
+<td width="300" valign="top">Can be testable</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</body>
+</html>

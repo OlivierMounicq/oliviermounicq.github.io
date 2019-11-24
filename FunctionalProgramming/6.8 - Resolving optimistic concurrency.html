@@ -1,0 +1,538 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+
+<h1>Entity Framework/Core and LINQ to Entities (8) Optimistic Concurrency</h1>
+
+<p>Conflicts can occur if the same data is read and changed concurrently. Generally, there are 2 <a href="https://en.wikipedia.org/wiki/Concurrency_control" target="_blank">concurrency control</a> approaches:</p>
+<ul>
+<li>Pessimistic concurrency: one database client can lock the data being accessed, in order to prevent other database clients to change that same data concurrently.</li>
+<li>Optimistic concurrency: Data is not locked in the database for client to CRUD. Any database client is allowed to read and change any data concurrently. As a result, concurrency conflicts can happen. This is how EF/Core work with database.</li>
+</ul>
+<p>To demonstrate the behavior of EF/Core for concurrency, the following DbReaderWriter type is defined as database CRUD client:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">DbReaderWriter </span><span style="color: black;">: </span><span style="color: #2b91af;">IDisposable
+</span><span style="color: black;">{
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">DbContext </span><span style="color: black;">context;
+
+    </span><span style="color: blue;">internal </span><span style="color: black;">DbReaderWriter(</span><span style="color: #2b91af;">DbContext </span><span style="color: black;">context) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.context = context;
+
+    </span><span style="color: blue;">internal </span><span style="color: #2b91af;">TEntity </span><span style="color: black;">Read&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt;(</span><span style="color: blue;">params object</span><span style="color: black;">[] keys) </span><span style="color: blue;">where </span><span style="color: #2b91af;">TEntity </span><span style="color: black;">: </span><span style="color: blue;">class </span><span style="color: black;">=&gt;
+        </span><span style="color: blue;">this</span><span style="color: black;">.context.Set&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt;().Find(keys);
+
+    </span><span style="color: blue;">internal int </span><span style="color: black;">Write(</span><span style="color: #2b91af;">Action </span><span style="color: black;">change)
+    {
+        change();
+        </span><span style="color: blue;">return this</span><span style="color: black;">.context.SaveChanges();
+    }
+
+    </span><span style="color: blue;">internal </span><span style="color: #2b91af;">DbSet</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt; Set&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt;() </span><span style="color: blue;">where </span><span style="color: #2b91af;">TEntity </span><span style="color: black;">: </span><span style="color: blue;">class </span><span style="color: black;">=&gt; </span><span style="color: blue;">this</span><span style="color: black;">.context.Set&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt;();
+
+    </span><span style="color: blue;">public void </span><span style="color: black;">Dispose() =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.context.Dispose();
+}</span></pre>
+<p>Multiple DbReaderWriter instances can be be used to read and write data concurrently. For example:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Concurrency
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">NoCheck(
+        </span><span style="color: #2b91af;">DbReaderWriter </span><span style="color: black;">readerWriter1, </span><span style="color: #2b91af;">DbReaderWriter </span><span style="color: black;">readerWriter2, </span><span style="color: #2b91af;">DbReaderWriter </span><span style="color: black;">readerWriter3)
+    {
+        </span><span style="color: blue;">int </span><span style="color: black;">id = 1;
+        </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">categoryCopy1 = readerWriter1.Read&lt;</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">&gt;(id);
+        </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">categoryCopy2 = readerWriter2.Read&lt;</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">&gt;(id);
+
+        readerWriter1.Write(() =&gt; categoryCopy1.Name = </span><span style="color: blue;">nameof</span><span style="color: black;">(readerWriter1));
+        </span><span style="color: green;">// exec sp_executesql N'SET NOCOUNT ON;
+        // UPDATE [Production].[ProductCategory] SET [Name] = @p0
+        // WHERE [ProductCategoryID] = @p1;
+        // SELECT @@ROWCOUNT;
+        // ',N'@p1 int,@p0 nvarchar(50)',@p1=1,@p0=N'readerWriter1'
+        </span><span style="color: black;">readerWriter2.Write(() =&gt; categoryCopy2.Name = </span><span style="color: blue;">nameof</span><span style="color: black;">(readerWriter2)); </span><span style="color: green;">// Last client wins.
+        // exec sp_executesql N'SET NOCOUNT ON;
+        // UPDATE [Production].[ProductCategory] SET [Name] = @p0
+        // WHERE [ProductCategoryID] = @p1;
+        // SELECT @@ROWCOUNT;
+        // ',N'@p1 int,@p0 nvarchar(50)',@p1=1,@p0=N'readerWriter2'
+
+        </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">category3 = readerWriter3.Read&lt;</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">&gt;(id);
+        category3.Name.WriteLine(); </span><span style="color: green;">// readerWriter2
+    </span><span style="color: black;">}
+}</span></pre>
+<p>In this example, multiple DbReaderWriter instances read and write data concurrently:</p>
+<ol>
+<li>readerWriter1 reads category “Bikes”</li>
+<li>readerWriter2 reads category “Bikes”. These 2 entities are independent because they are are from different DbContext instances.</li>
+<li>readerWriter1 updates category’s name from “Bikes” to “readerWriter1”. As previously discussed, by default EF/Core locate the category with its primary key.</li>
+<li>In database, this category’s name is no longer “Bikes”</li>
+<li>readerWriter2 updates category’s name from “Bikes” to “readerWriter2”. It locates the category with its primary key as well. The primary key is unchanged, so the same category can be located and the name can be changed.</li>
+<li>So later when readerWriter3 reads the entity with the same primary key, the category entity’s Name is “readerWriter2”.</li>
+</ol>
+<h1>Detect Concurrency conflicts</h1>
+<p>Concurrency conflicts can be detected by checking entities’ property values besides primary keys. To required EF/Core to check a certain property, just add a System.ComponentModel.DataAnnotations.ConcurrencyCheckAttribute to it. Remember when defining ProductPhoto entity, its ModifiedDate has a [ConcurrencyCheck] attribute:</p>
+<pre class="code"><span style="color: blue;">public partial class </span><span style="color: #2b91af;">ProductPhoto
+</span><span style="color: black;">{
+    [</span><span style="color: #2b91af;">ConcurrencyCheck</span><span style="color: black;">]
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">DateTime </span><span style="color: black;">ModifiedDate { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+}</span></pre>
+<p>This property is also called the concurrency token. When EF/Core translate changes of a photo, ModifiedDate property is checked along with the primary key to locate the photo:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ConcurrencyCheck(</span><span style="color: #2b91af;">DbReaderWriter </span><span style="color: black;">readerWriter1, </span><span style="color: #2b91af;">DbReaderWriter </span><span style="color: black;">readerWriter2)
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">id = 1;
+    </span><span style="color: #2b91af;">ProductPhoto </span><span style="color: black;">photoCopy1 = readerWriter1.Read&lt;</span><span style="color: #2b91af;">ProductPhoto</span><span style="color: black;">&gt;(id);
+    </span><span style="color: #2b91af;">ProductPhoto </span><span style="color: black;">photoCopy2 = readerWriter2.Read&lt;</span><span style="color: #2b91af;">ProductPhoto</span><span style="color: black;">&gt;(id);
+
+    readerWriter1.Write(() =&gt;
+    {
+        photoCopy1.LargePhotoFileName = </span><span style="color: blue;">nameof</span><span style="color: black;">(readerWriter1);
+        photoCopy1.ModifiedDate = </span><span style="color: #2b91af;">DateTime</span><span style="color: black;">.Now;
+    });
+    </span><span style="color: green;">// exec sp_executesql N'SET NOCOUNT ON;
+    // UPDATE [Production].[ProductPhoto] SET [LargePhotoFileName] = @p0, [ModifiedDate] = @p1
+    // WHERE [ProductPhotoID] = @p2 AND [ModifiedDate] = @p3;
+    // SELECT @@ROWCOUNT;
+    // ',N'@p2 int,@p0 nvarchar(50),@p1 datetime2(7),@p3 datetime2(7)',@p2=1,@p0=N'readerWriter1',@p1='2017-01-25 22:04:25.9292433',@p3='2008-04-30 00:00:00'
+    </span><span style="color: black;">readerWriter2.Write(() =&gt;
+    {
+        photoCopy2.LargePhotoFileName = </span><span style="color: blue;">nameof</span><span style="color: black;">(readerWriter2);
+        photoCopy2.ModifiedDate = </span><span style="color: #2b91af;">DateTime</span><span style="color: black;">.Now;
+    });
+    </span><span style="color: green;">// exec sp_executesql N'SET NOCOUNT ON;
+    // UPDATE [Production].[ProductPhoto] SET [LargePhotoFileName] = @p0, [ModifiedDate] = @p1
+    // WHERE [ProductPhotoID] = @p2 AND [ModifiedDate] = @p3;
+    // SELECT @@ROWCOUNT;
+    // ',N'@p2 int,@p0 nvarchar(50),@p1 datetime2(7),@p3 datetime2(7)',@p2=1,@p0=N'readerWriter2',@p1='2017-01-25 22:04:59.1792263',@p3='2008-04-30 00:00:00'</span><span style="color: gray;">
+</span><span style="color: black;">}</span></pre>
+<p>In the translated SQL statement, the WHERE clause contains primary key and the original concurrency token. The following is how EF/Core check the concurrency conflicts:</p>
+<ol>
+<li>readerWriter1 reads photo with primary key 1, and modified date “2008-04-30 00:00:00”</li>
+<li>readerWriter2 reads the same photo with primary key 1, and modified date “2008-04-30 00:00:00”</li>
+<li>readerWriter1 locates the photo with primary key and original modified date, and update its large photo file name and modified date.</li>
+<li>In database the photo’s modified date is no longer the original value “2008-04-30 00:00:00”</li>
+<li>readerWriter2 tries to locate the photo with primary key and original modified date. However the provided modified date is outdated. EF/Core detect that 0 row is updated by the translated SQL, and throws DbUpdateConcurrencyException: Database operation expected to affect 1 row(s) but actually affected 0 row(s). Data may have been modified or deleted since entities were loaded. See <a href="http://go.microsoft.com/fwlink/?LinkId=527962">http://go.microsoft.com/fwlink/?LinkId=527962</a> for information on understanding and handling optimistic concurrency exceptions.</li>
+</ol>
+<p>Another option for concurrency check is System.ComponentModel.DataAnnotations.TimestampAttribute. It can only be used for a byte[] property, which is mapped from a <a href="https://technet.microsoft.com/en-us/library/ms182776.aspx" target="_blank">rowversion</a> (timestamp) column. For SQL database, these 2 terms, rowversion and timestamp, are the same thing. timestamp is just a <a href="https://technet.microsoft.com/en-us/library/ms177566.aspx" target="_blank">synonym</a> of rowversion data type. A row’s non-nullable rowversion column is a 8 bytes (binary(8)) counter maintained by database, its value increases for each change of the row.</p>
+<p>Microsoft’s AdventureWorks sample database does not have such a rowversion column, so create one for the Production.Product table:</p>
+<pre class="code"><span style="color: blue;">ALTER TABLE </span><span style="color: black;">[Production]</span><span style="color: gray;">.</span><span style="color: black;">[Product] </span><span style="color: blue;">ADD </span><span style="color: black;">[RowVersion] </span><span style="color: blue;">rowversion </span><span style="color: gray;">NOT NULL
+</span><span style="color: blue;">GO</span></pre>
+<p>Then define the mapping property for Product entity:</p>
+<pre class="code"><span style="color: blue;">public partial class </span><span style="color: #2b91af;">Product
+</span><span style="color: black;">{
+    [</span><span style="color: #2b91af;">DatabaseGenerated</span><span style="color: black;">(</span><span style="color: #2b91af;">DatabaseGeneratedOption</span><span style="color: black;">.Computed)]
+    [</span><span style="color: #2b91af;">Timestamp</span><span style="color: black;">]
+    </span><span style="color: blue;">public byte</span><span style="color: black;">[] RowVersion { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+    [</span><span style="color: #2b91af;">NotMapped</span><span style="color: black;">]
+    </span><span style="color: blue;">public string </span><span style="color: black;">RowVersionString =&gt;
+        </span><span style="color: #a31515;">$"0x</span><span style="color: black;">{</span><span style="color: #2b91af;">BitConverter</span><span style="color: black;">.ToUInt64(</span><span style="color: blue;">this</span><span style="color: black;">.RowVersion.Reverse().ToArray(), 0).ToString(</span><span style="color: #a31515;">"X16"</span><span style="color: black;">)}</span><span style="color: #a31515;">"</span><span style="color: black;">;
+}</span></pre>
+<p>Now RowVersion property is the concurrency token. Regarding database automatically increases the RowVersion value, Rowversion also has the [DatabaseGenerated(DatabaseGeneratedOption.Computed)] attribute. The other RowVersionString property returns a readable representation of the byte array returned by RowVersion. It is not a part of the object-relational mapping, so it has a [NotMapped] attribute. The following example updates and and deletes the same product concurrently:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">RowVersion(</span><span style="color: #2b91af;">DbReaderWriter </span><span style="color: black;">readerWriter1, </span><span style="color: #2b91af;">DbReaderWriter </span><span style="color: black;">readerWriter2)
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">id = 995;
+    </span><span style="color: #2b91af;">Product </span><span style="color: black;">productCopy1 = readerWriter1.Read&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt;(id);
+    productCopy1.RowVersionString.WriteLine(); </span><span style="color: green;">// 0x0000000000000803
+
+    </span><span style="color: #2b91af;">Product </span><span style="color: black;">productCopy2 = readerWriter2.Read&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt;(id);
+    productCopy2.RowVersionString.WriteLine(); </span><span style="color: green;">// 0x0000000000000803
+
+    </span><span style="color: black;">readerWriter1.Write(() =&gt; productCopy1.Name = </span><span style="color: blue;">nameof</span><span style="color: black;">(readerWriter1));
+    </span><span style="color: green;">// exec sp_executesql N'SET NOCOUNT ON;
+    // UPDATE [Production].[Product] SET [Name] = @p0
+    // WHERE [ProductID] = @p1 AND [RowVersion] = @p2;
+    // SELECT [RowVersion]
+    // FROM [Production].[Product]
+    // WHERE @@ROWCOUNT = 1 AND [ProductID] = @p1;
+    // ',N'@p1 int,@p0 nvarchar(50),@p2 varbinary(8)',@p1=995,@p0=N'readerWriter1',@p2=0x0000000000000803
+    </span><span style="color: black;">productCopy1.RowVersionString.WriteLine(); </span><span style="color: green;">// 0x00000000000324B1
+    </span><span style="color: black;">readerWriter2.Write(() =&gt; readerWriter2.Set&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt;().Remove(productCopy2));
+    </span><span style="color: green;">// exec sp_executesql N'SET NOCOUNT ON;
+    // DELETE FROM [Production].[Product]
+    // WHERE [ProductID] = @p0 AND [RowVersion] = @p1;
+    // SELECT @@ROWCOUNT;
+    // ',N'@p0 int,@p1 varbinary(8)',@p0=995,@p1=0x0000000000000803</span><span style="color: gray;">
+</span><span style="color: black;">}</span></pre>
+<p>When updating and deleting photo entities, its auto generated RowVersion property value is checked too. So this is how it works:</p>
+<ol>
+<li>readerWriter1 reads product with primary key 995 and row version 0x0000000000000803</li>
+<li>readerWriter2 reads product with the same primary key 995 and row version 0x0000000000000803</li>
+<li>readerWriter1 locates the photo with primary key and original row version, and update its name. Database automatically increases the photo’s row version. Since the row version is specified as [DatabaseGenerated(DatabaseGeneratedOption.Computed)], EF/Core also locate the photo with the primary key to query the increased row version, and update the entity at client side.</li>
+<li>In database the product’s row version is no longer 0x0000000000000803.</li>
+<li>Then readerWriter2 tries to locate the product with primary key and original row version, and delete it. No product can be found with outdated row version, EF/Core detect that 0 row is deleted, and throws DbUpdateConcurrencyException.</li>
+</ol>
+<h1>Resolve concurrency conflicts</h1>
+<p>DbUpdateConcurrencyException is thrown when SaveChanges detects concurrency conflict:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">Microsoft.EntityFrameworkCore
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">DbUpdateException </span><span style="color: black;">: </span><span style="color: #2b91af;">Exception
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">IReadOnlyList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">EntityEntry</span><span style="color: black;">&gt; Entries { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">DbUpdateConcurrencyException </span><span style="color: black;">: </span><span style="color: #2b91af;">DbUpdateException
+    </span><span style="color: black;">{
+        </span><span style="color: green;">// Members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>Inherited from DbUpdateException, DbUpdateConcurrencyException has an Entries property. Entries returns a sequence of EntityEntry instances, representing the conflicting entities’ tracking information. The basic idea of resolving concurrency conflicts, is to handle DbUpdateConcurrencyException and retry SaveChanges:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">DbReaderWriter
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal int </span><span style="color: black;">Write(</span><span style="color: #2b91af;">Action </span><span style="color: black;">change, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">DbUpdateConcurrencyException</span><span style="color: black;">&gt; handleException, </span><span style="color: blue;">int </span><span style="color: black;">retryCount = 3)
+    {
+        change();
+        </span><span style="color: blue;">for </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">retry = 1; retry &lt; retryCount; retry++)
+        {
+            </span><span style="color: blue;">try
+            </span><span style="color: black;">{
+                </span><span style="color: blue;">return this</span><span style="color: black;">.context.SaveChanges();
+            }
+            </span><span style="color: blue;">catch </span><span style="color: black;">(</span><span style="color: #2b91af;">DbUpdateConcurrencyException </span><span style="color: black;">exception)
+            {
+                handleException(exception);
+            }
+        }
+        </span><span style="color: blue;">return this</span><span style="color: black;">.context.SaveChanges();
+    }
+}</span></pre>
+<p>In the above Write overload, if SaveChanges throws DbUpdateConcurrencyException, the handleException function is called. This function is expected to handle the exception and resolve the conflicts properly. Then SaveChanges is called again. If the last retry of SaveChanges still throws DbUpdateConcurrencyException, the exception is thrown to the caller.</p>
+<h2>Retain database values (database wins)</h2>
+<p>Similar to previous examples, the following example has multiple DbReaderWriter instances to update a product concurrently:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">UpdateProduct(
+    </span><span style="color: #2b91af;">DbReaderWriter </span><span style="color: black;">readerWriter1, </span><span style="color: #2b91af;">DbReaderWriter </span><span style="color: black;">readerWriter2, </span><span style="color: #2b91af;">DbReaderWriter </span><span style="color: black;">readerWriter3,
+    </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">EntityEntry</span><span style="color: black;">&gt; resolveConflicts)
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">id = 950;
+    </span><span style="color: #2b91af;">Product </span><span style="color: black;">productCopy1 = readerWriter1.Read&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt;(id);
+    </span><span style="color: #2b91af;">Product </span><span style="color: black;">productCopy2 = readerWriter2.Read&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt;(id);
+
+    readerWriter1.Write(() =&gt;
+    {
+        productCopy1.Name = </span><span style="color: blue;">nameof</span><span style="color: black;">(readerWriter1);
+        productCopy1.ListPrice = 100.0000M;
+    });
+    readerWriter2.Write(
+        change: () =&gt;
+        {
+            productCopy2.Name = </span><span style="color: blue;">nameof</span><span style="color: black;">(readerWriter2);
+            productCopy2.ProductSubcategoryID = 1;
+        },
+        handleException: exception =&gt;
+        {
+            </span><span style="color: #2b91af;">EntityEntry </span><span style="color: black;">tracking = exception.Entries.Single();</span><span style="color: black;">
+            </span><span style="color: gray;">Product original = (Product)tracking.OriginalValues.ToObject();</span><span style="color: gray;">
+            </span><span style="color: #2b91af;">Product </span><span style="color: black;">current = (</span><span style="color: #2b91af;">Product</span><span style="color: black;">)tracking.CurrentValues.ToObject();
+            </span><span style="color: #2b91af;">Product </span><span style="color: black;">database = productCopy1; </span><span style="color: green;">// Values saved in database.
+            </span><span style="color: #a31515;">$"Original:  (</span><span style="color: black;">{original.Name}</span><span style="color: #a31515;">,   </span><span style="color: black;">{original.ListPrice}</span><span style="color: #a31515;">, </span><span style="color: black;">{original.ProductSubcategoryID}</span><span style="color: #a31515;">, </span><span style="color: black;">{original.RowVersionString}</span><span style="color: #a31515;">)"
+                        </span><span style="color: black;">.WriteLine();
+            </span><span style="color: #a31515;">$"Database:  (</span><span style="color: black;">{database.Name}</span><span style="color: #a31515;">, </span><span style="color: black;">{database.ListPrice}</span><span style="color: #a31515;">, </span><span style="color: black;">{database.ProductSubcategoryID}</span><span style="color: #a31515;">, </span><span style="color: black;">{database.RowVersionString}</span><span style="color: #a31515;">)"
+                </span><span style="color: black;">.WriteLine();
+            </span><span style="color: #a31515;">$"Update to: (</span><span style="color: black;">{current.Name}</span><span style="color: #a31515;">, </span><span style="color: black;">{current.ListPrice}</span><span style="color: #a31515;">, </span><span style="color: black;">{current.ProductSubcategoryID}</span><span style="color: #a31515;">)"
+                </span><span style="color: black;">.WriteLine();
+
+            resolveConflicts(tracking);
+        });
+
+    </span><span style="color: #2b91af;">Product </span><span style="color: black;">resolved = readerWriter3.Read&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt;(id);
+    </span><span style="color: #a31515;">$"Resolved:  (</span><span style="color: black;">{resolved.Name}</span><span style="color: #a31515;">, </span><span style="color: black;">{resolved.ListPrice}</span><span style="color: #a31515;">, </span><span style="color: black;">{resolved.ProductSubcategoryID}</span><span style="color: #a31515;">, </span><span style="color: black;">{resolved.RowVersionString}</span><span style="color: #a31515;">)"
+        </span><span style="color: black;">.WriteLine();
+}</span></pre>
+<p>This is how it works with concurrency conflicts:</p>
+<ol>
+<li>readerWriter1 reads product with primary key 950, and RowVersion 0x00000000000007D1</li>
+<li>readerWriter2 reads product with the same primary key 950, and RowVersion 0x00000000000007D1</li>
+<li>readerWriter1 locates product with primary key and original RowVersion 0x00000000000007D1, and updates product’s name and&nbsp; list price. Database automatically increases the product’s row version</li>
+<li>In database the product’s row version is no longer 0x00000000000007D1.</li>
+<li>readerWriter2 tries to locate product with primary key and original RowVersion, and update product’s name and subcategory.</li>
+<li>readerWriter2 fails to update product, because it cannot locate the product with original RowVersion 0x00000000000007D1. Again, no product can be found with outdated row version, DbUpdateConcurrencyException is thrown.</li>
+</ol>
+<p>As a result, the handleException function specified for readWriter2 is called, it retrieves the conflicting product’s tracking information from DbUpdateConcurrencyException.Entries, and logs these information:</p>
+<ul>
+<li>product’s original property values read by readerWriter2 before the changes</li>
+<li>product’s property values in database at this moment, which are already updated readerWriter1</li>
+<li>product’s current property values after changes, which readerWriter2 fails to save to database.</li>
+</ul>
+<p>Then handleException calls resolveConflicts function to actually resolve the conflict. Then readerWriter2 retries to save the product changes again. This time, SaveChanges should succeed, because there is no conflicts anymore (In this example, there are only 2 database clients reading/writing data concurrently. In reality, the concurrency can be higher, an appropriate retry count or retry strategy should be specified.). Eventually, readerWriter3 reads the product from database, verify its property values.</p>
+<p>There are several options to implement the resolveConflicts function to resolves the conflicts. One simple option, called “database wins”, is to simply give up the client update, and let database retain whatever values it has for that entity. This seems to be easy to just catch DbUpdateConcurrencyException and do nothing, then database naturally wins, and retains its values:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">DbReaderWriter
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal int </span><span style="color: black;">WriteDatabaseWins(</span><span style="color: #2b91af;">Action </span><span style="color: black;">change)
+    {
+        change();
+        </span><span style="color: blue;">try
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">return this</span><span style="color: black;">.context.SaveChanges();
+        }
+        </span><span style="color: blue;">catch </span><span style="color: black;">(</span><span style="color: #2b91af;">DbUpdateConcurrencyException</span><span style="color: black;">)
+        {
+            </span><span style="color: blue;">return </span><span style="color: black;">0; </span><span style="color: green;">// this.context is in a corrupted state.
+        </span><span style="color: black;">}
+    }
+}</span></pre>
+<p>However, this way leaves the DbContext, the conflicting entity, and the entity’s tracking information in a corrupted state. For the caller, since the change saving is done, the entity’s property values should be in sync with database values, but the values are actually out of sync and still conflicting. Also, the entity has a tracking state Modified after change saving is done. So the safe approach is to reload and refresh the entity’s values and tracking information:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">DatabaseWins(
+    </span><span style="color: #2b91af;">DbReaderWriter </span><span style="color: black;">readerWriter1, </span><span style="color: #2b91af;">DbReaderWriter </span><span style="color: black;">readerWriter2, </span><span style="color: #2b91af;">DbReaderWriter </span><span style="color: black;">readerWriter3)
+{
+    UpdateProduct(readerWriter1, readerWriter2, readerWriter3, resolveConflicts: tracking =&gt;
+    {
+        tracking.State.WriteLine(); </span><span style="color: green;">// Modified
+        </span><span style="color: black;">tracking.Property(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.Name)).IsModified.WriteLine(); </span><span style="color: green;">// True
+        </span><span style="color: black;">tracking.Property(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.ListPrice)).IsModified.WriteLine(); </span><span style="color: green;">// False
+        </span><span style="color: black;">tracking.Property(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.ProductSubcategoryID)).IsModified.WriteLine(); </span><span style="color: green;">// True
+
+        </span><span style="color: black;">tracking.Reload(); </span><span style="color: green;">// Execute query.
+
+        </span><span style="color: black;">tracking.State.WriteLine(); </span><span style="color: green;">// Unchanged
+        </span><span style="color: black;">tracking.Property(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.Name)).IsModified.WriteLine(); </span><span style="color: green;">// False
+        </span><span style="color: black;">tracking.Property(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.ListPrice)).IsModified.WriteLine(); </span><span style="color: green;">// False
+        </span><span style="color: black;">tracking.Property(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.ProductSubcategoryID)).IsModified.WriteLine(); </span><span style="color: green;">// False
+    </span><span style="color: black;">});
+    </span><span style="color: green;">// Original:  (ML Crankset,   256.4900, 8, 0x00000000000007D1)
+    // Database:  (readerWriter1, 100.0000, 8, 0x0000000000036335)
+    // Update to: (readerWriter2, 256.4900, 1)
+    // Resolved:  (readerWriter1, 100.0000, 8, 0x0000000000036335)
+</span><span style="color: black;">}</span></pre>
+<p>UpdateProduct is called with a resolveConflicts function, which resolves the conflict by calling Reload method on the EntityEntry instance representing the conflicting product’s tracking information:</p>
+<ol>
+<li>EntityEntry.Reload executes a SELECT statement to read the product’s property values from database, then refresh the product entity and all tracking information. The product’s property values, the tracked original property values before changes, the tracked current property values after changes, are all refreshed to the queried database values. The entity tracking state is also refreshed to Unchanged.</li>
+<li>At this moment, product has the same tracked original values and current values, as if it is just initially read from database, without changes.</li>
+<li>When DbReaderWriter.Write’s retry logic calls SaveChanges again, no changed entity is detected. SaveChanges succeeds without executing any SQL, and returns 0. As expected, readerWriter2 does not update any value to database, and all values in database are retained.</li>
+</ol>
+<p>Later, when readerWriter3 reads the product again, product has all values updated by readerWrtier1.</p>
+<h2>Overwrite database values (client wins)</h2>
+<p>Another simple option, called “client wins”, is to disregard values in database, and overwrite them with whatever data submitted from client.</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ClientWins(
+    </span><span style="color: #2b91af;">DbReaderWriter </span><span style="color: black;">readerWriter1, </span><span style="color: #2b91af;">DbReaderWriter </span><span style="color: black;">readerWriter2, </span><span style="color: #2b91af;">DbReaderWriter </span><span style="color: black;">readerWriter3)
+{
+    UpdateProduct(readerWriter1, readerWriter2, readerWriter3, resolveConflicts: tracking =&gt;
+    {
+        </span><span style="color: #2b91af;">PropertyValues </span><span style="color: black;">databaseValues = tracking.GetDatabaseValues();
+        </span><span style="color: green;">// Refresh original values, which go to WHERE clause of UPDATE statement.
+        </span><span style="color: black;">tracking.OriginalValues.SetValues(databaseValues);
+
+        tracking.State.WriteLine(); </span><span style="color: green;">// Modified
+        </span><span style="color: black;">tracking.Property(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.Name)).IsModified.WriteLine(); </span><span style="color: green;">// True
+        </span><span style="color: black;">tracking.Property(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.ListPrice)).IsModified.WriteLine(); </span><span style="color: green;">// True
+        </span><span style="color: black;">tracking.Property(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.ProductSubcategoryID)).IsModified.WriteLine(); </span><span style="color: green;">// True
+    </span><span style="color: black;">});
+    </span><span style="color: green;">// Original:  (ML Crankset,   256.4900, 8, 0x00000000000007D1)
+    // Database:  (readerWriter1, 100.0000, 8, 0x0000000000036336)
+    // Update to: (readerWriter2, 256.4900, 1)
+    // Resolved:  (readerWriter2, 256.4900, 1, 0x0000000000036337)
+</span><span style="color: black;">}</span></pre>
+<p>The same conflict is resolved differently:</p>
+<ol>
+<li>EntityEntry.GetDatabaseValues executes a SELECT statement to read the product’s property values from database, including the updated row version. This call does not impact the product values or tracking information.</li>
+<li>Manually set the tracked original property values to the queried database values. The entity tracking state is still Changed. The original property values become all different from tracked current property values. So all product properties are tracked as modified.</li>
+<li>At this moment, the product has tracked original values updated, and keeps all tracked current values, as if it is read from database after readerWriter1 updates the name and list price, and then have all properties values changed.</li>
+<li>When DbReaderWriter.Write’s retry logic calls SaveChanges again, product changes are detected to submit. So EF/Core translate the product change to a UPDATE statement. In the SET clause, since there are 3 properties tracked as modified, 3 columns are set. In the WHERE clause, to locate the product, the tracked original row version has been set to the updated value from database. This time product can be located, and all 3 properties are updated. SaveChanges succeeds and returns 1. As expected, readerWriter2 updates all value to database.</li>
+</ol>
+<p>Later, when readerWriter3 reads the product again, product has all values updated by readerWrter2.</p>
+<h2>Merge with database values</h2>
+<p>A more complex but useful option, is to merge the client values and database values. For each property:</p>
+<ul>
+<li>If original value is different from database value, which means database value is already updated by other concurrent client, then give up updating this property, and retain the database value</li>
+<li>If original value is the same as database value, which means no concurrency conflict for this property, then process normally to submit the change</li>
+</ul>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">MergeClientAndDatabase(
+    </span><span style="color: #2b91af;">DbReaderWriter </span><span style="color: black;">readerWriter1, </span><span style="color: #2b91af;">DbReaderWriter </span><span style="color: black;">readerWriter2, </span><span style="color: #2b91af;">DbReaderWriter </span><span style="color: black;">readerWriter3)
+{
+    UpdateProduct(readerWriter1, readerWriter2, readerWriter3, resolveConflicts: tracking =&gt;
+    {
+        </span><span style="color: #2b91af;">PropertyValues </span><span style="color: black;">databaseValues = tracking.GetDatabaseValues(); </span><span style="color: green;">// Execute query.
+        </span><span style="color: #2b91af;">PropertyValues </span><span style="color: black;">originalValues = tracking.OriginalValues.Clone();
+        </span><span style="color: green;">// Refresh original values, which go to WHERE clause.
+        </span><span style="color: black;">tracking.OriginalValues.SetValues(databaseValues);
+        </span><span style="color: green;">// If database has an different value for a property, then retain the database value.
+</span><span style="color: gray;">#if </span><span style="color: black;">EF
+        </span><span style="color: gray;">databaseValues.PropertyNames // Navigation properties are not included.
+            .Where(property =&gt; !object.Equals(originalValues[property], databaseValues[property]))
+            .ForEach(property =&gt; tracking.Property(property).IsModified = false);
+#else
+        </span><span style="color: black;">databaseValues.Properties </span><span style="color: green;">// Navigation properties are not included.
+            </span><span style="color: black;">.Where(property =&gt; !</span><span style="color: blue;">object</span><span style="color: black;">.Equals(originalValues[property.Name], databaseValues[property.Name]))
+            .ForEach(property =&gt; tracking.Property(property.Name).IsModified = </span><span style="color: blue;">false</span><span style="color: black;">);
+</span><span style="color: gray;">#endif
+        </span><span style="color: black;">tracking.State.WriteLine(); </span><span style="color: green;">// Modified
+        </span><span style="color: black;">tracking.Property(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.Name)).IsModified.WriteLine(); </span><span style="color: green;">// False
+        </span><span style="color: black;">tracking.Property(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.ListPrice)).IsModified.WriteLine(); </span><span style="color: green;">// False
+        </span><span style="color: black;">tracking.Property(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.ProductSubcategoryID)).IsModified.WriteLine(); </span><span style="color: green;">// True
+    </span><span style="color: black;">});
+    </span><span style="color: green;">// Original:  (ML Crankset,   256.4900, 8, 0x00000000000007D1)
+    // Database:  (readerWriter1, 100.0000, 8, 0x0000000000036338)
+    // Update to: (readerWriter2, 256.4900, 1)
+    // Resolved:  (readerWriter1, 100.0000, 1, 0x0000000000036339)
+</span><span style="color: black;">}</span></pre>
+<p>With this approach:</p>
+<ol>
+<li>Again, EntityEntry.GetDatabaseValues executes a SELECT statement to read the product’s property values from database, including the updated row version.</li>
+<li>Backup tracked original values, then refresh conflict.OriginalValues to the database values, so that these values can go to the translated WHERE clause. Again, the entity tracking state is still Changed. The original property values become all different from tracked current property values. So all product values are tracked as modified and should go to SET clause.</li>
+<li>For each property, if the backed original value is different from the database value, it means this property is changed by other client and there is concurrency conflict. In this case, revert this property’s tracking status to unmodified. The name and list price are reverted.</li>
+<li>At this moment, the product has tracked original values updated, and only keeps tracked current value of subcategory, as if it is read from database after readerWriter1 updates the name and list price, and then only have subcategory changed, which has no conflict.</li>
+<li>When DbReaderWriter.Write’s retry logic calls SaveChanges again, product changes are detected to submit. Here only subcategory is updated to database. SaveChanges succeeds and returns 1. As expected, readerWriter2 only updates value without conflict, the other conflicted values are retained.</li>
+</ol>
+<p>Later, when readerWriter3 reads the product, product has name and list price values updated by readerWrtier1, and has subcategory updated by readerWriter2.</p>
+<h1>Save changes with concurrency conflict handling</h1>
+<p>Similar to above DbReaderWriter.Write method, a general SaveChanges extension method for DbContext can be defined to handle concurrency conflicts and apply simple retry logic:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">DbContextExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static int </span><span style="color: black;">SaveChanges(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">DbContext </span><span style="color: black;">context, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">EntityEntry</span><span style="color: black;">&gt;&gt; resolveConflicts, </span><span style="color: blue;">int </span><span style="color: black;">retryCount = 3)
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(retryCount &lt;= 0)
+        {
+            </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(retryCount)</span><span style="color: black;">);
+        }
+
+        </span><span style="color: blue;">for </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">retry = 1; retry &lt; retryCount; retry++)
+        {
+            </span><span style="color: blue;">try
+            </span><span style="color: black;">{
+                </span><span style="color: blue;">return </span><span style="color: black;">context.SaveChanges();
+            }
+            </span><span style="color: blue;">catch </span><span style="color: black;">(</span><span style="color: #2b91af;">DbUpdateConcurrencyException </span><span style="color: black;">exception) </span><span style="color: blue;">when </span><span style="color: black;">(retry &lt; retryCount)
+            {
+                resolveConflicts(exception.Entries);
+            }
+        }
+        </span><span style="color: blue;">return </span><span style="color: black;">context.SaveChanges();
+    }
+}</span></pre>
+<p>To apply custom retry logic, Microsoft provides EnterpriseLibrary.TransientFaultHandling NuGet package (<a href="https://msdn.microsoft.com/en-us/library/dn440728.aspx" target="_blank">Exception Handling Application Block</a>) for .NET Framework. It has been ported to .NET Core for this tutorial, as EnterpriseLibrary.TransientFaultHandling.Core NuGet package. can be used. With this library, a SaveChanges overload with customizable retry logic can be easily defined:</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">TransientDetection</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TException</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">ITransientErrorDetectionStrategy
+    </span><span style="color: blue;">where </span><span style="color: #2b91af;">TException </span><span style="color: black;">: </span><span style="color: #2b91af;">Exception
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public bool </span><span style="color: black;">IsTransient(</span><span style="color: #2b91af;">Exception </span><span style="color: black;">ex) =&gt; ex </span><span style="color: blue;">is </span><span style="color: #2b91af;">TException</span><span style="color: black;">;
+}
+
+</span><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">DbContextExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static int </span><span style="color: black;">SaveChanges(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">DbContext </span><span style="color: black;">context, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">EntityEntry</span><span style="color: black;">&gt;&gt; resolveConflicts, </span><span style="color: #2b91af;">RetryStrategy </span><span style="color: black;">retryStrategy)
+    {
+        </span><span style="color: #2b91af;">RetryPolicy </span><span style="color: black;">retryPolicy = </span><span style="color: blue;">new </span><span style="color: #2b91af;">RetryPolicy</span><span style="color: black;">(
+            errorDetectionStrategy: </span><span style="color: blue;">new </span><span style="color: #2b91af;">TransientDetection</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">DbUpdateConcurrencyException</span><span style="color: black;">&gt;(),
+            retryStrategy: retryStrategy);
+        retryPolicy.Retrying += (sender, e) =&gt;
+            resolveConflicts(((</span><span style="color: #2b91af;">DbUpdateConcurrencyException</span><span style="color: black;">)e.LastException).Entries);
+        </span><span style="color: blue;">return </span><span style="color: black;">retryPolicy.ExecuteAction(context.SaveChanges);
+    }
+}</span></pre>
+<p>Here Microsoft.Practices.EnterpriseLibrary.TransientFaultHandling.ITransientErrorDetectionStrategy is the contract to detect each exception, and determine whether the exception is transient and the operation should be retried. Microsoft.Practices.EnterpriseLibrary.TransientFaultHandling.RetryStrategy is the contract of retry logic. Then Microsoft.Practices.EnterpriseLibrary.TransientFaultHandling.RetryPolicy executes the operation with the specified exception detection, exception handling, and retry logic.</p>
+<p>As discussed above, to resolve a concurrency conflict, the entity and its tracking information need to be refreshed. So the more specific SaveChanges overloads can be implemented by applying refresh for each conflict:</p>
+<pre class="code"><span style="color: blue;">public enum </span><span style="color: #2b91af;">RefreshConflict
+</span><span style="color: black;">{
+    StoreWins,
+
+    ClientWins,
+
+    MergeClientAndStore
+}
+
+</span><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">DbContextExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static int </span><span style="color: black;">SaveChanges(</span><span style="color: blue;">this </span><span style="color: #2b91af;">DbContext </span><span style="color: black;">context, </span><span style="color: #2b91af;">RefreshConflict </span><span style="color: black;">refreshMode, </span><span style="color: blue;">int </span><span style="color: black;">retryCount = 3)
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(retryCount &lt;= 0)
+        {
+            </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(<span style="color: black;"></span><span style="color: blue;">nameof</span><span style="color: black;">(retryCount)</span></span><span style="color: black;">);
+        }
+
+        </span><span style="color: blue;">return </span><span style="color: black;">context.SaveChanges(
+            conflicts =&gt; conflicts.ForEach(tracking =&gt; tracking.Refresh(refreshMode)), retryCount);
+    }
+
+    </span><span style="color: blue;">public static int </span><span style="color: black;">SaveChanges(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">DbContext </span><span style="color: black;">context, </span><span style="color: #2b91af;">RefreshConflict </span><span style="color: black;">refreshMode, </span><span style="color: #2b91af;">RetryStrategy </span><span style="color: black;">retryStrategy) =&gt;
+            context.SaveChanges(
+                conflicts =&gt; conflicts.ForEach(tracking =&gt; tracking.Refresh(refreshMode)), retryStrategy);
+}</span></pre>
+<p>A RefreshConflict enumeration has to be defined with 3 members to represent the 3 options discussed above: database wins, client wind, merge client and database.. And here the Refresh method is an extension method for EntityEntry:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">EntityEntry </span><span style="color: black;">Refresh(</span><span style="color: blue;">this </span><span style="color: #2b91af;">EntityEntry </span><span style="color: black;">tracking, </span><span style="color: #2b91af;">RefreshConflict </span><span style="color: black;">refreshMode)
+{
+    </span><span style="color: blue;">switch </span><span style="color: black;">(refreshMode)
+    {
+        </span><span style="color: blue;">case </span><span style="color: #2b91af;">RefreshConflict</span><span style="color: black;">.StoreWins:
+        {
+            </span><span style="color: green;">// When entity is already deleted in database, Reload sets tracking state to Detached.
+            // When entity is already updated in database, Reload sets tracking state to Unchanged.
+            </span><span style="color: black;">tracking.Reload(); </span><span style="color: green;">// Execute SELECT.
+            // Hereafter, SaveChanges ignores this entity.
+            </span><span style="color: blue;">break</span><span style="color: black;">;
+        }
+        </span><span style="color: blue;">case </span><span style="color: #2b91af;">RefreshConflict</span><span style="color: black;">.ClientWins:
+        {
+            </span><span style="color: #2b91af;">PropertyValues </span><span style="color: black;">databaseValues = tracking.GetDatabaseValues(); </span><span style="color: green;">// Execute SELECT.
+            </span><span style="color: blue;">if </span><span style="color: black;">(databaseValues == </span><span style="color: blue;">null</span><span style="color: black;">)
+            {
+                </span><span style="color: green;">// When entity is already deleted in database, there is nothing for client to win against.
+                // Manually set tracking state to Detached.
+                </span><span style="color: black;">tracking.State = </span><span style="color: #2b91af;">EntityState</span><span style="color: black;">.Detached;
+                </span><span style="color: green;">// Hereafter, SaveChanges ignores this entity.
+            </span><span style="color: black;">}
+            </span><span style="color: blue;">else
+            </span><span style="color: black;">{
+                </span><span style="color: green;">// When entity is already updated in database, refresh original values, which go to in WHERE clause.
+                </span><span style="color: black;">tracking.OriginalValues.SetValues(databaseValues);
+                </span><span style="color: green;">// Hereafter, SaveChanges executes UPDATE/DELETE for this entity, with refreshed values in WHERE clause.
+            </span><span style="color: black;">}
+            </span><span style="color: blue;">break</span><span style="color: black;">;
+        }
+        </span><span style="color: blue;">case </span><span style="color: #2b91af;">RefreshConflict</span><span style="color: black;">.MergeClientAndStore:
+        {
+            </span><span style="color: #2b91af;">PropertyValues </span><span style="color: black;">databaseValues = tracking.GetDatabaseValues(); </span><span style="color: green;">// Execute SELECT.
+            </span><span style="color: blue;">if </span><span style="color: black;">(databaseValues == </span><span style="color: blue;">null</span><span style="color: black;">)
+            {
+                </span><span style="color: green;">// When entity is already deleted in database, there is nothing for client to merge with.
+                // Manually set tracking state to Detached.
+                </span><span style="color: black;">tracking.State = </span><span style="color: #2b91af;">EntityState</span><span style="color: black;">.Detached;
+                </span><span style="color: green;">// Hereafter, SaveChanges ignores this entity.
+            </span><span style="color: black;">}
+            </span><span style="color: blue;">else
+            </span><span style="color: black;">{
+                </span><span style="color: green;">// When entity is already updated, refresh original values, which go to WHERE clause.
+                </span><span style="color: #2b91af;">PropertyValues </span><span style="color: black;">originalValues = tracking.OriginalValues.Clone();</span><span style="color: gray;">
+                </span><span style="color: black;">tracking.OriginalValues.SetValues(databaseValues);
+                </span><span style="color: green;">// If database has an different value for a property, then retain the database value.
+</span><span style="color: gray;">#if </span><span style="color: black;">EF
+                </span><span style="color: gray;">databaseValues.PropertyNames // Navigation properties are not included.
+                    .Where(property =&gt; !object.Equals(originalValues[property], databaseValues[property]))
+                    .ForEach(property =&gt; tracking.Property(property).IsModified = false);
+#else
+                </span><span style="color: black;">databaseValues.Properties </span><span style="color: green;">// Navigation properties are not included.
+                    </span><span style="color: black;">.Where(property =&gt; !</span><span style="color: blue;">object</span><span style="color: black;">.Equals(originalValues[property.Name], databaseValues[property.Name]))
+                    .ForEach(property =&gt; tracking.Property(property.Name).IsModified = </span><span style="color: blue;">false</span><span style="color: black;">);
+</span><span style="color: gray;">#endif
+                </span><span style="color: green;">// Hereafter, SaveChanges executes UPDATE/DELETE for this entity, with refreshed values in WHERE clause.
+            </span><span style="color: black;">}
+            </span><span style="color: blue;">break</span><span style="color: black;">;
+        }
+    }
+    </span><span style="color: blue;">return </span><span style="color: black;">tracking;
+}</span></pre>
+<blockquote>
+<p>EF already provides a System.Data.Entity.Core.Objects.RefreshMode enumeration, but it only has 2 members: StoreWins and ClientWins.</p>
+</blockquote>
+<p>This Refresh extension method covers the update conflicts discussed above, as well as deletion conflicts. Now the these SaveChanges extension methods can be used to manage concurrency conflicts easily. For example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">SaveChanges(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks1, </span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks2)
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">id = 950;
+    </span><span style="color: #2b91af;">Product </span><span style="color: black;">productCopy1 = adventureWorks1.Products.Find(id);
+    </span><span style="color: #2b91af;">Product </span><span style="color: black;">productCopy2 = adventureWorks2.Products.Find(id);
+
+    productCopy1.Name = </span><span style="color: blue;">nameof</span><span style="color: black;">(adventureWorks1);
+    productCopy1.ListPrice = 100;
+    adventureWorks1.SaveChanges();
+
+    productCopy2.Name = </span><span style="color: blue;">nameof</span><span style="color: black;">(adventureWorks2);
+    productCopy2.ProductSubcategoryID = 1;
+    adventureWorks2.SaveChanges(</span><span style="color: #2b91af;">RefreshConflict</span><span style="color: black;">.MergeClientAndStore);
+}</span></pre>
+<p><audio style="display: none;" controls="controls"></audio></p>
+
+</div>
+</body>
+</html>

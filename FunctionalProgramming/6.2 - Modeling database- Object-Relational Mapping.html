@@ -1,0 +1,641 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+
+<h1>Entity Framework and LINQ to Entities (2) Object-Relational Mapping</h1>
+
+<p>.NET and SQL database and&nbsp; have 2 different data type systems. For example:</p>
+<ul>
+<li>.NET has System.Int64 and System.String, while SQL database has bigint and nvarchar;</li>
+<li>.NET has collections and objects, while SQL database has tables and rows;</li>
+</ul>
+<p>etc.. Object-relational mapping is a popular technology to map and convert between programming language data objects and database system relational data. In Entity Framework, the LINQ to Entities queries are all based on Object-relational mapping.</p>
+<p>Entity Framework provides <a href="https://msdn.microsoft.com/en-us/library/ms178359.aspx#dbfmfcf" target="_blank">3 options</a> to build the mapping between C#/.NET and SQL database:</p>
+<ul>
+<li><a href="https://msdn.microsoft.com/en-in/data/ff830362.aspx" target="_blank">Model first</a>: The entity data models (a .edmx diagram consists of entities, entity properties, entity associations, etc.) are created in Entity Framework., typically with the <a href="https://msdn.microsoft.com/en-us/library/cc716685.aspx" target="_blank">ADO.NET Entity Data Model Designer</a> tool in Visual Studio. Then, Entity Framework can use the models to generate database and the mapping .NET classes. In the following entity data models (a .edmx diagram) looks, the options to generate database/code are available from the right click menu.<br><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/a174a530a37c_12C6E/image_2.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/a174a530a37c_12C6E/image_thumb.png" width="625" height="556" border="0"></a></li>
+<li><a href="https://msdn.microsoft.com/en-us/data/jj206878.aspx" target="_blank">Database first</a>: From an existing database, Entity Framework generates the entity data models (.edmx diagram) and the mapping .NET classes. In Visual Studio, the following Entity Data Model Wizard enables developer to select tables and other objects to generate entity data models (.edmx diagram) and code:<br><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/a174a530a37c_12C6E/image_12.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/a174a530a37c_12C6E/image_thumb_5.png" width="617" height="561" border="0"></a></li>
+<li>Code first: The mapping .NET classes can be coded first, then they can be immediately work with Entity Framework and LINQ to Entities queries. Entity Framework generates the entity data models at runtime, so that a static .edmx diagram is not visible at design time in code base. If the database exits, the .NET classes are just mapped to the existing database; if not, Entity Framework can generate the database. <a href="http://blogs.msdn.com/b/adonet/archive/2014/10/21/ef7-what-does-code-first-only-really-mean.aspx" target="_blank">“Code first” is a bad naming</a>. It does not mean code comes first before the database exists. It is actually code-based modeling for <a href="https://msdn.microsoft.com/en-us/data/jj200620" target="_blank">existing database</a> or <a href="https://msdn.microsoft.com/en-us/data/jj193542" target="_blank">new database</a>.</li>
+</ul>
+<p>Comparing to code generation, it is more intuitive to build some classes to work with database. It is also much easier if the entity data models (.edmx diagram) is not involved. So this tutorial follows the code first approach, with an existing AdventureWorks database – the sample database from Microsoft, which already has data for query.</p>
+<h1>Data types</h1>
+<p>Entity Framework can map most SQL data types to .NET types:</p>
+<table width="629" cellspacing="0" cellpadding="2" border="0">
+<tbody>
+<tr>
+<td width="190">SQL type category</td>
+<td width="200">SQL type</td>
+<td width="300">.NET type</td>
+<td width="150">C# primitive</td>
+</tr>
+<tr>
+<td width="190">Exact numeric</td>
+<td width="200">bit</td>
+<td width="300">System.Boolean</td>
+<td width="150">bool</td>
+</tr>
+<tr>
+<td width="190">&nbsp;</td>
+<td width="200">tinyint</td>
+<td width="300">System.Byte</td>
+<td width="150">byte</td>
+</tr>
+<tr>
+<td width="190">&nbsp;</td>
+<td width="200">smallint</td>
+<td width="300">System.Int16</td>
+<td width="150">short</td>
+</tr>
+<tr>
+<td width="190">&nbsp;</td>
+<td width="200">int</td>
+<td width="300">System.Int32</td>
+<td width="150">int</td>
+</tr>
+<tr>
+<td width="190">&nbsp;</td>
+<td width="200">bigint</td>
+<td width="300">System.Int64</td>
+<td width="150">long</td>
+</tr>
+<tr>
+<td width="190">&nbsp;</td>
+<td width="200">smallmoney, money, decimal, numeric</td>
+<td width="300">System.Decimal</td>
+<td width="150">decimal</td>
+</tr>
+<tr>
+<td width="190">Approximate numeric</td>
+<td width="200">real</td>
+<td width="300">System.Single</td>
+<td width="150">float</td>
+</tr>
+<tr>
+<td width="190">&nbsp;</td>
+<td width="200">float</td>
+<td width="300">System.Double</td>
+<td width="150">double</td>
+</tr>
+<tr>
+<td width="190">Character string</td>
+<td width="200">char, varchar, text</td>
+<td width="300">System.String</td>
+<td width="150">string</td>
+</tr>
+<tr>
+<td width="190">&nbsp;</td>
+<td width="200">nchar, nvarchar, ntext</td>
+<td width="300">System.String</td>
+<td width="150">string</td>
+</tr>
+<tr>
+<td width="190">Binary string</td>
+<td width="200">binary, varbinary</td>
+<td width="300">System.Byte[]</td>
+<td width="150">byte[]</td>
+</tr>
+<tr>
+<td width="190">&nbsp;</td>
+<td width="200">image</td>
+<td width="300">System.Byte[]</td>
+<td width="150">byte[]</td>
+</tr>
+<tr>
+<td width="190">&nbsp;</td>
+<td width="200">rowversion (timestamp)</td>
+<td width="300">System.Byte[]</td>
+<td width="150">byte[]</td>
+</tr>
+<tr>
+<td width="190">Date time</td>
+<td width="200">date</td>
+<td width="300">System.DateTime</td>
+<td width="150">&nbsp;</td>
+</tr>
+<tr>
+<td width="190">&nbsp;</td>
+<td width="200">time</td>
+<td width="300">System.TimeSpan</td>
+<td width="150">&nbsp;</td>
+</tr>
+<tr>
+<td width="190">&nbsp;</td>
+<td width="200">smalldatetime, datetime, datetime2</td>
+<td width="300">System.DateTime</td>
+<td width="150">&nbsp;</td>
+</tr>
+<tr>
+<td width="190">&nbsp;</td>
+<td width="200">datetimeoffset</td>
+<td width="300">System.DateTimeOffset</td>
+<td width="150">&nbsp;</td>
+</tr>
+<tr>
+<td width="190">Spatial type</td>
+<td width="200">geography</td>
+<td width="300">System.Data.Entity.Spatial.DbGeography</td>
+<td width="150">&nbsp;</td>
+</tr>
+<tr>
+<td width="190">&nbsp;</td>
+<td width="200">geometry</td>
+<td width="300">System.Data.Entity.Spatial.DbGeometry</td>
+<td width="150">&nbsp;</td>
+</tr>
+<tr>
+<td width="190">Other</td>
+<td width="200">hierarchyid</td>
+<td width="300">No built-in mapping or support</td>
+<td width="150">&nbsp;</td>
+</tr>
+<tr>
+<td width="190">&nbsp;</td>
+<td width="200">xml</td>
+<td width="300">System.String</td>
+<td width="150">string</td>
+</tr>
+<tr>
+<td width="190">&nbsp;</td>
+<td width="200">uniqueidentifier</td>
+<td width="300">System.Guid</td>
+<td width="150">&nbsp;</td>
+</tr>
+<tr>
+<td width="190">&nbsp;</td>
+<td width="200">sql_variant</td>
+<td width="300">No built-in mapping or support</td>
+<td width="107" valign="top"></td>
+</tr>
+</tbody>
+</table>
+<h1>Database</h1>
+<p>A SQL database is mapped to a class that derives from System.Data.Entity.DbContext:</p>
+<pre class="code"><span style="color: blue;">public partial class </span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">: </span><span style="color: #2b91af;">DbContext
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public </span><span style="color: black;">AdventureWorks()
+        : </span><span style="color: blue;">base</span><span style="color: black;">(</span><span style="color: #2b91af;">ConnectionStrings</span><span style="color: black;">.AdventureWorks)
+    {
+    }
+}</span></pre>
+<p>DbContext is defined as:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Data.Entity
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">DbContext </span><span style="color: black;">: </span><span style="color: #2b91af;">IDisposable</span><span style="color: black;">, </span><span style="color: #2b91af;">IObjectContextAdapter
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public </span><span style="color: black;">DbContext(</span><span style="color: blue;">string </span><span style="color: black;">nameOrConnectionString);
+
+        </span><span style="color: blue;">public </span><span style="color: #2b91af;">DbChangeTracker </span><span style="color: black;">ChangeTracker { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: blue;">public </span><span style="color: #2b91af;">DbContextConfiguration </span><span style="color: black;">Configuration { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: blue;">public </span><span style="color: #2b91af;">Database </span><span style="color: black;">Database { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: #2b91af;">ObjectContext IObjectContextAdapter</span><span style="color: black;">.ObjectContext { </span><span style="color: blue;">get</span><span style="color: black;">; } </span><span style="color: green;">// From IObjectContextAdapter.
+
+        </span><span style="color: blue;">public void </span><span style="color: black;">Dispose(); </span><span style="color: green;">// From IDisposable.
+
+        // Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>The database is specified in the connection string provided to DbContext’s constructor:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">ConnectionStrings
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal const string </span><span style="color: black;">AdventureWorks = </span><span style="color: maroon;">@"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename=|DataDirectory|\AdventureWorks_Data.mdf;Integrated Security=True;Connect Timeout=30"</span><span style="color: black;">;
+}</span></pre>
+<p>Please replace the application domain property |DataDirectory| to the actual directory of the database file, or initialize it for current application domain before it is used:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">ConnectionStrings
+</span><span style="color: black;">{
+    </span><span style="color: blue;">static </span><span style="color: black;">ConnectionStrings()
+    {
+        </span><span style="color: #2b91af;">AppDomain</span><span style="color: black;">.CurrentDomain.SetData(</span><span style="color: #a31515;">"DataDirectory"</span><span style="color: black;">, </span><span style="color: maroon;">@"D:\GitHub\CodeSnippets\Data"</span><span style="color: black;">);
+    }
+}</span></pre>
+<p>Generally, a database object should be constructed and disposed for each <a href="http://martinfowler.com/eaaCatalog/unitOfWork.html" target="_blank">unit of work</a>:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Query
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Dispose()
+    {
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+        {
+            </span><span style="color: green;">// Unit of work.
+        </span><span style="color: black;">}
+    }
+}</span></pre>
+<h1>Tables</h1>
+<p>There are tens of tables in the AdventureWorks database, but don’t worry, this tutorial only involves 5 tables, and a few columns of these tables. In Entity Framework, a table definition can be mapped to an entity class definition, where each column is mapped to a entity property. For example, the AdventureWorks database has a Production.ProductCategory table, which is defined as:</p>
+<pre class="code"><span style="color: blue;">CREATE SCHEMA </span><span style="color: black;">[Production]
+</span><span style="color: blue;">GO
+
+CREATE TYPE </span><span style="color: black;">[dbo]</span><span style="color: gray;">.</span><span style="color: black;">[Name] </span><span style="color: blue;">FROM nvarchar</span><span style="color: gray;">(</span><span style="color: black;">50</span><span style="color: gray;">) NULL
+</span><span style="color: blue;">GO
+
+CREATE TABLE </span><span style="color: black;">[Production]</span><span style="color: gray;">.</span><span style="color: black;">[ProductCategory]</span><span style="color: gray;">(
+    </span><span style="color: black;">[ProductCategoryID] </span><span style="color: blue;">int IDENTITY</span><span style="color: gray;">(</span><span style="color: black;">1</span><span style="color: gray;">,</span><span style="color: black;">1</span><span style="color: gray;">) NOT NULL
+        </span><span style="color: blue;">CONSTRAINT </span><span style="color: black;">[PK_ProductCategory_ProductCategoryID] </span><span style="color: blue;">PRIMARY KEY CLUSTERED</span><span style="color: gray;">,
+
+    </span><span style="color: black;">[Name] [dbo]</span><span style="color: gray;">.</span><span style="color: black;">[Name] </span><span style="color: gray;">NOT NULL, </span><span style="color: green;">-- nvarchar(50).
+
+    </span><span style="color: black;">[rowguid] </span><span style="color: blue;">uniqueidentifier ROWGUIDCOL </span><span style="color: gray;">NOT NULL </span><span style="color: green;">-- Ignored in mapping.
+        </span><span style="color: blue;">CONSTRAINT </span><span style="color: black;">[DF_ProductCategory_rowguid] </span><span style="color: blue;">DEFAULT </span><span style="color: gray;">(</span><span style="color: magenta;">NEWID</span><span style="color: gray;">()),
+
+    </span><span style="color: black;">[ModifiedDate] </span><span style="color: blue;">datetime </span><span style="color: gray;">NOT NULL </span><span style="color: green;">-- Ignored in mapping.
+        </span><span style="color: blue;">CONSTRAINT </span><span style="color: black;">[DF_ProductCategory_ModifiedDate] </span><span style="color: blue;">DEFAULT </span><span style="color: gray;">(</span><span style="color: magenta;">GETDATE</span><span style="color: gray;">()))
+</span><span style="color: blue;">GO</span></pre>
+<p>Above Production.ProductCategory table definition can be mapped to a ProductCategory entity class definition:</p>
+<pre class="code"><span style="color: blue;">public partial class </span><span style="color: #2b91af;">AdventureWorks
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public const string </span><span style="color: black;">Production = </span><span style="color: blue;">nameof</span><span style="color: black;">(Production); </span><span style="color: green;">// Production schema.
+</span><span style="color: black;">}
+
+[</span><span style="color: #2b91af;">Table</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">), Schema = </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">.Production)]
+</span><span style="color: blue;">public partial class </span><span style="color: #2b91af;">ProductCategory
+</span><span style="color: black;">{
+    [</span><span style="color: #2b91af;">Key</span><span style="color: black;">]
+    [</span><span style="color: #2b91af;">DatabaseGenerated</span><span style="color: black;">(</span><span style="color: #2b91af;">DatabaseGeneratedOption</span><span style="color: black;">.Identity)]</span><span style="color: black;">
+    </span><span style="color: blue;">public int </span><span style="color: black;">ProductCategoryID { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+    [</span><span style="color: #2b91af;">MaxLength</span><span style="color: black;">(50)]
+    [</span><span style="color: #2b91af;">Required</span><span style="color: black;">]</span><span style="color: black;">
+    </span><span style="color: blue;">public string </span><span style="color: black;">Name { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+    </span><span style="color: green;">// Other columns are ignored.
+</span><span style="color: black;">}</span></pre>
+<p>The [Table] attribute specifies the table name of schema. [Table] can be omitted when the table name is identical with the entity class name, and the table is under the default dbo schema.</p>
+<p>In the table-entity class mapping:</p>
+<ul>
+<li>The int column ProductCategoryID is mapped to a System.Int32 property with the same name.</li>
+<ul>
+<li>The [Key] attribute indicates it has a unique key</li>
+<li>[DatabaseGenerated] indicates it is an identity column</li>
+</ul>
+<li>The Name column is of dbo.Name type. dbo.Name just nvarchar(50), so the Name property is of type System.String.</li>
+<ul>
+<li>The [MaxLength] attribute indicates the max length is 50</li>
+<li>[Required] indicates it should not be null</li>
+</ul>
+<li>The other columns rowguid and ModifiedDate are not mapped. They are ignored in this tutorial, which is allowed by Entity Framework.</li>
+</ul>
+<p>In the Entity Framework code first approach for existing database, the mapping properties work without the [DatabaseGenerated] attribute. This tutorial keeps this attribute only for readability purpose.</p>
+<p>As a result, each row of Production.ProductCategory table is mapped to a ProductCategory object. However, at runtime, Entity Framework by default does not directly instantiate ProductCategory. It dynamically defines another proxy class to derive from ProductCategory class, with a name looks like System.Data.Entity.DynamicProxies.Product_F84B0F952ED22479EF48782695177D770E63BC4D8771C9DF78343B4D95926AE8. This proxy class is where Entity Framework injects more detailed logic, so that at design time, the mapping entity class can be clean and declarative.</p>
+<p>The rows of the entire table can be mapped to objects in an IQueryable&lt;T&gt; data source, exposed as a property of the database class. Entity Framework provides System.Data.Entity.DbSet&lt;T&gt; class to represent a table data source:</p>
+<pre class="code"><span style="color: blue;">public partial class </span><span style="color: #2b91af;">AdventureWorks
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">DbSet</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">&gt; ProductCategories { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }</span><span style="color: black;">
+}</span></pre>
+<p>DbSet&lt;T&gt; implements IQueryable&lt;T&gt;, and is derived from System.Data.Entity.Infrastructure.DbQuery&lt;T&gt; class:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Data.Entity.Infrastructure
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">DbQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IOrderedQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;,
+        </span><span style="color: #2b91af;">IOrderedQueryable</span><span style="color: black;">, </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">,
+        </span><span style="color: #2b91af;">IDbAsyncEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IDbAsyncEnumerable</span><span style="color: black;">, </span><span style="color: #2b91af;">IListSource</span><span style="color: black;">, </span><span style="color: #2b91af;">IInternalQueryAdapter
+    </span><span style="color: black;">{
+        </span><span style="color: #2b91af;">Type IQueryable</span><span style="color: black;">.ElementType { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: #2b91af;">Expression IQueryable</span><span style="color: black;">.Expression { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: #2b91af;">IQueryProvider IQueryable</span><span style="color: black;">.Provider { </span><span style="color: blue;">get</span><span style="color: black;">; } </span><span style="color: green;">// Return System.Data.Entity.Internal.Linq.DbQueryProvider object.
+
+        // Other members.
+    </span><span style="color: black;">}
+}
+
+</span><span style="color: blue;">namespace </span><span style="color: black;">System.Data.Entity
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">DbSet</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">DbQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IDbSet</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">,
+        </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">, </span><span style="color: #2b91af;">IInternalSetAdapter </span><span style="color: blue;">where </span><span style="color: #2b91af;">TEntity </span><span style="color: black;">: </span><span style="color: blue;">class
+    </span><span style="color: black;">{
+        </span><span style="color: green;">// Members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>The next example is the Production.ProductSubcategory table:</p>
+<pre class="code"><span style="color: blue;">CREATE TABLE </span><span style="color: black;">[Production]</span><span style="color: gray;">.</span><span style="color: black;">[ProductSubcategory]</span><span style="color: gray;">(
+    </span><span style="color: black;">[ProductSubcategoryID] </span><span style="color: blue;">int IDENTITY</span><span style="color: gray;">(</span><span style="color: black;">1</span><span style="color: gray;">,</span><span style="color: black;">1</span><span style="color: gray;">) NOT NULL
+        </span><span style="color: blue;">CONSTRAINT </span><span style="color: black;">[PK_ProductSubcategory_ProductSubcategoryID] </span><span style="color: blue;">PRIMARY KEY CLUSTERED</span><span style="color: gray;">,
+
+    </span><span style="color: black;">[Name] [dbo]</span><span style="color: gray;">.</span><span style="color: black;">[Name] </span><span style="color: gray;">NOT NULL, </span><span style="color: green;">-- nvarchar(50).
+
+    </span><span style="color: black;">[ProductCategoryID] </span><span style="color: blue;">int </span><span style="color: gray;">NOT NULL
+        </span><span style="color: blue;">CONSTRAINT </span><span style="color: black;">[FK_ProductSubcategory_ProductCategory_ProductCategoryID] </span><span style="color: blue;">FOREIGN KEY
+        REFERENCES </span><span style="color: black;">[Production]</span><span style="color: gray;">.</span><span style="color: black;">[ProductCategory] </span><span style="color: gray;">(</span><span style="color: black;">[ProductCategoryID]</span><span style="color: gray;">),
+
+    </span><span style="color: green;">/* Other ignored columns. */</span><span style="color: gray;">)
+</span><span style="color: blue;">GO</span></pre>
+<p>Similarly, it can be mapped to:</p>
+<pre class="code"><span style="color: black;">[</span><span style="color: #2b91af;">Table</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ProductSubcategory</span><span style="color: black;">), Schema = </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">.Production)]
+</span><span style="color: blue;">public partial class </span><span style="color: #2b91af;">ProductSubcategory
+</span><span style="color: black;">{
+    [</span><span style="color: #2b91af;">Key</span><span style="color: black;">]
+    [</span><span style="color: #2b91af;">DatabaseGenerated</span><span style="color: black;">(</span><span style="color: #2b91af;">DatabaseGeneratedOption</span><span style="color: black;">.Identity)]</span><span style="color: black;">
+    </span><span style="color: blue;">public int </span><span style="color: black;">ProductSubcategoryID { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+    [</span><span style="color: #2b91af;">MaxLength</span><span style="color: black;">(50)]
+    [</span><span style="color: #2b91af;">Required</span><span style="color: black;">]</span><span style="color: black;">
+    </span><span style="color: blue;">public string </span><span style="color: black;">Name { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">public int</span><span style="color: black;"> ProductCategoryID { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+}</span></pre>
+<p>Here ProductCategoryID is a foreign key. It will be further discussed soon.</p>
+<p>In this tutorial, a few more tables of AdventureWorks database will be involved. Here is the Production.Product table definition:</p>
+<pre class="code"><span style="color: blue;">CREATE TABLE </span><span style="color: black;">[Production]</span><span style="color: gray;">.</span><span style="color: black;">[Product]</span><span style="color: gray;">(
+    </span><span style="color: black;">[ProductID] </span><span style="color: blue;">int IDENTITY</span><span style="color: gray;">(</span><span style="color: black;">1</span><span style="color: gray;">,</span><span style="color: black;">1</span><span style="color: gray;">) NOT NULL
+        </span><span style="color: blue;">CONSTRAINT </span><span style="color: black;">[PK_Product_ProductID] </span><span style="color: blue;">PRIMARY KEY CLUSTERED</span><span style="color: gray;">,
+
+    </span><span style="color: black;">[Name] [dbo]</span><span style="color: gray;">.</span><span style="color: black;">[Name] </span><span style="color: gray;">NOT NULL, </span><span style="color: green;">-- nvarchar(50).
+
+    </span><span style="color: black;">[ListPrice] </span><span style="color: blue;">money </span><span style="color: gray;">NOT NULL,
+
+    </span><span style="color: black;">[ProductSubcategoryID] </span><span style="color: blue;">int </span><span style="color: gray;">NULL
+        </span><span style="color: blue;">CONSTRAINT </span><span style="color: black;">[FK_Product_ProductSubcategory_ProductSubcategoryID] </span><span style="color: blue;">FOREIGN KEY
+        REFERENCES </span><span style="color: black;">[Production]</span><span style="color: gray;">.</span><span style="color: black;">[ProductSubcategory] </span><span style="color: gray;">(</span><span style="color: black;">[ProductSubcategoryID]</span><span style="color: gray;">),
+
+    </span><span style="color: black;">[Style] </span><span style="color: blue;">nchar</span><span style="color: gray;">(</span><span style="color: black;">2</span><span style="color: gray;">) NULL
+        </span><span style="color: blue;">CONSTRAINT </span><span style="color: black;">[CK_Product_Style]
+        </span><span style="color: blue;">CHECK </span><span style="color: gray;">(</span><span style="color: magenta;">UPPER</span><span style="color: gray;">(</span><span style="color: black;">[Style]</span><span style="color: gray;">) = </span><span style="color: red;">N'U' </span><span style="color: gray;">OR </span><span style="color: magenta;">UPPER</span><span style="color: gray;">(</span><span style="color: black;">[Style]</span><span style="color: gray;">) = </span><span style="color: red;">N'M' </span><span style="color: gray;">OR </span><span style="color: magenta;">UPPER</span><span style="color: gray;">(</span><span style="color: black;">[Style]</span><span style="color: gray;">) = </span><span style="color: red;">N'W' </span><span style="color: gray;">OR </span><span style="color: black;">[Style] </span><span style="color: gray;">IS NULL),
+
+    </span><span style="color: green;">/* Other ignored columns. */</span><span style="color: gray;">)
+</span><span style="color: blue;">GO</span></pre>
+<p>It can be mapped to following Product entity class definition</p>
+<pre class="code"><span style="color: black;">[</span><span style="color: #2b91af;">Table</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">), Schema = </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">.Production)]
+</span><span style="color: blue;">public partial class </span><span style="color: #2b91af;">Product
+</span><span style="color: black;">{
+    [</span><span style="color: #2b91af;">Key</span><span style="color: black;">]
+    [</span><span style="color: #2b91af;">DatabaseGenerated</span><span style="color: black;">(</span><span style="color: #2b91af;">DatabaseGeneratedOption</span><span style="color: black;">.Identity)]</span><span style="color: black;">
+    </span><span style="color: blue;">public int </span><span style="color: black;">ProductID { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+    [</span><span style="color: #2b91af;">MaxLength</span><span style="color: black;">(50)]
+    [</span><span style="color: #2b91af;">Required</span><span style="color: black;">]</span><span style="color: black;">
+    </span><span style="color: blue;">public string </span><span style="color: black;">Name { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">public decimal </span><span style="color: black;">ListPrice { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">public int</span><span style="color: black;">? ProductSubcategoryID { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+    </span><span style="color: green;">// public string Style { get; set; }
+</span><span style="color: black;">}</span></pre>
+<p>In the mapping:</p>
+<ul>
+<li>The ProductSubcategoryID column can be null, so it is mapped to a System.Nullable&lt;int&gt; property.</li>
+<li>The Style column can only have value U, M, W, or NULL. It does not have a property mapping, because it will be used to demonstrate conditional mapping in inheritance later in this part.</li>
+</ul>
+<p>And this is the Production.ProductPhoto table definition:</p>
+<pre class="code"><span style="color: blue;">CREATE TABLE </span><span style="color: black;">[Production]</span><span style="color: gray;">.</span><span style="color: black;">[ProductPhoto]</span><span style="color: gray;">(
+    </span><span style="color: black;">[ProductPhotoID] </span><span style="color: blue;">int IDENTITY</span><span style="color: gray;">(</span><span style="color: black;">1</span><span style="color: gray;">,</span><span style="color: black;">1</span><span style="color: gray;">) NOT NULL
+        </span><span style="color: blue;">CONSTRAINT </span><span style="color: black;">[PK_ProductPhoto_ProductPhotoID] </span><span style="color: blue;">PRIMARY KEY CLUSTERED</span><span style="color: gray;">,
+
+    </span><span style="color: black;">[LargePhotoFileName] </span><span style="color: blue;">nvarchar</span><span style="color: gray;">(</span><span style="color: black;">50</span><span style="color: gray;">) NULL,
+
+    </span><span style="color: black;">[ModifiedDate] </span><span style="color: blue;">datetime </span><span style="color: gray;">NOT NULL
+        </span><span style="color: blue;">CONSTRAINT </span><span style="color: black;">[DF_ProductPhoto_ModifiedDate] </span><span style="color: blue;">DEFAULT </span><span style="color: gray;">(</span><span style="color: magenta;">GETDATE</span><span style="color: gray;">())
+
+    </span><span style="color: green;">/* Other ignored columns. */</span><span style="color: gray;">)
+</span><span style="color: blue;">GO</span></pre>
+<p>It can be mapped to the following ProductPhoto entity class definition:</p>
+<pre class="code"><span style="color: black;">[</span><span style="color: #2b91af;">Table</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ProductPhoto</span><span style="color: black;">), Schema = </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">.Production)]
+</span><span style="color: blue;">public partial class </span><span style="color: #2b91af;">ProductPhoto
+</span><span style="color: black;">{
+    [</span><span style="color: #2b91af;">Key</span><span style="color: black;">]
+    [</span><span style="color: #2b91af;">DatabaseGenerated</span><span style="color: black;">(</span><span style="color: #2b91af;">DatabaseGeneratedOption</span><span style="color: black;">.Identity)]</span><span style="color: black;">
+    </span><span style="color: blue;">public int </span><span style="color: black;">ProductPhotoID { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+    [</span><span style="color: #2b91af;">MaxLength</span><span style="color: black;">(50)]
+    </span><span style="color: blue;">public string </span><span style="color: black;">LargePhotoFileName { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+</span><span style="color: black;">
+    [</span><span style="color: #2b91af;">ConcurrencyCheck</span><span style="color: black;">]
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">DateTime </span><span style="color: black;">ModifiedDate { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+}</span></pre>
+<p>ModifiedDate has a [ConcurrencyCheck] attribute for concurrency conflict check, which will be discussed later.</p>
+<p>Again, the rows of each table can be expose as objects in IQueryable&lt;T&gt; data source:</p>
+<pre class="code"><span style="color: blue;">public partial class </span><span style="color: #2b91af;">AdventureWorks
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">DbSet</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ProductSubcategory</span><span style="color: black;">&gt; ProductSubcategories { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">DbSet</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; Products { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">DbSet</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ProductPhoto</span><span style="color: black;">&gt; ProductPhotos { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+}</span></pre>
+<h1>Relationships</h1>
+<p>In SQL database, tables can have <a href="https://msdn.microsoft.com/en-us/library/ms189049.aspx" target="_blank">foreign key relationships</a>. The following diagram visualizes the foreign key relationships of above 5 tables:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/a174a530a37c_12C6E/image_8.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/a174a530a37c_12C6E/image_thumb_2.png" width="800" height="755" border="0"></a></p>
+<h2>One-to-many</h2>
+<p>From top down, the Production.ProductCategory table and Production.ProductSubcategory has a one-to-many relationship. A row in Production.ProductCategory table can have many matching rows in Production.ProductSubcategory table. In Entity Framework, this relashionship is mapped to the associations between ProductCategory and ProductSubcategory entity classes:</p>
+<pre class="code"><span style="color: blue;">public partial class </span><span style="color: #2b91af;">ProductCategory
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">ICollection</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ProductSubcategory</span><span style="color: black;">&gt; ProductSubcategories { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+        = </span><span style="color: blue;">new </span><span style="color: #2b91af;">HashSet</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ProductSubcategory</span><span style="color: black;">&gt;();
+}
+
+</span><span style="color: blue;">public partial class </span><span style="color: #2b91af;">ProductSubcategory
+</span><span style="color: black;">{
+    </span><span style="color: green;">// public int? ProductCategoryID { get; set; }
+    </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">ProductCategory { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+}</span></pre>
+<p>One ProductCategory object can have many ProductSubcategory objects, and one ProductSubcategory object can have one ProductCategory object. These association properties are also called navigation properties. They are virtual properties, so that the association implementation details can be provided by the override of proxy class.</p>
+<p>Production.ProductSubcategory table and Production.Product table has the same one-to-many relationship. So the mapping associations are:</p>
+<pre class="code"><span style="color: blue;">public partial class </span><span style="color: #2b91af;">ProductSubcategory
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">ICollection</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; Products { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; } = </span><span style="color: blue;">new </span><span style="color: #2b91af;">HashSet</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt;();
+}
+
+</span><span style="color: blue;">public partial class </span><span style="color: #2b91af;">Product
+</span><span style="color: black;">{
+    </span><span style="color: green;">// public int? ProductSubcategoryID { get; set; }
+    </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">ProductSubcategory </span><span style="color: black;">ProductSubcategory { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+}</span></pre>
+<h2>Many-to-many</h2>
+<p>Production.Product table and Production.ProductPhoto table has many-to-many relationship. This is implemented by 2 one-to-many relationships with another Production.ProductProductPhoto junction table. In Entity Framework, there are 2 options to map this. The first option is to directly defined the to-many navigation properties for the entities:</p>
+<pre class="code"><span style="color: blue;">public partial class </span><span style="color: #2b91af;">Product
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">ICollection</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ProductPhoto</span><span style="color: black;">&gt; ProductPhotos { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+        = </span><span style="color: blue;">new </span><span style="color: #2b91af;">HashSet</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ProductPhoto</span><span style="color: black;">&gt;();
+}
+
+</span><span style="color: blue;">public partial class </span><span style="color: #2b91af;">ProductPhoto
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">ICollection</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; Products { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; } = </span><span style="color: blue;">new </span><span style="color: #2b91af;">HashSet</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt;();
+}</span></pre>
+<p>Then specify the many-to-many association between them, and the junction table information for Entity Framework:</p>
+<pre class="code"><span style="color: blue;">public partial class </span><span style="color: #2b91af;">AdventureWorks
+</span><span style="color: black;">{
+    </span><span style="color: blue;">protected override void </span><span style="color: black;">OnModelCreating(</span><span style="color: #2b91af;">DbModelBuilder </span><span style="color: black;">modelBuilder)
+    {
+        </span><span style="color: blue;">base</span><span style="color: black;">.OnModelCreating(modelBuilder);
+
+        modelBuilder
+            .Entity&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt;()
+            .HasMany(product =&gt; product.ProductPhotos)
+            .WithMany(photo =&gt; photo.Products)
+            .Map(mapping =&gt; mapping
+                .ToTable(</span><span style="color: #a31515;">"ProductProductPhoto"</span><span style="color: black;">, Production)
+                .MapLeftKey(</span><span style="color: #a31515;">"ProductID"</span><span style="color: black;">)
+                .MapRightKey(</span><span style="color: #a31515;">"ProductPhotoID"</span><span style="color: black;">));
+    }
+}</span></pre>
+<p>The other options is to map whatever the database has. The junction table [Production].[ProductProductPhoto] is defined as:</p>
+<pre class="code"><span style="color: blue;">CREATE TABLE </span><span style="color: black;">[Production]</span><span style="color: gray;">.</span><span style="color: black;">[ProductProductPhoto]</span><span style="color: gray;">(
+    </span><span style="color: black;">[ProductID] </span><span style="color: blue;">int </span><span style="color: gray;">NOT NULL
+        </span><span style="color: blue;">CONSTRAINT </span><span style="color: black;">[FK_ProductProductPhoto_Product_ProductID] </span><span style="color: blue;">FOREIGN KEY
+        REFERENCES </span><span style="color: black;">[Production]</span><span style="color: gray;">.</span><span style="color: black;">[Product] </span><span style="color: gray;">(</span><span style="color: black;">[ProductID]</span><span style="color: gray;">),
+
+    </span><span style="color: black;">[ProductPhotoID] </span><span style="color: blue;">int </span><span style="color: gray;">NOT NULL
+        </span><span style="color: blue;">CONSTRAINT </span><span style="color: black;">[FK_ProductProductPhoto_ProductPhoto_ProductPhotoID] </span><span style="color: blue;">FOREIGN KEY
+        REFERENCES </span><span style="color: black;">[Production]</span><span style="color: gray;">.</span><span style="color: black;">[ProductPhoto] </span><span style="color: gray;">(</span><span style="color: black;">[ProductPhotoID]</span><span style="color: gray;">),
+
+    </span><span style="color: blue;">CONSTRAINT </span><span style="color: black;">[PK_ProductProductPhoto_ProductID_ProductPhotoID] </span><span style="color: blue;">PRIMARY KEY NONCLUSTERED </span><span style="color: gray;">(</span><span style="color: black;">[ProductID]</span><span style="color: gray;">, </span><span style="color: black;">[ProductPhotoID]</span><span style="color: gray;">)
+
+    </span><span style="color: green;">/* Other ignored columns. */</span><span style="color: gray;">)
+</span><span style="color: blue;">GO</span></pre>
+<p>It is mapped to ProductProductPhoto entity class:</p>
+<pre class="code"><span style="color: black;">[</span><span style="color: #2b91af;">Table</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ProductProductPhoto</span><span style="color: black;">), Schema = </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">.Production)]
+</span><span style="color: blue;">public partial class </span><span style="color: #2b91af;">ProductProductPhoto
+</span><span style="color: black;">{
+    [</span><span style="color: #2b91af;">Key</span><span style="color: black;">]
+    [</span><span style="color: #2b91af;">Column</span><span style="color: black;">(Order = 0)]</span><span style="color: black;">
+    </span><span style="color: blue;">public int </span><span style="color: black;">ProductID { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+    [</span><span style="color: #2b91af;">Key</span><span style="color: black;">]
+    [</span><span style="color: #2b91af;">Column</span><span style="color: black;">(Order = 1)]</span><span style="color: black;">
+    </span><span style="color: blue;">public int </span><span style="color: black;">ProductPhotoID { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+}</span></pre>
+<p>Production.ProductProductPhoto table’s primary key is defined on both 2 columns, so the ProductID and ProductPhotoID properties are both attributed as [Key]. And because of this, the [Column] attribute must be used to specify their orders.</p>
+<p>The many-to-many relationship is implemented by a one-to-many relationship between Production.Product and junction table, and another one-to-many relationship between Production.Product and junction table. These relationships are mapped to the following navigation properties:</p>
+<pre class="code"><span style="color: blue;">public partial class </span><span style="color: #2b91af;">Product
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">ICollection</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ProductProductPhoto</span><span style="color: black;">&gt; ProductProductPhotos { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+        = </span><span style="color: blue;">new </span><span style="color: #2b91af;">HashSet</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ProductProductPhoto</span><span style="color: black;">&gt;();
+}
+
+</span><span style="color: blue;">public partial class </span><span style="color: #2b91af;">ProductPhoto
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">ICollection</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ProductProductPhoto</span><span style="color: black;">&gt; ProductProductPhotos { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+        = </span><span style="color: blue;">new </span><span style="color: #2b91af;">HashSet</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ProductProductPhoto</span><span style="color: black;">&gt;();
+}
+
+</span><span style="color: blue;">public partial class </span><span style="color: #2b91af;">ProductProductPhoto
+</span><span style="color: black;">{
+    </span><span style="color: green;">// public int ProductID { get; set; }
+    </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">Product </span><span style="color: black;">Product { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+    </span><span style="color: green;">// public int ProductPhotoID { get; set; }
+    </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">ProductPhoto </span><span style="color: black;">ProductPhoto { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+}</span></pre>
+<p>Following the KISS principle (keep it simple stupid), this tutorial uses the second mapping approach, so that the mapping is the same as database.</p>
+<h1>Inheritance</h1>
+<p>Above 5 tables’ mapping classes are independent from each other. In Entity Framework, the table’s mapping classes can also be in base/derived class of each other. Entity framework supports 3 types of inheritance for the mapping classes:</p>
+<ul>
+<li><a href="https://msdn.microsoft.com/en-us/data/jj591617#2.4" target="_blank">Table per hierarchy (TPH)</a>: one table is mapped with each base entity class and derived entity class in the class inheritance hierarchy.</li>
+<li><a href="https://msdn.microsoft.com/en-us/data/jj591617#2.5" target="_blank">Table per type (TPT)</a>: one table is mapped with one single entity class in the hierarchy</li>
+<li><a href="https://msdn.microsoft.com/en-us/data/jj591617#2.6" target="_blank">Table per concrete type (TPC)</a>: one table is mapped with one non-abstract entity class in the hierarchy.</li>
+</ul>
+<p>This tutorial demonstrates the table per hierarchy inheritance, which is the default strategy of Entity Framework. In this case, one table is mapped to many entity classes in inheritance hierarchy, so a discriminator column is needed to specify each row’s mapping entity type. Above Production.Product table has a Style column to identify each row represents a women’s product (W), men’s product (M), or universal product (U). So the mapping hierarchy can be:</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">WomensProduct </span><span style="color: black;">: </span><span style="color: #2b91af;">Product
+</span><span style="color: black;">{
+}
+
+</span><span style="color: blue;">public class </span><span style="color: #2b91af;">MensProduct </span><span style="color: black;">: </span><span style="color: #2b91af;">Product
+</span><span style="color: black;">{
+}
+
+</span><span style="color: blue;">public class </span><span style="color: #2b91af;">UniversalProduct </span><span style="color: black;">: </span><span style="color: #2b91af;">Product
+</span><span style="color: black;">{
+}</span></pre>
+<p>Next, tell Entity Framework to map a row with W Style to a WomensProduct object, map a row with M Style to a MensProduct object, and map a row with U Style to a UniversalProduct object:</p>
+<pre class="code"><span style="color: blue;">public enum </span><span style="color: #2b91af;">Style
+</span><span style="color: black;">{
+    W,
+    M,
+    U
+}
+
+</span><span style="color: blue;">public partial class </span><span style="color: #2b91af;">AdventureWorks
+</span><span style="color: black;">{
+    </span><span style="color: blue;">protected override void </span><span style="color: black;">OnModelCreating(</span><span style="color: #2b91af;">DbModelBuilder </span><span style="color: black;">modelBuilder)
+    {
+        </span><span style="color: blue;">base</span><span style="color: black;">.OnModelCreating(modelBuilder);
+
+        modelBuilder
+            .Entity&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt;()
+            .Map&lt;</span><span style="color: #2b91af;">WomensProduct</span><span style="color: black;">&gt;(mapping =&gt; mapping.Requires(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Style</span><span style="color: black;">)).HasValue(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Style</span><span style="color: black;">.W)))
+            .Map&lt;</span><span style="color: #2b91af;">MensProduct</span><span style="color: black;">&gt;(mapping =&gt; mapping.Requires(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Style</span><span style="color: black;">)).HasValue(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Style</span><span style="color: black;">.M)))
+            .Map&lt;</span><span style="color: #2b91af;">UniversalProduct</span><span style="color: black;">&gt;(mapping =&gt; mapping.Requires(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Style</span><span style="color: black;">)).HasValue(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Style</span><span style="color: black;">.U)));
+    }
+}</span></pre>
+<p>Here Style column is used for conditional class mapping, so it was not used for property mapping in above Product entity class definition. Style column can also be NULL. When a row has NULL Style, it is mapped to a Product object.</p>
+<h1>Views</h1>
+<p>A view definition are also be mapped to a entity class definition, as if it is a table. Take the Production.vProductAndDescription view as example:</p>
+<pre class="code"><span style="color: blue;">CREATE VIEW </span><span style="color: black;">[Production]</span><span style="color: gray;">.</span><span style="color: black;">[vProductAndDescription2]
+</span><span style="color: blue;">WITH SCHEMABINDING
+AS
+SELECT
+    </span><span style="color: black;">[product]</span><span style="color: gray;">.</span><span style="color: black;">[ProductID]</span><span style="color: gray;">,
+    </span><span style="color: black;">[product]</span><span style="color: gray;">.</span><span style="color: black;">[Name]</span><span style="color: gray;">,
+    </span><span style="color: black;">[model]</span><span style="color: gray;">.</span><span style="color: black;">[Name] </span><span style="color: blue;">AS </span><span style="color: black;">[ProductModel]</span><span style="color: gray;">,
+    </span><span style="color: black;">[culture]</span><span style="color: gray;">.</span><span style="color: black;">[CultureID]</span><span style="color: gray;">,
+    </span><span style="color: black;">[description]</span><span style="color: gray;">.</span><span style="color: black;">[Description]
+</span><span style="color: blue;">FROM </span><span style="color: black;">[Production]</span><span style="color: gray;">.</span><span style="color: black;">[Product] [product]
+    </span><span style="color: gray;">INNER JOIN </span><span style="color: black;">[Production]</span><span style="color: gray;">.</span><span style="color: black;">[ProductModel] [model]
+    </span><span style="color: blue;">ON </span><span style="color: black;">[product]</span><span style="color: gray;">.</span><span style="color: black;">[ProductModelID] </span><span style="color: gray;">= </span><span style="color: black;">model</span><span style="color: gray;">.</span><span style="color: black;">[ProductModelID]
+    </span><span style="color: gray;">INNER JOIN </span><span style="color: black;">[Production]</span><span style="color: gray;">.</span><span style="color: black;">[ProductModelProductDescriptionCulture] [culture]
+    </span><span style="color: blue;">ON </span><span style="color: black;">[model]</span><span style="color: gray;">.</span><span style="color: black;">[ProductModelID] </span><span style="color: gray;">= </span><span style="color: black;">[culture]</span><span style="color: gray;">.</span><span style="color: black;">[ProductModelID]
+    </span><span style="color: gray;">INNER JOIN </span><span style="color: black;">[Production]</span><span style="color: gray;">.</span><span style="color: black;">[ProductDescription] [description]
+    </span><span style="color: blue;">ON </span><span style="color: black;">[culture]</span><span style="color: gray;">.</span><span style="color: black;">[ProductDescriptionID] </span><span style="color: gray;">= </span><span style="color: black;">[description]</span><span style="color: gray;">.</span><span style="color: black;">[ProductDescriptionID]</span><span style="color: gray;">;
+</span><span style="color: blue;">GO</span></pre>
+<p>The mapping is:</p>
+<pre class="code"><span style="color: black;">[</span><span style="color: #2b91af;">Table</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">vProductAndDescription</span><span style="color: black;">), Schema = </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">.Production)]
+</span><span style="color: blue;">public class </span><span style="color: #2b91af;">vProductAndDescription
+</span><span style="color: black;">{
+    [</span><span style="color: #2b91af;">Key</span><span style="color: black;">]
+    </span><span style="color: blue;">public int </span><span style="color: black;">ProductID { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">public string </span><span style="color: black;">Name { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">public string </span><span style="color: black;">ProductModel { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">public string </span><span style="color: black;">CultureID { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">public string </span><span style="color: black;">Description { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+}
+
+</span><span style="color: blue;">public class </span><span style="color: #2b91af;">vProductAndDescriptionMapping </span><span style="color: black;">: </span><span style="color: #2b91af;">EntityTypeConfiguration</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">vProductAndDescription</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">public </span><span style="color: black;">vProductAndDescriptionMapping()
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.ToTable(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">vProductAndDescription</span><span style="color: black;">));
+    }
+}</span></pre>
+<p>[Table] is required for the view’s entity class. Also, in SQL database, views cannot have unique keys, but in the entity class, [Key] is still required just like tables. An additional mapping class and ToTable call are needed to make the view mapping work. And, finally, the rows in the view can be exposed as IQueryable&lt;T&gt; data source, still represented by DbSet&lt;T&gt;:</p>
+<pre class="code"><span style="color: blue;">public partial class </span><span style="color: #2b91af;">AdventureWorks
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">DbSet</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">vProductAndDescription</span><span style="color: black;">&gt; ProductAndDescriptions { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+}</span></pre>
+<h1>Stored procedures and functions</h1>
+<p>Entity Framework code first does not have built-in support to map stored procedures and functions in SQL database. But the .NET mapping can still be implemented for:</p>
+<ul>
+<li>Stored procedures, with:
+<ul>
+<li>single result type</li>
+<li>multiple result types</li>
+<li>output parameter</li>
+</ul>
+</li>
+<li>Table-valued functions</li>
+<li>Scalar-valued functions
+<ul>
+<li>composable</li>
+<li>non-composable</li>
+</ul>
+</li>
+<li>Aggregate functions</li>
+<li>Built-in functions</li>
+<li>Niladic functions</li>
+<li>Model defined functions</li>
+</ul>
+
+
+
+</div>
+</body>
+</html>

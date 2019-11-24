@@ -1,0 +1,540 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+<h1>C# functional programming in-depth (5) Delegate: Function type, instance and group</h1>
+
+<h1>Delegate type as function type</h1>
+<p>In C#, functions are represented by methods of types, and other function members of types. In C#, just like just objects have types, methods/functions have types too, which are represented by delegate type.</p>
+<h2>Function type</h2>
+<p>This tutorial uses notation input parameter types –&gt; output return type for function type. For example, the simplest function type is parameterless, and returning void. Such function type is denoted () –&gt; void. In C#, a delegate type can defined like a method signature with the delegate keyword:</p>
+<pre class="code"><span style="color: green;">// () -&gt; void
+</span><span style="color: blue;">internal delegate void </span><span style="color: #2b91af;">FuncToVoid</span><span style="color: black;">();</span></pre>
+<p>FuncToVoid can be viewed as an alias of function type () –&gt; void. The following functions are all parameterless, and returning void:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Diagnostics
+{
+    </span><span style="color: blue;">public sealed class </span><span style="color: #2b91af;">Trace
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static void </span><span style="color: black;">Close();
+
+        </span><span style="color: blue;">public static void </span><span style="color: black;">Flush();
+
+        </span><span style="color: blue;">public static void </span><span style="color: black;">Indent();
+    }
+}</span></pre>
+<p>So these functions are all of function type () –&gt; void; in another word, of FuncToVoid type.</p>
+<p>The following delegate type represents the string –&gt; void function type, which accepts a string parameter, and returns void:</p>
+<pre class="code"><span style="color: green;">// string -&gt; void
+</span><span style="color: blue;">internal delegate void </span><span style="color: #2b91af;">FuncStringToVoid</span><span style="color: black;">(</span><span style="color: blue;">string </span><span style="color: black;">@string);</span></pre>
+<p>The following functions are all of FuncStringToVoid type:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Diagnostics
+{
+    </span><span style="color: blue;">public sealed class </span><span style="color: #2b91af;">Trace
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static void </span><span style="color: black;">TraceInformation(</span><span style="color: blue;">string </span><span style="color: black;">message);
+
+        </span><span style="color: blue;">public static void </span><span style="color: black;">Write(</span><span style="color: blue;">string </span><span style="color: black;">message);
+
+        </span><span style="color: blue;">public static void </span><span style="color: black;">WriteLine(</span><span style="color: blue;">string </span><span style="color: black;">message);
+    }
+}</span></pre>
+<p>These functions’ parameter names are different from the delegate type definition. In C#/.NET, parameter names are ignored when the compiler identifies function types, only parameter types, their order, and return type matter.</p>
+<p>The following delegate type represents the () –&gt; int function type that is parameterless, and returns int:</p>
+<pre class="code"><span style="color: green;">// () -&gt; int
+</span><span style="color: blue;">internal delegate int </span><span style="color: #2b91af;">FuncToInt32</span><span style="color: black;">();</span></pre>
+<p>The following functions are all of FuncToInt32 type:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Runtime.InteropServices
+{
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Marshal
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static int </span><span style="color: black;">GetExceptionCode();
+
+        </span><span style="color: blue;">public static int </span><span style="color: black;">GetHRForLastWin32Error();
+
+        </span><span style="color: blue;">public static int </span><span style="color: black;">GetLastWin32Error();
+    }
+}</span></pre>
+<p>And the following delegate type represents the (string, int) –&gt; int function type that accepts a string parameter, then a int parameter, and returns int:</p>
+<pre class="code"><span style="color: green;">// (string, int) -&gt; int
+</span><span style="color: blue;">internal delegate int </span><span style="color: #2b91af;">FuncStringInt32ToInt32</span><span style="color: black;">(</span><span style="color: blue;">string </span><span style="color: black;">@string, </span><span style="color: blue;">int </span><span style="color: black;">int32);</span></pre>
+<p>It is the type of the following functions (Again, the parameter names are ignored.):</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Globalization
+{
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">CharUnicodeInfo
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static int </span><span style="color: black;">GetDecimalDigitValue(</span><span style="color: blue;">string </span><span style="color: black;">s, </span><span style="color: blue;">int </span><span style="color: black;">index);
+
+        </span><span style="color: blue;">public static int </span><span style="color: black;">GetDigitValue(</span><span style="color: blue;">string </span><span style="color: black;">s, </span><span style="color: blue;">int </span><span style="color: black;">index);
+    }
+}</span></pre>
+<p>The following delegate type represents the string –&gt; bool function type that accepts a string parameter, and returns bool:</p>
+<pre class="code"><span style="color: green;">// string –&gt; bool
+</span><span style="color: blue;">internal delegate bool </span><span style="color: #2b91af;">FuncStringToBoolean</span><span style="color: black;">(</span><span style="color: blue;">string </span><span style="color: black;">@string);</span></pre>
+<p>The following functions are all of FuncStringToBoolean type:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{</span><span style="color: black;">
+    [</span><span style="color: #2b91af;">DefaultMember</span><span style="color: black;">(</span><span style="color: #a31515;">"Chars"</span><span style="color: black;">)]
+    </span><span style="color: blue;">public sealed class </span><span style="color: #2b91af;">String </span><span style="color: black;">: </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">char</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">, </span><span style="color: #2b91af;">IComparable</span><span style="color: black;">, </span><span style="color: #2b91af;">IComparable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">String</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IConvertible</span><span style="color: black;">, </span><span style="color: #2b91af;">IEquatable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">String</span><span style="color: black;">&gt;
+    {
+        </span><span style="color: blue;">public static bool </span><span style="color: black;">IsNullOrEmpty(</span><span style="color: #2b91af;">String </span><span style="color: black;">value);
+
+        </span><span style="color: blue;">public static bool </span><span style="color: black;">IsNullOrWhiteSpace(</span><span style="color: #2b91af;">String </span><span style="color: black;">value);
+
+        </span><span style="color: blue;">public bool </span><span style="color: black;">Contains(</span><span style="color: #2b91af;">String </span><span style="color: black;">value);
+
+        </span><span style="color: blue;">public bool </span><span style="color: black;">Equals(</span><span style="color: #2b91af;">String </span><span style="color: black;">value);
+
+        </span><span style="color: blue;">public bool </span><span style="color: black;">StartsWith(</span><span style="color: #2b91af;">String </span><span style="color: black;">value);
+
+        </span><span style="color: blue;">public bool </span><span style="color: black;">EndsWith(</span><span style="color: #2b91af;">String </span><span style="color: black;">value);
+    }
+}</span></pre>
+<h2>Generic delegate type</h2>
+<p>Above FuncToInt32 represents the () –&gt; int function type that is parameterless and return int. Similarly, for parameterless functions returning bool, string, or object, the following delegate types can be defined:</p>
+<pre class="code"><span style="color: green;">// () -&gt; bool
+</span><span style="color: blue;">internal delegate bool </span><span style="color: #2b91af;">FuncToBoolean</span><span style="color: black;">();
+
+</span><span style="color: green;">// () -&gt; string
+</span><span style="color: blue;">internal delegate string </span><span style="color: #2b91af;">FuncToString</span><span style="color: black;">();
+
+</span><span style="color: green;">// () -&gt; object
+</span><span style="color: blue;">internal delegate object </span><span style="color: #2b91af;">FuncToObject</span><span style="color: black;">();</span></pre>
+<p>More similar definitions can go forever for different return types. Since C# 2.0. they can be replaced with one single generic delegate type. In the above series of delegate type defections, the return type varies, so the return type can be represented with a type parameter of any name, like TResult:</p>
+<pre class="code"><span style="color: green;">// () -&gt; TResult
+</span><span style="color: blue;">internal delegate </span><span style="color: #2b91af;">TResult Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;();</span></pre>
+<p>Similar to generic interface/class/structure, here type parameter TResult is also defined in angle brackets following type name, and it is used as the return type. It is just a placeholder to be specified with concrete type later. When TResult is int, Func&lt;int&gt; represents the () –&gt; int function type, which is equivalent to FuncToInt32, and Func&lt;bool&gt; is equivalent to FuncToBoolean, and Func&lt;string&gt; is equivalent to FuncToString, Func&lt;object&gt; is equivalent to FuncToObject, etc. All the delegate types in this () –&gt; TResult pattern can be represented by Func&lt;TResult&gt;.</p>
+<p>Since Func&lt;int&gt; and FuncToInt32 are equivalent, The above Marshal.GetExceptionCode, Marshal.HRForLastWin32Error, Marsha.GetLastWin32Error functions are of Func&lt;int&gt; type too.</p>
+<p>Here is another example:</p>
+<pre class="code"><span style="color: green;">// (T1, T2) -&gt; TResult
+</span><span style="color: blue;">internal delegate </span><span style="color: #2b91af;">TResult Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T1 </span><span style="color: black;">value1, </span><span style="color: #2b91af;">T2 </span><span style="color: black;">value2);</span></pre>
+<p>The above generic delegate type can represent any function type that accepts 2 parameters and return a result. For example, Func&lt;string, int, int&gt; is equivalent to above FuncStringInt32ToInt32, so the above CharUnicodeInfo.GetDecimalDigitValue and CharUnicodeInfo.GetDigitalValue functions are of Func&lt;string, int, int&gt; type too. The following are more examples:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Math
+    </span><span style="color: black;">{
+        </span><span style="color: green;">// (double, double) -&gt; double
+        </span><span style="color: blue;">public static double </span><span style="color: black;">Log(</span><span style="color: blue;">double </span><span style="color: black;">a, </span><span style="color: blue;">double </span><span style="color: black;">newBase);
+
+        </span><span style="color: green;">// (int, int) -&gt; int
+        </span><span style="color: blue;">public static int </span><span style="color: black;">Max(</span><span style="color: blue;">int </span><span style="color: black;">val1, </span><span style="color: blue;">int </span><span style="color: black;">val2);
+
+        </span><span style="color: green;">// (double, int) -&gt; double
+        </span><span style="color: blue;">public static double </span><span style="color: black;">Round(</span><span style="color: blue;">double </span><span style="color: black;">value, </span><span style="color: blue;">int </span><span style="color: black;">digits);
+
+        </span><span style="color: green;">// (decimal, MidpointRounding) -&gt; decimal
+        </span><span style="color: blue;">public static decimal </span><span style="color: black;">Round(</span><span style="color: blue;">decimal </span><span style="color: black;">d, </span><span style="color: #2b91af;">MidpointRounding </span><span style="color: black;">mode);
+    }
+}</span></pre>
+<p>These functions’ types: can be represented with Func&lt;double, double, double&gt;, Func&lt;int, int, int&gt;, Func&lt;double, int, double&gt; and Func&lt;decimal, MidpointRounding, decimal&gt;.</p>
+<h2>Unified built-in delegate types</h2>
+<p>As fore mentioned, delegate types can be defined with duplicate, like Func&lt;int&gt; and FuncToInt32 are equivalent, Func&lt;string, int, int&gt; and FuncStringInt32ToInt32are equivalent, etc. Since .NET Framework 2.0, the following delegate type is provided:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{
+    </span><span style="color: green;">// (T, T) -&gt; int
+    </span><span style="color: blue;">public delegate int </span><span style="color: #2b91af;">Comparison</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T </span><span style="color: black;">x, </span><span style="color: #2b91af;">T </span><span style="color: black;">y);
+}</span></pre>
+<p>The following custom delegate types can be defined too:</p>
+<pre class="code"><span style="color: green;">// (T, T) -&gt; int
+</span><span style="color: blue;">internal delegate int </span><span style="color: #2b91af;">NewComparison</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T </span><span style="color: black;">x, </span><span style="color: #2b91af;">T </span><span style="color: black;">y);
+
+</span><span style="color: green;">// (string, string) -&gt; TResult
+</span><span style="color: blue;">internal delegate </span><span style="color: #2b91af;">TResult FuncStringString</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: blue;">string </span><span style="color: black;">value1, </span><span style="color: blue;">string </span><span style="color: black;">value2);
+
+</span><span style="color: green;">// (T1, T2) -&gt; int
+</span><span style="color: blue;">internal delegate int </span><span style="color: #2b91af;">FuncToInt32</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T1 </span><span style="color: black;">value1, </span><span style="color: #2b91af;">T2 </span><span style="color: black;">value2);
+
+</span><span style="color: green;">// (string, string) -&gt; int
+</span><span style="color: blue;">internal delegate int </span><span style="color: #2b91af;">FuncStringStringToInt32</span><span style="color: black;">(</span><span style="color: blue;">string </span><span style="color: black;">value1, </span><span style="color: blue;">string </span><span style="color: black;">value2);</span></pre>
+<p>As a result, Func&lt;string, string, int&gt;, Comparison&lt;string&gt;, NewComparison&lt;int&gt;, FuncStringString&lt;int&gt;, FuncToInt32&lt;string, string&gt;, FuncStringStringToInt32 all represent (string, string) –&gt; int function type. They are all equivalent.</p>
+<p>Even built-in delegate types can duplicate. For example, .NET Framework 2.0 also provides the following delegate types, which all represent object –&gt; void function type:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Threading
+{</span><span style="color: black;">
+    </span><span style="color: green;">// object -&gt; void
+    </span><span style="color: blue;">public delegate void </span><span style="color: #2b91af;">SendOrPostCallback</span><span style="color: black;">(</span><span style="color: blue;">object </span><span style="color: black;">state);
+
+    </span><span style="color: green;">// object -&gt; void
+    </span><span style="color: blue;">public delegate void </span><span style="color: #2b91af;">ContextCallback</span><span style="color: black;">(</span><span style="color: blue;">object </span><span style="color: black;">state);
+
+    </span><span style="color: green;">// object -&gt; void
+    </span><span style="color: blue;">public delegate void </span><span style="color: #2b91af;">ParameterizedThreadStart</span><span style="color: black;">(</span><span style="color: blue;">object </span><span style="color: black;">obj);
+
+    </span><span style="color: green;">// object -&gt; void
+    </span><span style="color: blue;">public delegate void </span><span style="color: #2b91af;">WaitCallback</span><span style="color: black;">(</span><span style="color: blue;">object </span><span style="color: black;">state);
+
+    </span><span style="color: green;">// object -&gt; void
+    </span><span style="color: blue;">public delegate void </span><span style="color: #2b91af;">TimerCallback</span><span style="color: black;">(</span><span style="color: blue;">object </span><span style="color: black;">state);
+}</span></pre>
+<p>To avoid this kind of duplication, since .NET Framework 3.5, 2 series of built-in delegate types are provided to unify all the function types. The following generic Func delegate types can represent any function type that accepts 0 ~ 16 parameters, and returns a result:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{
+    </span><span style="color: green;">// () -&gt; TResult
+    </span><span style="color: blue;">public delegate </span><span style="color: #2b91af;">TResult Func</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;();
+
+    </span><span style="color: green;">// T -&gt; TResult
+    </span><span style="color: blue;">public delegate </span><span style="color: #2b91af;">TResult Func</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: blue;">out </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T </span><span style="color: black;">arg);
+
+    </span><span style="color: green;">// (T1, T2) -&gt; TResult
+    </span><span style="color: blue;">public delegate </span><span style="color: #2b91af;">TResult Func</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: blue;">out </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T1 </span><span style="color: black;">arg1, </span><span style="color: #2b91af;">T2 </span><span style="color: black;">arg2);
+
+    </span><span style="color: green;">// (T1, T2, T3) -&gt; TResult
+    </span><span style="color: blue;">public delegate </span><span style="color: #2b91af;">TResult Func</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: blue;">out </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T1 </span><span style="color: black;">arg1, </span><span style="color: #2b91af;">T2 </span><span style="color: black;">arg2, </span><span style="color: #2b91af;">T3 </span><span style="color: black;">arg3);
+
+    </span><span style="color: green;">// (T1, T2, T3, T4) -&gt; TResult
+    </span><span style="color: blue;">public delegate </span><span style="color: #2b91af;">TResult Func</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T4</span><span style="color: black;">, </span><span style="color: blue;">out </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T1 </span><span style="color: black;">arg1, </span><span style="color: #2b91af;">T2 </span><span style="color: black;">arg2, </span><span style="color: #2b91af;">T3 </span><span style="color: black;">arg3, </span><span style="color: #2b91af;">T4 </span><span style="color: black;">arg4);
+
+    </span><span style="color: green;">// ...
+
+    // (T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16) -&gt; TResult
+    </span><span style="color: blue;">public delegate </span><span style="color: #2b91af;">TResult Func</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T4</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T5</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T6</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T7</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T8</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T9</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T10</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T11</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T12</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T13</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T14</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T15</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T16</span><span style="color: black;">, </span><span style="color: blue;">out </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T1 </span><span style="color: black;">arg1, </span><span style="color: #2b91af;">T2 </span><span style="color: black;">arg2, </span><span style="color: #2b91af;">T3 </span><span style="color: black;">arg3, </span><span style="color: #2b91af;">T4 </span><span style="color: black;">arg4, </span><span style="color: #2b91af;">T5 </span><span style="color: black;">arg5, </span><span style="color: #2b91af;">T6 </span><span style="color: black;">arg6, </span><span style="color: #2b91af;">T7 </span><span style="color: black;">arg7, </span><span style="color: #2b91af;">T8 </span><span style="color: black;">arg8, </span><span style="color: #2b91af;">T9 </span><span style="color: black;">arg9, </span><span style="color: #2b91af;">T10 </span><span style="color: black;">arg10, </span><span style="color: #2b91af;">T11 </span><span style="color: black;">arg11, </span><span style="color: #2b91af;">T12 </span><span style="color: black;">arg12, </span><span style="color: #2b91af;">T13 </span><span style="color: black;">arg13, </span><span style="color: #2b91af;">T14 </span><span style="color: black;">arg14, </span><span style="color: #2b91af;">T15 </span><span style="color: black;">arg15, </span><span style="color: #2b91af;">T16 </span><span style="color: black;">arg16);
+}</span></pre>
+<p>The in/out modifiers for the type parameter specifies that type parameter is contravariant/covariant, which will be discussed in detail later. However, above Func types cannot represent any function types returning void. Function type Func&lt;void&gt; or Func&lt;System.Void&gt; cannot be compiled, because C# complier does not allow generic’s type argument to be the void keyword or the System.Void type. So following generic Action delegate types are provided to represent all function types that accept 0 ~ 16 parameters, and return void:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{
+    </span><span style="color: green;">// () -&gt; void
+    </span><span style="color: blue;">public delegate void </span><span style="color: #2b91af;">Action</span><span style="color: black;">();
+
+    </span><span style="color: green;">// T -&gt; void
+    </span><span style="color: blue;">public delegate void </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T </span><span style="color: black;">obj);
+
+    </span><span style="color: green;">// (T1, T2) -&gt; void
+    </span><span style="color: blue;">public delegate void </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T1 </span><span style="color: black;">arg1, </span><span style="color: #2b91af;">T2 </span><span style="color: black;">arg2);
+
+    </span><span style="color: green;">// (T1, T2, T3) -&gt; void
+    </span><span style="color: blue;">public delegate void </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T3</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T1 </span><span style="color: black;">arg1, </span><span style="color: #2b91af;">T2 </span><span style="color: black;">arg2, </span><span style="color: #2b91af;">T3 </span><span style="color: black;">arg3);
+
+    </span><span style="color: green;">// (T1, T2, T3, T4) -&gt; void
+    </span><span style="color: blue;">public delegate void </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T4</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T1 </span><span style="color: black;">arg1, </span><span style="color: #2b91af;">T2 </span><span style="color: black;">arg2, </span><span style="color: #2b91af;">T3 </span><span style="color: black;">arg3, </span><span style="color: #2b91af;">T4 </span><span style="color: black;">arg4);
+
+    </span><span style="color: green;">// ...
+
+    // (T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16) -&gt; void
+    </span><span style="color: blue;">public delegate void </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T3</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T4</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T5</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T6</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T7</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T8</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T9</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T10</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T11</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T12</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T13</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T14</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T15</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T16</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T1 </span><span style="color: black;">arg1, </span><span style="color: #2b91af;">T2 </span><span style="color: black;">arg2, </span><span style="color: #2b91af;">T3 </span><span style="color: black;">arg3, </span><span style="color: #2b91af;">T4 </span><span style="color: black;">arg4, </span><span style="color: #2b91af;">T5 </span><span style="color: black;">arg5, </span><span style="color: #2b91af;">T6 </span><span style="color: black;">arg6, </span><span style="color: #2b91af;">T7 </span><span style="color: black;">arg7, </span><span style="color: #2b91af;">T8 </span><span style="color: black;">arg8, </span><span style="color: #2b91af;">T9 </span><span style="color: black;">arg9, </span><span style="color: #2b91af;">T10 </span><span style="color: black;">arg10, </span><span style="color: #2b91af;">T11 </span><span style="color: black;">arg11, </span><span style="color: #2b91af;">T12 </span><span style="color: black;">arg12, </span><span style="color: #2b91af;">T13 </span><span style="color: black;">arg13, </span><span style="color: #2b91af;">T14 </span><span style="color: black;">arg14, </span><span style="color: #2b91af;">T15 </span><span style="color: black;">arg15, </span><span style="color: #2b91af;">T16 </span><span style="color: black;">arg16);
+}</span></pre>
+<p>For consistency, this tutorial always uses the above Func and Action delegate types to represent function types.</p>
+<h1>Delegate instance as function instance</h1>
+<p>Just like object can be instantiated from class, delegate instance can be instantiated from delegate type too. A delegate instance can represent a function, or a group of functions of the same function type.</p>
+<p>When delegate instance is used to represent a specified function, the instantiation syntax is similar to the constructor call when instantiating an object:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Functions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Constructor()
+    {
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; func = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Math</span><span style="color: black;">.Max);
+        </span><span style="color: blue;">int </span><span style="color: black;">result = func(1, 2);
+        </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(result); </span><span style="color: green;">// 2
+    </span><span style="color: black;">}
+}</span></pre>
+<p>The constructor call syntax can be omitted:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Instantiate()
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; func = </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Max;
+    </span><span style="color: blue;">int </span><span style="color: black;">result = func(1, 2);
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(result); </span><span style="color: green;">// 2
+</span><span style="color: black;">}</span></pre>
+<p>With this syntax, above paradigm looks functional. Func&lt;int, int, int&gt; is the function type, func variable is the function (instance), and func variable’s value is initialized with the Math.Max function. And naturally, function func can be called. When it is called, Math.Max executes and return the result.</p>
+<h2>Delegate class and delegate instance</h2>
+<p>The above functional paradigm is actually implemented by wrapping imperative object-oriented programming. For each delegate type definition, C# compiler generates a class definition. For example, System.Func&lt;T1, T2, TResult&gt; delegate type is compiled to the following class:</p>
+<pre class="code"><span style="color: blue;">public sealed class </span><span style="color: #2b91af;">CompiledFunc</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: blue;">in </span><span style="color: #2b91af;">T2</span><span style="color: black;">, </span><span style="color: blue;">out </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">MulticastDelegate
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public </span><span style="color: black;">CompiledFunc(</span><span style="color: blue;">object </span><span style="color: black;">@object, </span><span style="color: #2b91af;">IntPtr </span><span style="color: black;">method);
+
+    </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">TResult </span><span style="color: black;">Invoke(</span><span style="color: #2b91af;">T1 </span><span style="color: black;">arg1, </span><span style="color: #2b91af;">T2 </span><span style="color: black;">arg2);
+
+    </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">IAsyncResult </span><span style="color: black;">BeginInvoke(</span><span style="color: #2b91af;">T1 </span><span style="color: black;">arg1, </span><span style="color: #2b91af;">T2 </span><span style="color: black;">arg2, </span><span style="color: #2b91af;">AsyncCallback </span><span style="color: black;">callback, </span><span style="color: blue;">object </span><span style="color: black;">@object);
+
+    </span><span style="color: blue;">public virtual void </span><span style="color: black;">EndInvoke(</span><span style="color: #2b91af;">IAsyncResult </span><span style="color: black;">result);
+}</span></pre>
+<p>The generated class has a Invoke method, with the same signature as the delegate type itself. So above delegate instantiation code is a syntactic sugar compiled to normal object instantiation, and the function call is also a syntactic sugar compiled to above Invoke method call:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledInstantiate()
+{
+    </span><span style="color: #2b91af;">CompiledFunc</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; func = </span><span style="color: blue;">new </span><span style="color: #2b91af;">CompiledFunc</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;(</span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Max);
+    </span><span style="color: blue;">int </span><span style="color: black;">result = func.Invoke(1, 2);
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(result); </span><span style="color: green;">// 2
+</span><span style="color: black;">}</span></pre>
+<p>The generated Invoke method can be useful along with null conditional operator:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Invoke(</span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; action)
+{
+    action?.Invoke(0); </span><span style="color: green;">// if (action != null) { action(0); }
+</span><span style="color: black;">}</span></pre>
+<p>The BeginInvoke and EndInvoke methods are for asynchronous programming:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">TraceAllTextAsync(</span><span style="color: blue;">string </span><span style="color: black;">path)
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt; func = </span><span style="color: #2b91af;">File</span><span style="color: black;">.ReadAllText;
+    func.BeginInvoke(path, TraceAllTextCallback, func);
+}
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">TraceAllTextCallback(</span><span style="color: #2b91af;">IAsyncResult </span><span style="color: black;">asyncResult)
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt; func = (</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt;)asyncResult.AsyncState;
+    </span><span style="color: blue;">string </span><span style="color: black;">text = func.EndInvoke(asyncResult);
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(text);
+}</span></pre>
+<p>C# 5.0 introduces the async and await keywords. Since then, C# asynchronous programming should follow the async/await pattern instead of using above BeginInvoke/EndInvoke pattern. The async/await asynchronous programming is discussed later in this chapter.</p>
+<p>All delegate types are automatically derived from System.MulticastDelegate, and MulticastDelegate is derived from System.Delegate:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public abstract class </span><span style="color: #2b91af;">Delegate
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public object </span><span style="color: black;">Target { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: blue;">public </span><span style="color: #2b91af;">MethodInfo </span><span style="color: black;">Method { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: blue;">public static bool operator </span><span style="color: black;">==(</span><span style="color: #2b91af;">Delegate </span><span style="color: black;">d1, </span><span style="color: #2b91af;">Delegate </span><span style="color: black;">d2);
+
+        </span><span style="color: blue;">public static bool operator </span><span style="color: black;">!=(</span><span style="color: #2b91af;">Delegate </span><span style="color: black;">d1, </span><span style="color: #2b91af;">Delegate </span><span style="color: black;">d2);
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>So each delegate instance has Target/Method properties, and ==/!= operators. The following example demonstrates these members of delegate instance:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Static()
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; func1 = </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Max; </span><span style="color: green;">// new Func&lt;int, int, int&gt;(Math.Max);
+    </span><span style="color: blue;">int </span><span style="color: black;">result1 = func1(1, 2); </span><span style="color: green;">// func1.Invoke(1, 2);;
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(func1.Target == </span><span style="color: blue;">null</span><span style="color: black;">); </span><span style="color: green;">// True
+    </span><span style="color: #2b91af;">MethodInfo </span><span style="color: black;">method1 = func1.Method();
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(</span><span style="color: #a31515;">$"</span><span style="color: black;">{method1.DeclaringType}</span><span style="color: #a31515;">: </span><span style="color: black;">{method1}</span><span style="color: #a31515;">"</span><span style="color: black;">); </span><span style="color: green;">// System.Math: Int32 Max(Int32, Int32)
+
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; func2 = </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Max; </span><span style="color: green;">// new Func&lt;int, int, int&gt;(Math.Max);
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(</span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(func1, func2)); </span><span style="color: green;">// False
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(func1 == func2); </span><span style="color: green;">// True
+</span><span style="color: black;">}</span></pre>
+<p>As fore mentioned, func1 looks like a function and works like a function, but it is essentially an instance of the generated class. It has an Invoke method accepting 2 int parameters and return int. Its Target property inherited from Delegate returns the underlying object which has this method. Since the underlying method is a static method, Target returns null. Its Method property returns the underlying method, Math.Max. Then delegate instance func2 is instantiated with the same static method, and apparently it is another different instance from func1. However, func1 and func2 have the same underlying static method, so the == operator returns true.</p>
+<p>In contrast, take instance method object.Equals as example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Instance()
+{
+    </span><span style="color: blue;">object </span><span style="color: black;">object1 = </span><span style="color: blue;">new object</span><span style="color: black;">();
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">object</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; func1 = object1.Equals; </span><span style="color: green;">// new Func&lt;object, bool&gt;(object1.Equals);
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(ReferenceEquals(func1.Target, object1)); </span><span style="color: green;">// True
+    </span><span style="color: #2b91af;">MethodInfo </span><span style="color: black;">method2 = func1.Method();
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(</span><span style="color: #a31515;">$"</span><span style="color: black;">{method2.DeclaringType}</span><span style="color: #a31515;">: </span><span style="color: black;">{method2}</span><span style="color: #a31515;">"</span><span style="color: black;">); </span><span style="color: green;">// System.Object: Boolean Equals(System.Object)
+
+    </span><span style="color: blue;">object </span><span style="color: black;">object2 = </span><span style="color: blue;">new object</span><span style="color: black;">();
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">object</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; func2 = object2.Equals; </span><span style="color: green;">// new Func&lt;object, bool&gt;(object2.Equals);
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(ReferenceEquals(func2.Target, object2)); </span><span style="color: green;">// True
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(</span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(func1, func2)); </span><span style="color: green;">// False
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(func1 == func2); </span><span style="color: green;">// False
+
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">object</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; func3 = object1.Equals; </span><span style="color: green;">// new Func&lt;object, bool&gt;(object1.Equals);
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(</span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(func1, func3)); </span><span style="color: green;">// False
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(func1 == func3); </span><span style="color: green;">// True
+</span><span style="color: black;">}</span></pre>
+<p>Apparently, func1’s Target property returns object1, which has the underlying instance method. Only when 2 delegate instance have the same underlying instance method from the same target, the == operator returns true.</p>
+<h1>Delegate instance as function group</h1>
+<p>Besides function, delegate instance can also represent function groups. The following methods are all of () –&gt; string type:</p>
+<pre class="code"><span style="color: blue;">internal static string </span><span style="color: black;">A()
+{
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(</span><span style="color: blue;">nameof</span><span style="color: black;">(A));
+    </span><span style="color: blue;">return nameof</span><span style="color: black;">(A);
+}
+
+</span><span style="color: blue;">internal static string </span><span style="color: black;">B()
+{
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(</span><span style="color: blue;">nameof</span><span style="color: black;">(B));
+    </span><span style="color: blue;">return nameof</span><span style="color: black;">(B);
+}
+
+</span><span style="color: blue;">internal static string </span><span style="color: black;">C()
+{
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(</span><span style="color: blue;">nameof</span><span style="color: black;">(C));
+    </span><span style="color: blue;">return nameof</span><span style="color: black;">(C);
+}
+
+</span><span style="color: blue;">internal static string </span><span style="color: black;">D()
+{
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(</span><span style="color: blue;">nameof</span><span style="color: black;">(D));
+    </span><span style="color: blue;">return nameof</span><span style="color: black;">(D);
+}</span></pre>
+<p>They can be combined/uncombined with the +/- operators:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">FunctionGroup()
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; a = A;
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; b = B;
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; functionGroup1 = a + b;
+    functionGroup1 += C;
+    functionGroup1 += D;
+    </span><span style="color: blue;">string </span><span style="color: black;">lastResult1 = functionGroup1(); </span><span style="color: green;">// A(); B(); C(); D();
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(lastResult1); </span><span style="color: green;">// D
+
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; functionGroup2 = functionGroup1 - a;
+    functionGroup2 -= D;
+    </span><span style="color: blue;">string </span><span style="color: black;">lastResult2 = functionGroup2(); </span><span style="color: green;">// B(); C();
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(lastResult2); </span><span style="color: green;">// C
+
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; functionGroup3 = functionGroup1 - functionGroup2 + a;
+    </span><span style="color: blue;">string </span><span style="color: black;">lastResult3 = functionGroup3(); </span><span style="color: green;">// A(); D(); A();
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(lastResult3); </span><span style="color: green;">// 8
+</span><span style="color: black;">}</span></pre>
+<p>Here functionGroup1 is combination of A + B + C + D. When functionGroup1 is called, the 4 internal functions are called one by one, so functionGroup1’s return value is the last function D’s return value “D”. functionGroup2 is functionGroup1 – A – D, which is B + C, so functionGroup2’s return value is “C”. functionGroup3 is functionGroup1 – functionGroup2 + A, which is A + B + A, so its return value is “A”. Actually, + is compiled to Delegate.Combine call and – is compiled to Delegate.Remove call:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledFunctionGroup()
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; a = A;
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; b = B;
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; functionGroup1 = (</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;)</span><span style="color: #2b91af;">Delegate</span><span style="color: black;">.Combine(a, b); </span><span style="color: green;">// = A + B;
+    </span><span style="color: black;">functionGroup1 = (</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;)</span><span style="color: #2b91af;">Delegate</span><span style="color: black;">.Combine(functionGroup1, </span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;(C)); </span><span style="color: green;">// += C;
+    </span><span style="color: black;">functionGroup1 = (</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;)</span><span style="color: #2b91af;">Delegate</span><span style="color: black;">.Combine(functionGroup1, </span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;(D)); </span><span style="color: green;">// += D;
+    </span><span style="color: blue;">string </span><span style="color: black;">lastResult1 = functionGroup1.Invoke(); </span><span style="color: green;">// A(); B(); C(); D();
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(lastResult1); </span><span style="color: green;">// D
+
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; functionGroup2 = (</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;)</span><span style="color: #2b91af;">Delegate</span><span style="color: black;">.Remove(functionGroup1, a); </span><span style="color: green;">// = functionGroup1 - A;
+    </span><span style="color: black;">functionGroup2 = (</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;)</span><span style="color: #2b91af;">Delegate</span><span style="color: black;">.Remove(functionGroup2, </span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;(D)); </span><span style="color: green;">//  -= D;
+    </span><span style="color: blue;">string </span><span style="color: black;">lastResult2 = functionGroup2.Invoke(); </span><span style="color: green;">// B(); C();
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(lastResult2); </span><span style="color: green;">// C
+
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; functionGroup3 = (</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;)</span><span style="color: #2b91af;">Delegate</span><span style="color: black;">.Combine( </span><span style="color: green;">// = functionGroup1 - functionGroup2 + A;
+        </span><span style="color: black;">(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;)</span><span style="color: #2b91af;">Delegate</span><span style="color: black;">.Remove(functionGroup1, functionGroup2), a);
+    </span><span style="color: blue;">string </span><span style="color: black;">lastResult3 = functionGroup3(); </span><span style="color: green;">// A(); D(); A();
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(lastResult3); </span><span style="color: green;">// A
+</span><span style="color: black;">}</span></pre>
+<p>C# language utilizes delegate instance as function group to implement event. To keep it simple and consistent, this tutorial always use delegate instance to represent single function in all non-event scenarios,.</p>
+<h2>Event and event handler</h2>
+<p>C# event follows the observer pattern of object-oriented programming. After learning how delegate instance as group works, it is very easy to understand event from a functional programming perspective – a event is virtually a delegate instance as function group. The following Downloader type can download string from the specified URI, with a Completed event defined:</p>
+<pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">DownloadEventArgs </span><span style="color: black;">: EventArgs
+{
+    </span><span style="color: blue;">internal </span><span style="color: black;">DownloadEventArgs(</span><span style="color: blue;">string </span><span style="color: black;">content)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.Content = content;
+    }
+
+    </span><span style="color: blue;">internal string </span><span style="color: black;">Content { </span><span style="color: blue;">get</span><span style="color: black;">; }
+}
+
+</span><span style="color: blue;">internal class </span><span style="color: #2b91af;">Downloader
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal event </span><span style="color: black;">EventHandler&lt;DownloadEventArgs&gt; Completed;
+
+    </span><span style="color: blue;">private void </span><span style="color: black;">OnCompleted(DownloadEventArgs args)
+    {
+        EventHandler&lt;DownloadEventArgs&gt; functionGroup = </span><span style="color: blue;">this</span><span style="color: black;">.Completed;
+        functionGroup?.Invoke(</span><span style="color: blue;">this</span><span style="color: black;">, args);
+    }
+
+    </span><span style="color: blue;">internal void </span><span style="color: black;">Start(</span><span style="color: blue;">string </span><span style="color: black;">uri)
+    {
+        </span><span style="color: blue;">using </span><span style="color: black;">(WebClient webClient = </span><span style="color: blue;">new </span><span style="color: black;">WebClient())
+        {
+            </span><span style="color: blue;">string </span><span style="color: black;">content = webClient.DownloadString(uri);
+            </span><span style="color: blue;">this</span><span style="color: black;">.OnCompleted(</span><span style="color: blue;">new </span><span style="color: black;">DownloadEventArgs(content));
+        }
+    }
+}</span></pre>
+<p>It has a Start method to start downloading. When the downloading is done, Start calls OnCompleted, and OnCompleted raises the Completed event by calling the Completed event as if it is a delegate instance. The type of event is EventHandler&lt;TEventArgs&gt; generic delegate type:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{
+    </span><span style="color: green;">// (object, TEventArgs) -&gt; void
+    </span><span style="color: blue;">public delegate void </span><span style="color: #2b91af;">EventHandler</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEventArgs</span><span style="color: black;">&gt;(</span><span style="color: blue;">object </span><span style="color: black;">sender, TEventArgs e);
+}</span></pre>
+<p>So EventHandler&lt;DownloadEventArgs&gt; represents (object, DownloadEventArgs) –&gt; void function type, where the object argument is the Downloader instance which raises the event, and the DownloadEventArgs argument is the event info, the downloaded string. The Completed event’s handler must be function of the same (object, DownloadEventArgs) –&gt; void type. The following are 2 examples:</p>
+<pre class="code"><span style="color: green;">// EventHandler&lt;DownloadEventArgs&gt;: (object, DownloadEventArgs) -&gt; void
+</span><span style="color: blue;">internal static void </span><span style="color: black;">TraceContent(</span><span style="color: blue;">object </span><span style="color: black;">sender, DownloadEventArgs args)
+{
+    Trace.WriteLine(args.Content);
+}
+
+</span><span style="color: green;">// EventHandler&lt;DownloadEventArgs&gt;: (object, DownloadEventArgs) -&gt; void
+</span><span style="color: blue;">internal static void </span><span style="color: black;">SaveContent(</span><span style="color: blue;">object </span><span style="color: black;">sender, DownloadEventArgs args)
+{
+    File.WriteAllText(Path.GetTempFileName(), args.Content);
+}</span></pre>
+<p>Now the += operator can be used to add a event handler function to the event function group, and –= operator can be used to remove the event handler function from the event function group:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">HandleEvent()
+{
+    Downloader downloader = </span><span style="color: blue;">new </span><span style="color: black;">Downloader();
+    downloader.Completed += TraceContent;
+    downloader.Completed += SaveContent;
+    downloader.Start(</span><span style="color: #a31515;">"https://weblogs.asp.net/dixin"</span><span style="color: black;">);
+}</span></pre>
+<p>when the Start method is called, it downloads the string. When done, it raises the Completed event, which is virtually calling a function group. So that the 2 event handler functions in the group are called. To be accurately understand this mechanism, the Completed event member of type (object, EventArgs) –&gt; void is compiled into 3 members: a delegate instance field of the same type, a add_Completed method, and a remove_Completed method:</p>
+<pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">CompiledDownloader
+</span><span style="color: black;">{
+    </span><span style="color: blue;">private </span><span style="color: black;">EventHandler&lt;DownloadEventArgs&gt; completedGroup;
+
+    </span><span style="color: blue;">internal void </span><span style="color: black;">add_Completed(EventHandler&lt;DownloadEventArgs&gt; function)
+    {
+        EventHandler&lt;DownloadEventArgs&gt; oldGroup;
+        EventHandler&lt;DownloadEventArgs&gt; group = </span><span style="color: blue;">this</span><span style="color: black;">.completedGroup;
+        </span><span style="color: blue;">do
+        </span><span style="color: black;">{
+            oldGroup = group;
+            EventHandler&lt;DownloadEventArgs&gt; newGroup = (EventHandler&lt;DownloadEventArgs&gt;)Delegate.Combine(oldGroup, function);
+            group = Interlocked.CompareExchange(</span><span style="color: blue;">ref this</span><span style="color: black;">.completedGroup, newGroup, oldGroup);
+        } </span><span style="color: blue;">while </span><span style="color: black;">(group != oldGroup);
+    }
+
+    </span><span style="color: blue;">internal void </span><span style="color: black;">remove_Completed(EventHandler&lt;DownloadEventArgs&gt; function)
+    {
+        EventHandler&lt;DownloadEventArgs&gt; oldGroup;
+        EventHandler&lt;DownloadEventArgs&gt; group = </span><span style="color: blue;">this</span><span style="color: black;">.completedGroup;
+        </span><span style="color: blue;">do
+        </span><span style="color: black;">{
+            oldGroup = group;
+            EventHandler&lt;DownloadEventArgs&gt; newGroup = (EventHandler&lt;DownloadEventArgs&gt;)Delegate.Remove(oldGroup, function);
+            group = Interlocked.CompareExchange(</span><span style="color: blue;">ref this</span><span style="color: black;">.completedGroup, newGroup, oldGroup);
+        } </span><span style="color: blue;">while </span><span style="color: black;">(group != oldGroup);
+    }
+}</span></pre>
+<p>The generated delegate instance field is the function group to store the event handler functions. The add_Completed and remove_Completed methods adds and removes event handler functions by calling Delegate.Combine and Delegate.Remove, in a in a thread safe approach. It can be simplified by deleting the Interlocked method calls for thread safety, and representing the (object, DownloadEventArgs) –&gt; void delegate type with the normal unified Action&lt;object, DownloadEventArgs&gt;. The following code shows the the essentials after compilation:</p>
+<pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">SimplifiedDownloader
+</span><span style="color: black;">{
+    </span><span style="color: blue;">private </span><span style="color: black;">Action&lt;</span><span style="color: blue;">object</span><span style="color: black;">, DownloadEventArgs&gt; completedGroup;
+
+    </span><span style="color: blue;">internal void </span><span style="color: black;">add_Completed(Action&lt;</span><span style="color: blue;">object</span><span style="color: black;">, DownloadEventArgs&gt; function)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.completedGroup += function;
+    }
+
+    </span><span style="color: blue;">internal void </span><span style="color: black;">remove_Completed(Action&lt;</span><span style="color: blue;">object</span><span style="color: black;">, DownloadEventArgs&gt; function)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.completedGroup -= function;
+    }
+
+    </span><span style="color: blue;">private void </span><span style="color: black;">OnCompleted(DownloadEventArgs args)
+    {
+        Action&lt;</span><span style="color: blue;">object</span><span style="color: black;">, DownloadEventArgs&gt; functionGroup = </span><span style="color: blue;">this</span><span style="color: black;">.completedGroup;
+        functionGroup?.Invoke(</span><span style="color: blue;">this</span><span style="color: black;">, args);
+    }
+
+    </span><span style="color: blue;">internal void </span><span style="color: black;">Start(</span><span style="color: blue;">string </span><span style="color: black;">uri)
+    {
+        </span><span style="color: blue;">using </span><span style="color: black;">(WebClient webClient = </span><span style="color: blue;">new </span><span style="color: black;">WebClient())
+        {
+            </span><span style="color: blue;">string </span><span style="color: black;">content = webClient.DownloadString(uri);
+            </span><span style="color: blue;">this</span><span style="color: black;">.OnCompleted(</span><span style="color: blue;">new </span><span style="color: black;">DownloadEventArgs(content));
+        }
+    }
+}
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">CompiledHandleEvent()
+{
+    SimplifiedDownloader downloader = </span><span style="color: blue;">new </span><span style="color: black;">SimplifiedDownloader();
+    downloader.add_Completed(TraceContent);
+    downloader.add_Completed(SaveContent);
+    downloader.Start(</span><span style="color: #a31515;">"https://weblogs.asp.net/dixin"</span><span style="color: black;">);
+}</span></pre>
+<p>So the C# event/event handler model is quite straight forward from functional programming perspective. It is all about function type, function group, and function:</p>
+<ul>
+<li>A event is a member of class or structure, as a C#/.NET programming convention, it should be of function type (object, TEventArgs) –&gt; void. If the event is a instance member of a class or structure, the object parameter is the instance of that class or structure which raises the event; if the event is static member, the object parameter should be null. The other TEventArgs parameter should derive from System.EventArgs class, and wraps the information of the event, like the downloaded content of a download complete event, the cursor’s position for a mouse click event, etc..</li>
+<li>As a convention, event member’s type is usually represented by EventHandler&lt;TEventArgs&gt; delegate type, which is equivalent to Action&lt;object, TEventArgs&gt;.</li>
+<li>Compiler generates 3 members for a event member: a field member, which is a delegate instance as function group to store event handler function, along with 2 helper method members to add/remove event handler function.</li>
+<li>A event’s event handler is a function of the same (object, TEventArgs) –&gt; void type.</li>
+<li>To handle a event, use the += operator to add the event handler function to the event function group.</li>
+<li>To raise a event, just call the function group, as a result, all the event handler functions stored in the group are called to handle the event.</li>
+</ul>
+<p>This compilation of event member is similar to a auto property member, which can be compiled to a backing field, a getter and a setter. Actually C# has a event add/remove accessor syntax similar to property getter/setter:</p>
+<pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">DownloaderWithEventAccessor
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal event </span><span style="color: black;">EventHandler&lt;DownloadEventArgs&gt; Completed
+    {
+        </span><span style="color: blue;">add </span><span style="color: black;">{ </span><span style="color: blue;">this</span><span style="color: black;">.Completed += value; }
+        </span><span style="color: blue;">remove </span><span style="color: black;">{ </span><span style="color: blue;">this</span><span style="color: black;">.Completed -= value; }
+    }
+}</span></pre>
+<p>The add/remove accessors are compiled to above add/remove helper methods.</p>
+
+
+</div>
+</body>
+</html>

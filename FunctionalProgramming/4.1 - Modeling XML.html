@@ -1,0 +1,430 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+<h1>LINQ to XML (1) Modeling XML</h1>
+
+<p><a href="https://en.wikipedia.org/wiki/XML" target="_blank">XML</a> (eXtensible Markup Language) is widely used to represent, store, and transfer data. Since .NET 3.5, the built in LINQ to XML APIs are provided to enable LINQ queries for XML data source. These APIs are located in System.Xml.XDocument NuGet package for .NET Core, and System.Xml.Linq.dll for .NET Framework. LINQ to XML can be viewed as specialized LINQ to Objects, where the objects in memory represents XML structures.</p>
+<h1>Imperative vs. declarative paradigm</h1>
+<p>The XML DOM APIs are provided since .NET Framework 1.0. There a set of Xml* types in System.Xml namespace representing XML structures. The following list shows their inheritance hierarchy:</p>
+<ul>
+<li>XmlNamedNodeMap</li>
+<ul>
+<li>XmlAttributeCollection</li>
+</ul>
+<li>XmlNode</li>
+<ul>
+<li>XmlAttribute</li>
+<li>XmlDocument</li>
+<li>XmlDocumentFragment</li>
+<li>XmlEntity</li>
+<li>XmlLinkedNode</li>
+<ul>
+<li>XmlCharacterData</li>
+<ul>
+<li>XmlCDataSection</li>
+<li>XmlComment</li>
+<li>XmlSignificantWhitespace</li>
+<li>XmlText</li>
+<li>XmlWhitespace</li>
+</ul>
+<li>XmlDeclaration</li>
+<li>XmlDocumentType</li>
+<li>XmlElement</li>
+<li>XmlEntityReference</li>
+<li>XmlProcessingInstruction</li>
+</ul>
+<li>XmlNotation</li>
+</ul>
+<li>XmlNodeList</li>
+<li>XmlQualifiedName</li>
+</ul>
+<p>These DOM APIs for XML can be used to model and manipulate XML structures in imperative paradigm. Take the following XML fragment as example:</p>
+<pre class="code"><span style="color: blue;">&lt;</span><span style="color: #a31515;">rss </span><span style="color: red;">version</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">2.0</span><span style="color: black;">" </span><span style="color: red;">xmlns:dixin</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">https://weblogs.asp.net/dixin</span><span style="color: black;">"</span><span style="color: blue;">&gt;
+  &lt;</span><span style="color: #a31515;">channel</span><span style="color: blue;">&gt;
+    &lt;</span><span style="color: #a31515;">item</span><span style="color: blue;">&gt;
+      &lt;</span><span style="color: #a31515;">title</span><span style="color: blue;">&gt;</span><span style="color: black;">LINQ via C#</span><span style="color: blue;">&lt;/</span><span style="color: #a31515;">title</span><span style="color: blue;">&gt;
+      &lt;</span><span style="color: #a31515;">link</span><span style="color: blue;">&gt;</span><span style="color: black;">https://weblogs.asp.net/dixin/linq-via-csharp</span><span style="color: blue;">&lt;/</span><span style="color: #a31515;">link</span><span style="color: blue;">&gt;
+      &lt;</span><span style="color: #a31515;">description</span><span style="color: blue;">&gt;
+        &lt;</span><span style="color: #a31515;">p</span><span style="color: blue;">&gt;</span><span style="color: black;">This is a tutorial of LINQ and functional programming. Hope it helps.</span><span style="color: blue;">&lt;/</span><span style="color: #a31515;">p</span><span style="color: blue;">&gt;
+      &lt;/</span><span style="color: #a31515;">description</span><span style="color: blue;">&gt;
+      &lt;</span><span style="color: #a31515;">pubDate</span><span style="color: blue;">&gt;</span><span style="color: black;">Mon, 07 Sep 2009 00:00:00 GMT</span><span style="color: blue;">&lt;/</span><span style="color: #a31515;">pubDate</span><span style="color: blue;">&gt;
+      &lt;</span><span style="color: #a31515;">guid </span><span style="color: red;">isPermaLink</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">true</span><span style="color: black;">"</span><span style="color: blue;">&gt;</span><span style="color: black;">https://weblogs.asp.net/dixin/linq-via-csharp</span><span style="color: blue;">&lt;/</span><span style="color: #a31515;">guid</span><span style="color: blue;">&gt;
+      &lt;</span><span style="color: #a31515;">category</span><span style="color: blue;">&gt;</span><span style="color: black;">C#</span><span style="color: blue;">&lt;/</span><span style="color: #a31515;">category</span><span style="color: blue;">&gt;
+      &lt;</span><span style="color: #a31515;">category</span><span style="color: blue;">&gt;</span><span style="color: black;">LINQ</span><span style="color: blue;">&lt;/</span><span style="color: #a31515;">category</span><span style="color: blue;">&gt;
+      &lt;!--</span><span style="color: green;">Comment.</span><span style="color: blue;">--&gt;
+      &lt;</span><span style="color: #a31515;">dixin:source</span><span style="color: blue;">&gt;</span><span style="color: black;">https://github.com/Dixin/CodeSnippets/tree/master/Dixin/Linq</span><span style="color: blue;">&lt;/</span><span style="color: #a31515;">dixin:source</span><span style="color: blue;">&gt;
+    &lt;/</span><span style="color: #a31515;">item</span><span style="color: blue;">&gt;
+  &lt;/</span><span style="color: #a31515;">channel</span><span style="color: blue;">&gt;
+&lt;/</span><span style="color: #a31515;">rss</span><span style="color: blue;">&gt;</span></pre>
+<p>It is a simple RSS feed with one single &lt;item&gt; element. The following example calls XML DOM APIs to build such a XML tree, and serialize the XML tree to string:</p>
+<pre class="code"><span style="color: blue;">internal static class </span><span style="color: #2b91af;">Dom
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">CreateAndSerialize()
+    {
+        </span><span style="color: #2b91af;">XmlNamespaceManager </span><span style="color: black;">namespaceManager = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XmlNamespaceManager</span><span style="color: black;">(</span><span style="color: blue;">new </span><span style="color: #2b91af;">NameTable</span><span style="color: black;">());
+        </span><span style="color: blue;">const string </span><span style="color: black;">NamespacePrefix = </span><span style="color: #a31515;">"dixin"</span><span style="color: black;">;
+        namespaceManager.AddNamespace(NamespacePrefix, </span><span style="color: #a31515;">"https://weblogs.asp.net/dixin"</span><span style="color: black;">);
+
+        </span><span style="color: #2b91af;">XmlDocument </span><span style="color: black;">document = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XmlDocument</span><span style="color: black;">(namespaceManager.NameTable);
+
+        </span><span style="color: #2b91af;">XmlElement </span><span style="color: black;">rss = document.CreateElement(</span><span style="color: #a31515;">"rss"</span><span style="color: black;">);
+        rss.SetAttribute(</span><span style="color: #a31515;">"version"</span><span style="color: black;">, </span><span style="color: #a31515;">"2.0"</span><span style="color: black;">);
+        </span><span style="color: #2b91af;">XmlAttribute </span><span style="color: black;">attribute = document.CreateAttribute(
+            </span><span style="color: #a31515;">"xmlns"</span><span style="color: black;">, NamespacePrefix, namespaceManager.LookupNamespace(</span><span style="color: #a31515;">"xmlns"</span><span style="color: black;">));
+        attribute.Value = namespaceManager.LookupNamespace(NamespacePrefix);
+        rss.SetAttributeNode(attribute);
+        document.AppendChild(rss);
+
+        </span><span style="color: #2b91af;">XmlElement </span><span style="color: black;">channel = document.CreateElement(</span><span style="color: #a31515;">"channel"</span><span style="color: black;">);
+        rss.AppendChild(channel);
+
+        </span><span style="color: #2b91af;">XmlElement </span><span style="color: black;">item = document.CreateElement(</span><span style="color: #a31515;">"item"</span><span style="color: black;">);
+        channel.AppendChild(item);
+
+        </span><span style="color: #2b91af;">XmlElement </span><span style="color: black;">title = document.CreateElement(</span><span style="color: #a31515;">"title"</span><span style="color: black;">);
+        title.InnerText = </span><span style="color: #a31515;">"LINQ via C#"</span><span style="color: black;">;
+        item.AppendChild(title);
+
+        </span><span style="color: #2b91af;">XmlElement </span><span style="color: black;">link = document.CreateElement(</span><span style="color: #a31515;">"link"</span><span style="color: black;">);
+        link.InnerText = </span><span style="color: #a31515;">"https://weblogs.asp.net/dixin/linq-via-csharp"</span><span style="color: black;">;
+        item.AppendChild(link);
+
+        </span><span style="color: #2b91af;">XmlElement </span><span style="color: black;">description = document.CreateElement(</span><span style="color: #a31515;">"description"</span><span style="color: black;">);
+        description.InnerXml = </span><span style="color: #a31515;">"&lt;p&gt;This is a tutorial of LINQ and functional programming. Hope it helps.&lt;/p&gt;"</span><span style="color: black;">;
+        item.AppendChild(description);
+
+        </span><span style="color: #2b91af;">XmlElement </span><span style="color: black;">pubDate = document.CreateElement(</span><span style="color: #a31515;">"pubDate"</span><span style="color: black;">);
+        pubDate.InnerText = </span><span style="color: blue;">new </span><span style="color: #2b91af;">DateTime</span><span style="color: black;">(2009, 9, 7).ToString(</span><span style="color: #a31515;">"r"</span><span style="color: black;">);
+        item.AppendChild(pubDate);
+
+        </span><span style="color: #2b91af;">XmlElement </span><span style="color: black;">guid = document.CreateElement(</span><span style="color: #a31515;">"guid"</span><span style="color: black;">);
+        guid.InnerText = </span><span style="color: #a31515;">"https://weblogs.asp.net/dixin/linq-via-csharp"</span><span style="color: black;">;
+        guid.SetAttribute(</span><span style="color: #a31515;">"isPermaLink"</span><span style="color: black;">, </span><span style="color: #a31515;">"true"</span><span style="color: black;">);
+        item.AppendChild(guid);
+
+        </span><span style="color: #2b91af;">XmlElement </span><span style="color: black;">category1 = document.CreateElement(</span><span style="color: #a31515;">"category"</span><span style="color: black;">);
+        category1.InnerText = </span><span style="color: #a31515;">"C#"</span><span style="color: black;">;
+        item.AppendChild(category1);
+
+        </span><span style="color: #2b91af;">XmlNode </span><span style="color: black;">category2 = category1.CloneNode(</span><span style="color: blue;">false</span><span style="color: black;">);
+        category2.InnerText = </span><span style="color: #a31515;">"LINQ"</span><span style="color: black;">;
+        item.AppendChild(category2);
+
+        </span><span style="color: #2b91af;">XmlComment </span><span style="color: black;">comment = document.CreateComment(</span><span style="color: #a31515;">"Comment."</span><span style="color: black;">);
+        item.AppendChild(comment);
+
+        </span><span style="color: #2b91af;">XmlElement </span><span style="color: black;">source = document.CreateElement(NamespacePrefix, </span><span style="color: #a31515;">"source"</span><span style="color: black;">, namespaceManager.LookupNamespace(NamespacePrefix));
+        source.InnerText = </span><span style="color: #a31515;">"https://github.com/Dixin/CodeSnippets/tree/master/Dixin/Linq"</span><span style="color: black;">;
+        item.AppendChild(source);
+
+        </span><span style="color: green;">// Serialize XmlDocument to string.
+        </span><span style="color: #2b91af;">StringBuilder </span><span style="color: black;">xmlString = </span><span style="color: blue;">new </span><span style="color: #2b91af;">StringBuilder</span><span style="color: black;">();
+        </span><span style="color: #2b91af;">XmlWriterSettings </span><span style="color: black;">settings = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XmlWriterSettings
+        </span><span style="color: black;">{
+            Indent = </span><span style="color: blue;">true</span><span style="color: black;">,
+            IndentChars = </span><span style="color: #a31515;">"  "</span><span style="color: black;">,
+            OmitXmlDeclaration = </span><span style="color: blue;">true
+        </span><span style="color: black;">};
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">XmlWriter </span><span style="color: black;">writer = </span><span style="color: #2b91af;">XmlWriter</span><span style="color: black;">.Create(xmlString, settings))
+        {
+            document.Save(writer);
+        }
+
+        </span><span style="color: green;">// rssItem.ToString() returns "System.Xml.XmlElement".
+        // rssItem.OuterXml returns a single line of XML text.
+        </span><span style="color: black;">xmlString<span style="color: #2b91af;"></span><span style="color: black;">.WriteLine(</span>);
+    }
+}</span></pre>
+<p>These APIs have a few disadvantages:</p>
+<ul>
+<li>Any XML structure has to be created with a XmlDocument instance.</li>
+<li>XML tree has to be built imperatively, node by node.</li>
+<li>Additional work is needed to manage namespaces and prefixes.</li>
+<li>Some operations, like serialization, is not straightforward.</li>
+</ul>
+<p>Fortunately, LINQ to XML does not work with these Xml* types. It redesigns a bunch of X* types under System.Xml.Linq namespace, and enables LINQ queries for these objects. The following list shows the inheritance hierarchy of all the X* types, as well as each type’s conversion from/to other types, and their overloaded operators:</p>
+<ul>
+<li>XDeclaration</li>
+<li><span style="text-decoration: underline;">XName</span>: implicit convertible from string, ==, !=</li>
+<li>XNamespace: implicit convertible from string, + string, ==, !=</li>
+<li>XObject</li>
+<ul>
+<li><span style="text-decoration: underline;">XAttribute</span>: explicit convertible to string/bool/bool?/int/int?/uint/uint?/long/long?/ulong/ulong?/float/float?/double/double?/decimal/decimal?/DateTime/DateTime?/TimeSpan/TimeSpan?/Guid/Guid?</li>
+<li>XNode: DeepEquals</li>
+<ul>
+<li>XComment</li>
+<li>XContainer</li>
+<ul>
+<li>XDocument</li>
+<li><span style="text-decoration: underline;">XElement</span>: explicit convertible to string/bool/bool?/int/int?/uint/uint?/long/long?/ulong/ulong?/float/float?/double/double?/decimal/decimal?/DateTime/DateTime?/TimeSpan/TimeSpan?/Guid/Guid?</li>
+</ul>
+<li>XDocumentType</li>
+<li>XProcessingInstruction</li>
+<li>XText</li>
+<ul>
+<li>XCData</li>
+</ul>
+</ul>
+</ul>
+<li>XStreamingElement</li>
+</ul>
+<p>As the names suggest, e.g., XNode represents a XML node, XDocument represents a XML document, XName represents XML element name or XML attribute name, etc. And apparently, An XML element/attribute name is essentially a string, so XName implements implicit conversion from string, which provides great convenience. The following example builds the same XML tree with the new LINQ to XML types:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Modeling
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">CreateAndSerialize()
+    {
+        </span><span style="color: #2b91af;">XNamespace </span><span style="color: black;">@namespace = </span><span style="color: #a31515;">"https://weblogs.asp.net/dixin"</span><span style="color: black;">;
+        </span><span style="color: #2b91af;">XElement </span><span style="color: black;">rss = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(
+            </span><span style="color: #a31515;">"rss"</span><span style="color: black;">,
+            </span><span style="color: blue;">new </span><span style="color: #2b91af;">XAttribute</span><span style="color: black;">(</span><span style="color: #a31515;">"version"</span><span style="color: black;">, </span><span style="color: #a31515;">"2.0"</span><span style="color: black;">),
+            </span><span style="color: blue;">new </span><span style="color: #2b91af;">XAttribute</span><span style="color: black;">(</span><span style="color: #2b91af;">XNamespace</span><span style="color: black;">.Xmlns + </span><span style="color: #a31515;">"dixin"</span><span style="color: black;">, @namespace),
+            </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(
+                </span><span style="color: #a31515;">"channel"</span><span style="color: black;">,
+                </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(
+                    </span><span style="color: #a31515;">"item"</span><span style="color: black;">, </span><span style="color: green;">// Implicitly converted to XName.
+                    </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"title"</span><span style="color: black;">, </span><span style="color: #a31515;">"LINQ via C#"</span><span style="color: black;">),
+                    </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"link"</span><span style="color: black;">, </span><span style="color: #a31515;">"https://weblogs.asp.net/dixin/linq-via-csharp"</span><span style="color: black;">),
+                    </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(
+                        </span><span style="color: #a31515;">"description"</span><span style="color: black;">,
+                        </span><span style="color: #2b91af;">XElement</span><span style="color: black;">.Parse(</span><span style="color: #a31515;">"&lt;p&gt;This is a tutorial of LINQ and functional programming. Hope it helps.&lt;/p&gt;"</span><span style="color: black;">)),
+                    </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"pubDate"</span><span style="color: black;">, </span><span style="color: blue;">new </span><span style="color: #2b91af;">DateTime</span><span style="color: black;">(2009, 9, 7).ToString(</span><span style="color: #a31515;">"r"</span><span style="color: black;">)),
+                    </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(
+                        </span><span style="color: #a31515;">"guid"</span><span style="color: black;">,
+                        </span><span style="color: blue;">new </span><span style="color: #2b91af;">XAttribute</span><span style="color: black;">(</span><span style="color: #a31515;">"isPermaLink"</span><span style="color: black;">, </span><span style="color: #a31515;">"true"</span><span style="color: black;">), </span><span style="color: green;">// "isPermaLink" is implicitly converted to XName.
+                        </span><span style="color: #a31515;">"https://weblogs.asp.net/dixin/linq-via-csharp"</span><span style="color: black;">),
+                    </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"category"</span><span style="color: black;">, </span><span style="color: #a31515;">"C#"</span><span style="color: black;">),
+                    </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"category"</span><span style="color: black;">, </span><span style="color: #a31515;">"LINQ"</span><span style="color: black;">),
+                    </span><span style="color: blue;">new </span><span style="color: #2b91af;">XComment</span><span style="color: black;">(</span><span style="color: #a31515;">"Comment."</span><span style="color: black;">),
+                    </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(
+                        @namespace + </span><span style="color: #a31515;">"source"</span><span style="color: black;">,
+                        </span><span style="color: #a31515;"><a href="https://github.com/Dixin/CodeSnippets/tree/master/Dixin/Linq">https://github.com/Dixin/CodeSnippets/tree/master/Dixin/Linq</a></span><span style="color: black;">))));</span><span style="color: green;">
+        </span><span style="color: black;">rss.ToString().WriteLine(); <span style="color: black;"></span><span style="color: green;">// Serialize XDocument to string.</span>
+    }
+}</span></pre>
+<p>The new code is shorter and more intuitive:</p>
+<ul>
+<li>XML structure can be create on the fly, XDocument is not involved in the entire example.</li>
+<li>XML tree can be built declaratively.</li>
+<li>Easier namespace management, with prefix automatically taken care of.</li>
+<li>To serialize an XML tree, simply call ToString.</li>
+</ul>
+<h1>Types, conversions and operators</h1>
+<p>Besides XDocument, XElement, XAttribute, and XComment in above example, some other XML structures can also can declaratively constructed too:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Construction()
+{
+    </span><span style="color: #2b91af;">XDeclaration </span><span style="color: black;">declaration = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XDeclaration</span><span style="color: black;">(</span><span style="color: #a31515;">"1.0"</span><span style="color: black;">, </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: #a31515;">"no"</span><span style="color: black;">);
+    declaration.WriteLine(); </span><span style="color: green;">// &lt;?xml version="1.0" standalone="no"?&gt;
+
+    </span><span style="color: #2b91af;">XDocumentType </span><span style="color: black;">documentType = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XDocumentType</span><span style="color: black;">(</span><span style="color: #a31515;">"html"</span><span style="color: black;">, </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: blue;">null</span><span style="color: black;">);
+    documentType.WriteLine(); </span><span style="color: green;">// &lt;!DOCTYPE html &gt;
+
+    </span><span style="color: #2b91af;">XText </span><span style="color: black;">text = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XText</span><span style="color: black;">(</span><span style="color: #a31515;">"&lt;p&gt;text&lt;/p&gt;"</span><span style="color: black;">);
+    text.WriteLine(); </span><span style="color: green;">// &amp;lt;p&amp;gt;text&amp;lt;/p&amp;gt;
+
+    </span><span style="color: #2b91af;">XCData </span><span style="color: black;">cData = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XCData</span><span style="color: black;">(</span><span style="color: #a31515;">"cdata"</span><span style="color: black;">);
+    cData.WriteLine(); </span><span style="color: green;">// &lt;![CDATA[cdata]]&gt;
+
+    </span><span style="color: #2b91af;">XProcessingInstruction </span><span style="color: black;">processingInstruction = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XProcessingInstruction</span><span style="color: black;">(
+        </span><span style="color: #a31515;">"xml-stylesheet"</span><span style="color: black;">, </span><span style="color: maroon;">@"type=""text/xsl"" href=""Style.xsl"""</span><span style="color: black;">);
+    processingInstruction.WriteLine(); </span><span style="color: green;">// &lt;?xml-stylesheet type="text/xsl" href="Style.xsl"?&gt;
+</span><span style="color: black;">}</span></pre>
+<p>XName is different. LINQ to XML provides 2 equivalent ways to instantiate XName:</p>
+<ul>
+<li>calling XName.Get</li>
+<li>implicitly converting from string (which is implemented with XName.Get as well).</li>
+</ul>
+<p>The constructor is not exposed, because LINQ to XML caches all the constructed XName instances at runtime, so a XName instance is constructed only once for a specific name. LINQ to XML also implements the == and != operator by checking the reference equality:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Name()
+{
+    </span><span style="color: #2b91af;">XName </span><span style="color: black;">attributeName1 = </span><span style="color: #a31515;">"isPermaLink"</span><span style="color: black;">; </span><span style="color: green;">// Implicitly convert string to XName.
+    </span><span style="color: #2b91af;">XName </span><span style="color: black;">attributeName2 = </span><span style="color: #2b91af;">XName</span><span style="color: black;">.Get(</span><span style="color: #a31515;">"isPermaLink"</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">XName </span><span style="color: black;">attributeName3 = </span><span style="color: #a31515;">"IsPermaLink"</span><span style="color: black;">;
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(attributeName1, attributeName2).WriteLine(); </span><span style="color: green;">// True
+    </span><span style="color: black;">(attributeName1 == attributeName2).WriteLine(); </span><span style="color: green;">// True
+    </span><span style="color: black;">(attributeName1 != attributeName3).WriteLine(); </span><span style="color: green;">// True
+</span><span style="color: black;">}</span></pre>
+<p>XNamespace has the same behavior as XName. additionally, it implements the + operator to combine the namespace and local name:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Namespace()
+{
+    </span><span style="color: #2b91af;">XNamespace </span><span style="color: black;">namespace1 = </span><span style="color: #a31515;">"http://www.w3.org/XML/1998/namespace"</span><span style="color: black;">; </span><span style="color: green;">// Implicitly convert string to XNamespace.
+    </span><span style="color: #2b91af;">XNamespace </span><span style="color: black;">namespace2 = </span><span style="color: #2b91af;">XNamespace</span><span style="color: black;">.Xml;
+    </span><span style="color: #2b91af;">XNamespace </span><span style="color: black;">namespace3 = </span><span style="color: #2b91af;">XNamespace</span><span style="color: black;">.Get(</span><span style="color: #a31515;">"http://www.w3.org/2000/xmlns/"</span><span style="color: black;">);
+    (namespace1 == namespace2).WriteLine(); </span><span style="color: green;">// True
+    </span><span style="color: black;">(namespace1 != namespace3).WriteLine(); </span><span style="color: green;">// True
+
+    </span><span style="color: #2b91af;">XNamespace </span><span style="color: black;">@namespace = </span><span style="color: #a31515;">"https://weblogs.asp.net/dixin"</span><span style="color: black;">;
+    </span><span style="color: #2b91af;">XName </span><span style="color: black;">name = @namespace + </span><span style="color: #a31515;">"localName"</span><span style="color: black;">; </span><span style="color: green;">// + operator.
+    </span><span style="color: black;">name.WriteLine(); </span><span style="color: green;">// {https://weblogs.asp.net/dixin}localName
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">element = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(name, </span><span style="color: blue;">new </span><span style="color: #2b91af;">XAttribute</span><span style="color: black;">(</span><span style="color: #2b91af;">XNamespace</span><span style="color: black;">.Xmlns + </span><span style="color: #a31515;">"dixin"</span><span style="color: black;">, @namespace)); </span><span style="color: green;">// + operator.
+    </span><span style="color: black;">element.WriteLine(); </span><span style="color: green;">// &lt;dixin:localName xmlns:dixin="https://weblogs.asp.net/dixin" /&gt;
+</span><span style="color: black;">}</span></pre>
+<p>XElement can be explicitly converted to .NET primitive types, e.g.:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Element()
+{
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">pubDateElement = </span><span style="color: #2b91af;">XElement</span><span style="color: black;">.Parse(</span><span style="color: #a31515;">"&lt;pubDate&gt;Mon, 07 Sep 2009 00:00:00 GMT&lt;/pubDate&gt;"</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">DateTime </span><span style="color: black;">pubDate = (</span><span style="color: #2b91af;">DateTime</span><span style="color: black;">)pubDateElement;
+    </span><span style="color: black;">pubDate.WriteLine(); </span><span style="color: green;">// 9/7/2009 12:00:00 AM
+</span><span style="color: black;">}</span></pre>
+<p>The above conversion is implemented by calling DateTime.Parse with the string value returned by XElement.Value.</p>
+<p>XAttribute can be converted to primitive types too:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Attribute()
+{
+    </span><span style="color: #2b91af;">XName </span><span style="color: black;">name = </span><span style="color: #a31515;">"isPermaLink"</span><span style="color: black;">;
+    </span><span style="color: #2b91af;">XAttribute </span><span style="color: black;">isPermaLinkAttribute = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XAttribute</span><span style="color: black;">(name, </span><span style="color: #a31515;">"true"</span><span style="color: black;">);
+    </span><span style="color: blue;">bool </span><span style="color: black;">isPermaLink = (</span><span style="color: blue;">bool</span><span style="color: black;">)isPermaLinkAttribute;
+    </span><span style="color: black;">isPermaLink.WriteLine() </span><span style="color: green;">// True
+</span><span style="color: black;">}</span></pre>
+<p>Here the conversion is implemented by calling System.Xml.XmlConvert’s ToBoolean method with the string value returned by XElement.Value.</p>
+<p>XComment, XDocument, XElement, XDocumentType, XProcessingInstruction, XText, and XCData types inherit XNode. XNode provides a DeepEquals method to compare any 2 nodes:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">DeepEquals()
+{
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">element1 = </span><span style="color: #2b91af;">XElement</span><span style="color: black;">.Parse(</span><span style="color: #a31515;">"&lt;parent&gt;&lt;child&gt;&lt;/child&gt;&lt;/parent&gt;"</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">element2 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"parent"</span><span style="color: black;">, </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"child"</span><span style="color: black;">)); </span><span style="color: green;">// &lt;parent&gt;&lt;child /&gt;&lt;/parent&gt;
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(element1, element2).WriteLine(); </span><span style="color: green;">// False
+    </span><span style="color: #2b91af;">XNode</span><span style="color: black;">.DeepEquals(element1, element2).WriteLine(); </span><span style="color: green;">// True
+
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">element3 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"parent"</span><span style="color: black;">, </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"child"</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">.Empty)); </span><span style="color: green;">// &lt;parent&gt;&lt;child&gt;&lt;/child&gt;&lt;/parent&gt;
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(element1, element2).WriteLine(); </span><span style="color: green;">// False
+    </span><span style="color: #2b91af;">XNode</span><span style="color: black;">.DeepEquals(element1, element3).WriteLine(); </span><span style="color: green;">// False
+</span><span style="color: black;">}</span></pre>
+<p>Here element2’s child element is constructed with null content, so it is a empty element node &lt;child /&gt; (where XElement.IsEmpty returns true). element3’s child element is constructed with an empty string as content, so it is a non-empty element &lt;child&gt;&lt;/child&gt; ((where XElement.IsEmpty returns false). As a result, element1 has the same node structures and node values as element2, and they are different from element3.</p>
+<h1>Read and deserialize XML</h1>
+<p>In LINQ to XML, XML can be easily read or deserialized to XNode/XElement/XDocument instances in memory. with the following APIs:</p>
+<ul>
+<li>XmlReader (under System.Xml namespace)</li>
+<li>XNode.CreateReader, XNode.ReadFrom</li>
+<li>XDocument.Load, XDocument.Parse</li>
+<li>XElement.Load, XElement.Parse</li>
+</ul>
+<p>The APIs accepting URI, for example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Read()
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">XmlReader </span><span style="color: black;">reader = </span><span style="color: #2b91af;">XmlReader</span><span style="color: black;">.Create(</span><span style="color: #a31515;">"https://weblogs.asp.net/dixin/rss"</span><span style="color: black;">))
+    {
+        reader.MoveToContent();
+        </span><span style="color: #2b91af;">XNode </span><span style="color: black;">node = </span><span style="color: #2b91af;">XNode</span><span style="color: black;">.ReadFrom(reader);
+    }
+
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">element1 = </span><span style="color: #2b91af;">XElement</span><span style="color: black;">.Parse(</span><span style="color: #a31515;">"&lt;html&gt;&lt;head&gt;&lt;/head&gt;&lt;body&gt;&lt;/body&gt;&lt;/html&gt;"</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">element2 = </span><span style="color: #2b91af;">XElement</span><span style="color: black;">.Load(</span><span style="color: #a31515;">"https://weblogs.asp.net/dixin/rss"</span><span style="color: black;">);
+
+    </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">document1 = </span><span style="color: #2b91af;">XDocument</span><span style="color: black;">.Parse(</span><span style="color: #a31515;">"&lt;html&gt;&lt;head&gt;&lt;/head&gt;&lt;body&gt;&lt;/body&gt;&lt;/html&gt;"</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">document2 = </span><span style="color: #2b91af;">XDocument</span><span style="color: black;">.Load(</span><span style="color: #a31515;">"https://microsoft.com"</span><span style="color: black;">); </span><span style="color: green;">// Succeed.
+    </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">document3 = </span><span style="color: #2b91af;">XDocument</span><span style="color: black;">.Load(</span><span style="color: #a31515;">"https://asp.net"</span><span style="color: black;">); </span><span style="color: green;">// Fail.
+    // System.Xml.XmlException: The 'ul' start tag on line 68 position 116 does not match the end tag of 'div'. Line 154, position 109.
+</span><span style="color: black;">}</span></pre>
+<p>Reading an RSS feed to construct an XML tree usually work smoothly, since RSS is just XML. Reading a web page usually has bigger chance to fail, because in the real world, a HTML document may be not strictly structured.</p>
+<p>The above example reads entire XML document and deserialize the string to XML tree in the memory. Regarding the specified XML can have arbitrary size, XmlReader and XNode.ReadFrom can also read XML fragment by fragment:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">XElement</span><span style="color: black;">&gt; RssItems(</span><span style="color: blue;">string </span><span style="color: black;">rssUri)
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">XmlReader </span><span style="color: black;">reader = </span><span style="color: #2b91af;">XmlReader</span><span style="color: black;">.Create(rssUri))
+    {
+        reader.MoveToContent();
+        </span><span style="color: blue;">while </span><span style="color: black;">(reader.Read())
+        {
+            </span><span style="color: blue;">if </span><span style="color: black;">(reader.NodeType == </span><span style="color: #2b91af;">XmlNodeType</span><span style="color: black;">.Element &amp;&amp; reader.Name.Equals(</span><span style="color: #a31515;">"item"</span><span style="color: black;">, </span><span style="color: #2b91af;">StringComparison</span><span style="color: black;">.Ordinal))
+            {
+                </span><span style="color: blue;">yield return </span><span style="color: black;">(</span><span style="color: #2b91af;">XElement</span><span style="color: black;">)</span><span style="color: #2b91af;">XNode</span><span style="color: black;">.ReadFrom(reader);
+            }
+        }
+    }
+}</span></pre>
+<p>As discussed in the LINQ to Objects chapter, method with yield return statement is compiled to generator creation, and all the API calls in above method body is deferred, so each &lt;item&gt; in the RSS feed is read and deserialized on demand.</p>
+<h1>Serialize and write XML</h1>
+<p>The following APIs are provided to serialize XML to string, or write XML to somewhere (file system, memory, etc.):</p>
+<ul>
+<li>XmlWriter</li>
+<li>XObject.ToString</li>
+<li>XNode.ToString, XNode.WriteTo</li>
+<li>XContainer.CreateWriter</li>
+<li>XDocument.Save</li>
+<li>XElement.Save</li>
+<li>XStramingElement.Save, XStramingElement.ToString, XStreamingElement.WriteTo</li>
+</ul>
+<p>For example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Write()
+{
+    </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">document1 = <span style="color: black;"></span><span style="color: #2b91af;">XDocument</span><span style="color: black;">.Load</span>(</span><span style="color: #a31515;">"https://weblogs.asp.net/dixin/rss"</span><span style="color: black;">);
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">FileStream </span><span style="color: black;">stream = </span><span style="color: #2b91af;">File</span><span style="color: black;">.OpenWrite(</span><span style="color: #2b91af;">Path</span><span style="color: black;">.GetTempFileName()))
+    {
+        document1.Save(stream);
+    }
+
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">element1 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"element"</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">.Empty);
+    </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">document2 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XDocument</span><span style="color: black;">();
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">XmlWriter </span><span style="color: black;">writer = document2.CreateWriter())
+    {
+        element1.WriteTo(writer);
+    }
+    document2.WriteLine(); </span><span style="color: green;">// &lt;element&gt;&lt;/element&gt;
+
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">element2 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"element"</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">.Empty);
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">XmlWriter </span><span style="color: black;">writer = element2.CreateWriter())
+    {
+        writer.WriteStartElement(</span><span style="color: #a31515;">"child"</span><span style="color: black;">);
+        writer.WriteAttributeString(</span><span style="color: #a31515;">"attribute"</span><span style="color: black;">, </span><span style="color: #a31515;">"value"</span><span style="color: black;">);
+        writer.WriteString(</span><span style="color: #a31515;">"text"</span><span style="color: black;">);
+        writer.WriteEndElement();
+    }
+    element2.ToString(</span><span style="color: #2b91af;">SaveOptions</span><span style="color: black;">.DisableFormatting).WriteLine();
+    </span><span style="color: green;">// &lt;element&gt;&lt;child attribute="value"&gt;text&lt;/child&gt;&lt;/element&gt;
+</span><span style="color: black;">}</span></pre>
+<p>XNode also provides a ToString overload to accept a SaveOptions flag:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">XNodeToString()
+{
+    </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">document = </span><span style="color: #2b91af;">XDocument</span><span style="color: black;">.Parse(
+        </span><span style="color: #a31515;">"&lt;root xmlns:prefix='namespace'&gt;&lt;element xmlns:prefix='namespace' /&gt;&lt;/root&gt;"</span><span style="color: black;">);
+    document.ToString(</span><span style="color: #2b91af;">SaveOptions</span><span style="color: black;">.None).WriteLine(); </span><span style="color: green;">// Equivalent to document.ToString().
+    // &lt;root xmlns:prefix="namespace"&gt;
+    //  &lt;element xmlns:prefix="namespace" /&gt;
+    // &lt;/root&gt;
+    </span><span style="color: black;">document.ToString(</span><span style="color: #2b91af;">SaveOptions</span><span style="color: black;">.DisableFormatting).WriteLine();
+    </span><span style="color: green;">// &lt;root xmlns:prefix="namespace"&gt;&lt;element xmlns:prefix="namespace" /&gt;&lt;/root&gt;
+    </span><span style="color: black;">document.ToString(</span><span style="color: #2b91af;">SaveOptions</span><span style="color: black;">.OmitDuplicateNamespaces).WriteLine();
+    </span><span style="color: green;">// &lt;root xmlns:prefix="namespace"&gt;
+    //  &lt;element /&gt;
+    // &lt;/root&gt;
+</span><span style="color: black;">}</span></pre>
+<p>To serialize XML with even more custom settings, the XmlWriter with XmlWriterSettings approach in the DOM API example can be used.</p>
+<h1>Deferred construction</h1>
+<p>The XStreamingElement is a special type. It is used to defer the build of element. For example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">StreamingElementWithChildElements()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">XElement</span><span style="color: black;">&gt; ChildElementsFactory() =&gt;
+        </span><span style="color: #2b91af;">Enumerable
+            </span><span style="color: black;">.Range(0, 5).Do(value =&gt; value.WriteLine())
+            .Select(value =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"child"</span><span style="color: black;">, value));
+
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">immediateParent = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"parent"</span><span style="color: black;">, ChildElementsFactory()); </span><span style="color: green;">// 0 1 2 3 4.
+    </span><span style="color: black;">immediateParent.ToString(</span><span style="color: #2b91af;">SaveOptions</span><span style="color: black;">.DisableFormatting).WriteLine();
+    </span><span style="color: green;">// &lt;parent&gt;&lt;child&gt;0&lt;/child&gt;&lt;child&gt;1&lt;/child&gt;&lt;child&gt;2&lt;/child&gt;&lt;child&gt;3&lt;/child&gt;&lt;child&gt;4&lt;/child&gt;&lt;/parent&gt;
+
+    </span><span style="color: #2b91af;">XStreamingElement </span><span style="color: black;">deferredParent = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XStreamingElement</span><span style="color: black;">(</span><span style="color: #a31515;">"parent"</span><span style="color: black;">, ChildElementsFactory()); </span><span style="color: green;">// Deferred.
+    </span><span style="color: black;">deferredParent.ToString(</span><span style="color: #2b91af;">SaveOptions</span><span style="color: black;">.DisableFormatting).WriteLine();
+    </span><span style="color: green;">// 0 1 2 3 4
+    // &lt;parent&gt;&lt;child&gt;0&lt;/child&gt;&lt;child&gt;1&lt;/child&gt;&lt;child&gt;2&lt;/child&gt;&lt;child&gt;3&lt;/child&gt;&lt;child&gt;4&lt;/child&gt;&lt;/parent&gt;
+</span><span style="color: black;">}</span></pre>
+<p>Here a factory function is defined to generate a sequence of child elements. It calls the Do query method from Interactive Extension (Ix) to prints each value when that pulled from the sequence. Next, the XElement constructor is called, which immediately pulls all child elements from the sequence returned by the factory function, so that the parent element is immediately built with those child elements. Therefore, the Do query is executed right away, and prints the values of the generated child elements. In contrast, XStreamingElement constructor does not pull the child elements from the sequence, the values are not printed yet by Do. The pulling is deferred until the parent element needs to be built, for example, when XStreamingElement.Save/XStreamingElement.ToString/XStreamingElement.WriteTo is called.</p>
+<p>This feature can also be demonstrated by modifying the child elements. For XElement, once constructed, the element is built immediately, and is not impacted by modifying the original child elements&nbsp; In contrast, .XStreamingElement can be impacted by the modification:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">StreamingElementWithChildElementModification()
+{
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">source = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"source"</span><span style="color: black;">, </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"child"</span><span style="color: black;">, </span><span style="color: #a31515;">"a"</span><span style="color: black;">));
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">child = source.Elements().Single();
+
+    </span><span style="color: #2b91af;">XElement </span><span style="color: black;">immediateParent = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XElement</span><span style="color: black;">(</span><span style="color: #a31515;">"parent"</span><span style="color: black;">, child);
+    </span><span style="color: #2b91af;">XStreamingElement </span><span style="color: black;">deferredParent = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XStreamingElement</span><span style="color: black;">(</span><span style="color: #a31515;">"parent"</span><span style="color: black;">, child); </span><span style="color: green;">// Deferred.
+
+    </span><span style="color: black;">child.Value = </span><span style="color: #a31515;">"b"</span><span style="color: black;">;
+    immediateParent.ToString(</span><span style="color: #2b91af;">SaveOptions</span><span style="color: black;">.DisableFormatting).WriteLine(); </span><span style="color: green;">// &lt;parent&gt;&lt;child&gt;a&lt;/child&gt;&lt;/parent&gt;
+    </span><span style="color: black;">deferredParent.ToString(</span><span style="color: #2b91af;">SaveOptions</span><span style="color: black;">.DisableFormatting).WriteLine(); </span><span style="color: green;">// &lt;parent&gt;&lt;child&gt;b&lt;/child&gt;&lt;/parent&gt;
+</span><span style="color: black;">}</span>
+
+
+</div>
+</body>
+</html>

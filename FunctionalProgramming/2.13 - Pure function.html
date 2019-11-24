@@ -1,0 +1,214 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+
+<h1>C# Functional Programming In-Depth (13) Pure Function</h1>
+<p>Functional programming encourages modeling operations with pure functions.</p>
+<h1>Referential transparency and side effect free</h1>
+<p>A function is <a href="http://en.wikipedia.org/wiki/Pure_function" target="_blank">pure</a> if:</p>
+<ul>
+<li>It gives the same output when given the same input. In another word, the function is <a href="https://en.wikipedia.org/wiki/Purely_functional">referentially transparent</a>.</li>
+<li>It does not have obvious interaction with the caller function or the outside world, in another word, the function has no <a href="http://en.wikipedia.org/wiki/Side_effect_(computer_science)" target="_blank">side effect</a>. Here are some examples of side effect:</li>
+<ul>
+<li>Changing state, like data mutation</li>
+<li>Changing arguments, outer variable, or global variable</li>
+<li>Producing I/O</li>
+</ul>
+</ul>
+<p>So pure function is like mathematics function, which is is a simple relation between a set of input and a set of output, where each certain input is mapped to certain output. For example, the following functions are not referentially transparent:</p>
+<ul>
+<li>Console.Read, Console.ReadLine, Console.ReadKey: gives unpredictable output when called each time</li>
+<li>Random.Next, Guid.NewGuid: gives random output when called each time</li>
+<li>DateTime.Now, DateTimeOffset.Now: gives different output when called at different time</li>
+</ul>
+<p>And the following functions have side effects:</p>
+<ul>
+<li>MutableDevice.Name’s setter, MutableDevice.Price’s setter in previous part: property setter usually changes state and interact with system.</li>
+<li>In System.Threading namespace, Thread.Start, Thread.Abort: changes state</li>
+<li>int.TryParse, Interlocked.Increase, and any method changes the ref/out argument</li>
+<li>In System.Windows namespace, Application.SetExitCode: internally changes global variable Environment.ExitCode</li>
+<li>Console.Read, Console.ReadLine, Console.ReadKey, Console.Write, Console.Write, Console.WriteLine: produces console I/O</li>
+<li>In System.IO namespace, Directory.Create, Directory.Move, Directory.Delete, File.Create, File.Move, File.Delete, File.ReadAllBytes, File.WriteAllBytes: produces file system I/O</li>
+<li>In System.Net namespace, WebRequest.GetRequestStreamAsync, WebRequest.GetResponseAsync, and in System.Net.Http namespace, HttpClient.GetAsync, HttpClient.PostAsync, HttpClinet.PutAsync, HttpClient.DeleteAsync: produces network I/O</li>
+<li>IDisposable.Dispose: changes state to release unmanaged resources</li>
+</ul>
+<p>Strictly speaking, any function can interact with the outside world. Usually, a function call can at least make the hardware work, which consumes electric energy, and heats the world. Here when identifying function’s purity, only explicit interactions are considered.</p>
+<p>In contrast, the following functions are pure because they are both referentially transparent and side effect free:</p>
+<ul>
+<li>Most mathematics functions, like decimal’s arithmetic operators, most of System.Math type’s static methods, etc. Take Math.Max and Math.Min as examples, their computed output only depends on the input, and they are residential transparency, they also produce no side effect, like state change, argument change, global variable change, I/O, etc.:
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Math
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static int </span><span style="color: black;">Max(</span><span style="color: blue;">int </span><span style="color: black;">val1, </span><span style="color: blue;">int </span><span style="color: black;">val2) =&gt; (val1 &gt;= val2) ? val1 : val2;
+
+        </span><span style="color: blue;">public static int </span><span style="color: black;">Min(</span><span style="color: blue;">int </span><span style="color: black;">val1, </span><span style="color: blue;">int </span><span style="color: black;">val2) =&gt; (val1 &lt;= val2) ? val1 : val2;
+    }
+}</span></pre>
+</li>
+</ul>
+<ul>
+<li>string.Concat, string.Substring, string.Insert, string.Replace, string.Trim, string.ToUpper, string.ToLower: accepts one or more strings as input, and output a new string, since string is immutable type.</li>
+<li>string.Length, Nullable&lt;T&gt;.HasValue, Console.Error, or any property getter return a state. MutableDevice.Name’s getter and MutableDevice.Price’s getter are also pure. For a certain MutableDevice object, they return a predictable state, and during the getters’ execution, the getters do not change the state, or produce other side effect.</li>
+<li>object’s methods, like GetHashCode, GetType, Equals, ReferenceEquals, ToString</li>
+<li>System.Convert type’ conversion methods, like ToBoolean, ToInt32, etc.</li>
+</ul>
+<p>Pure function has many benefits, for example:</p>
+<ul>
+<li>it does not involve state change, which is a major source of code issues.</li>
+<li>It is self contained, with greatly improves testability and maintainability.</li>
+<li>If 2 pure function calls have no data dependency, the order the function calls does not matter, which greatly simplifies parallel computing, like Parallel LINQ.</li>
+</ul>
+<p>As fore mentioned, there is also a specialized functional programming paradigm, called purely functional programming, where all operations are modeled as pure function calls. As a result, only immutable values and immutable data structures are allowed too. A few languages, like Haskell, are designed for this paradigm. In Haskell manages I/O with Monad, which is covered in the category theory chapter. The other functional languages, like C# and F#, are called impure functional language.</p>
+<h1>PureAttribute and Code Contracts</h1>
+<p>.NET provides <a href="https://msdn.microsoft.com/en-us/library/system.diagnostics.contracts.pureattribute.aspx" target="_blank">System.Diagnostics.Contracts.PureAttribute</a> to specify a named function member is pure:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Purity
+</span><span style="color: black;">{
+    [</span><span style="color: #2b91af;">Pure</span><span style="color: black;">]
+    </span><span style="color: blue;">internal static bool </span><span style="color: black;">IsPositive(</span><span style="color: blue;">int </span><span style="color: black;">int32) =&gt; int32 &gt; 0;
+
+    </span><span style="color: blue;">internal static bool </span><span style="color: black;">IsNegative(</span><span style="color: blue;">int </span><span style="color: black;">int32) </span><span style="color: green;">// Impure.
+    </span><span style="color: black;">{
+        </span><span style="color: #2b91af;">Console</span><span style="color: black;">.WriteLine(int32.WriteLine()); </span><span style="color: green;">// Side effect: console I/O.
+        </span><span style="color: blue;">return </span><span style="color: black;">int32 &lt; 0;
+    }
+}</span></pre>
+<p>It can also be used for a type, to specify all its function members are pure:</p>
+<pre class="code"><span style="color: black;">[</span><span style="color: #2b91af;">Pure</span><span style="color: black;">]
+</span><span style="color: blue;">internal static class </span><span style="color: #2b91af;">Pure
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static int </span><span style="color: black;">Increase(</span><span style="color: blue;">int </span><span style="color: black;">int32) =&gt; int32 + 1;
+
+    </span><span style="color: blue;">internal static int </span><span style="color: black;">Decrease(</span><span style="color: blue;">int </span><span style="color: black;">int32) =&gt; int32 - 1;
+}</span></pre>
+<p>Unfortunately, this attribute is not for general purpose and is only used by <a href="https://msdn.microsoft.com/en-us/library/dd264808.aspx" target="_blank">.NET Code Contracts</a>. Code Contracts is a Microsoft tool for .NET Framework. It consist of:</p>
+<ul>
+<li>Code contract APIs under <a href="https://msdn.microsoft.com/en-us/library/system.diagnostics.contracts.aspx" target="_blank">System.Diagnostics.Contracts namespace</a> to specify preconditions, post conditions, invariant, purity, etc., including the above&nbsp; <a href="https://msdn.microsoft.com/en-us/library/system.diagnostics.contracts.pureattribute.aspx" target="_blank">PureAttribute</a>.</li>
+<li>Contracts assemblies for some .NET Framework assemblies</li>
+<li>Compile time rewriter and analyzer</li>
+<li>Runtime analyzer</li>
+</ul>
+<p>To demonstrate how [Pure] works with Code Contracts, install the tool from <a href="https://visualstudiogallery.msdn.microsoft.com/1ec7db13-3363-46c9-851f-1ce455f66970" target="_blank">Visual Studio Gallery</a>, then in Visual Studio, go to project properties, add conditional compilation symbol CONTRACTS_FULL:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Functional-C-10-Immutable-Data-Type_9361/image_2.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Functional-C-10-Immutable-Data-Type_9361/image_thumb.png" width="809" height="292" border="0"></a></p>
+<p>Notice there is a new tab Code Contract. Go to the tab and enable Perform Runtime Contract Checking:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Functional-C-10-Immutable-Data-Type_9361/image_4.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Functional-C-10-Immutable-Data-Type_9361/image_thumb_1.png" width="809" height="292" border="0"></a></p>
+<p>Code Contracts can be specified with System.Diagnostics.Contracts.Contract type’s static methods. Only pure function calls are allowed to be used with Contract methods:</p>
+<pre class="code"><span style="color: blue;">internal static int </span><span style="color: black;">PureContracts(</span><span style="color: blue;">int </span><span style="color: black;">int32)
+{
+    </span><span style="color: #2b91af;">Contract</span><span style="color: black;">.Requires&lt;</span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">&gt;(IsPositive(int32)); </span><span style="color: green;">// Function precondition.
+    </span><span style="color: #2b91af;">Contract</span><span style="color: black;">.Ensures(IsPositive(</span><span style="color: #2b91af;">Contract</span><span style="color: black;">.Result&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;())); </span><span style="color: green;">// Function post condition.
+
+    </span><span style="color: blue;">return </span><span style="color: black;">int32 + 0; </span><span style="color: green;">// Function logic.
+</span><span style="color: black;">}</span></pre>
+<p>For the caller of above function, Code Contract tool can check the specified precondition and post condition at compile time and runtime, if the check is enabled. And logically, the precondition and post condition check should be referential transparent and side effect free. In contrast, the following example calls impure function in precondition and post condition:</p>
+<pre class="code"><span style="color: blue;">internal static int </span><span style="color: black;">ImpureContracts(</span><span style="color: blue;">int </span><span style="color: black;">int32)
+{
+    </span><span style="color: #2b91af;">Contract</span><span style="color: black;">.Requires&lt;</span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">&gt;(IsNegative(int32)); </span><span style="color: green;">// Function precondition.
+    </span><span style="color: #2b91af;">Contract</span><span style="color: black;">.Ensures(IsNegative(</span><span style="color: #2b91af;">Contract</span><span style="color: black;">.Result&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;())); </span><span style="color: green;">// Function post condition.
+
+    </span><span style="color: blue;">return </span><span style="color: black;">int32 + 0; </span><span style="color: green;">// Function logic.
+</span><span style="color: black;">}</span></pre>
+<p>At compile time, Code Contract gives a warning: Detected call to method IsNegative(System.Int32)' without [Pure] in contracts of method ‘ImpureContracts(System.Int32)'.</p>
+<p>[Pure] cannot be used for anonymous function. And for any named function member, [Pure] must be used with caution. The following method is declared to be pure:</p>
+<pre class="code"><span style="color: black;">[</span><span style="color: #2b91af;">Pure</span><span style="color: black;">] </span><span style="color: green;">// Incorrect.
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">ProcessStartInfo </span><span style="color: black;">Initialize(</span><span style="color: #2b91af;">ProcessStartInfo </span><span style="color: black;">processStart)
+{
+    processStart.RedirectStandardInput = </span><span style="color: blue;">false</span><span style="color: black;">;
+    processStart.RedirectStandardOutput = </span><span style="color: blue;">false</span><span style="color: black;">;
+    processStart.RedirectStandardError = </span><span style="color: blue;">false</span><span style="color: black;">;
+    </span><span style="color: blue;">return </span><span style="color: black;">processStart;
+}</span></pre>
+<p>But actually it is impure at all, by changing state. There is no tool to check its internal code at compile time or runtime and give any warning or error. The purity can only be ensured artificially at design time.</p>
+<h1>Purity in .NET</h1>
+<p>When code is compiled and built to assembly, its contracts can either be compiled to the same assembly, or to a separate contract assembly. For .NET Framework FCL assemblies already shipped, Microsoft provides separate contracts assembles for some most used assemblies:</p>
+<ul>
+<li>Microsoft.VisualBasic.Compatibility.Contracts.dll</li>
+<li>Microsoft.VisualBasic.Contracts.dll</li>
+<li>mscorlib.Contracts.dll</li>
+<li>PresentationCore.Contracts.dll</li>
+<li>PresentationFramework.Contracts.dll</li>
+<li>System.ComponentModel.Composition.Contracts.dll</li>
+<li>System.Configuration.Contracts.dll</li>
+<li>System.Configuration.Install.Contracts.dll</li>
+<li>System.Contracts.dll</li>
+<li>System.Core.Contracts.dll</li>
+<li>System.Data.Contracts.dll</li>
+<li>System.Data.Services.Contracts.dll</li>
+<li>System.DirectoryServices.Contracts.dll</li>
+<li>System.Drawing.Contracts.dll</li>
+<li>System.Numerics.Contracts.dll</li>
+<li>System.Runtime.Caching.Contracts.dll</li>
+<li>System.Security.Contracts.dll</li>
+<li>System.ServiceModel.Contracts.dll</li>
+<li>System.ServiceProcess.Contracts.dll</li>
+<li>System.Web.ApplicationServices.Contracts.dll</li>
+<li>System.Web.Contracts.dll</li>
+<li>System.Windows.Forms.Contracts.dll</li>
+<li>System.Xml.Contracts.dll</li>
+<li>System.Xml.Linq.Contracts.dll</li>
+<li>WindowsBase.Contracts.dll</li>
+</ul>
+<p>A contract assembly contains the contracts (precondition, post condition, invariant, etc.) for APIs in a certain FLC assemblies. For example, mscorlib.Contracts.dll provides the contracts for APIs in mscorlib.dll, System.ComponentModel.Composition.Contracts.dll provides the contracts fro APIs in System.ComponentModel.Composition.dll, etc. Above Math.Abs function is provided in mscorlib.dll, so its parity contract is provided in mscorlib.Contracts.dll, with the same signature but contains only contracts and no logic:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Math
+    </span><span style="color: black;">{
+        [</span><span style="color: #2b91af;">Pure</span><span style="color: black;">]
+        </span><span style="color: blue;">public static int </span><span style="color: black;">Abs(</span><span style="color: blue;">int </span><span style="color: black;">value)
+        {
+            </span><span style="color: #2b91af;">Contract</span><span style="color: black;">.Requires(value != </span><span style="color: blue;">int</span><span style="color: black;">.MinValue);
+            </span><span style="color: #2b91af;">Contract</span><span style="color: black;">.Ensures(</span><span style="color: #2b91af;">Contract</span><span style="color: black;">.Result&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;() &gt;= 0);
+            </span><span style="color: #2b91af;">Contract</span><span style="color: black;">.Ensures((value - </span><span style="color: #2b91af;">Contract</span><span style="color: black;">.Result&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;()) &lt;= 0);
+
+            </span><span style="color: blue;">return default</span><span style="color: black;">;
+        }
+    }
+}</span></pre>
+<p>For the caller of Math.Abs, Code Contract tool can load the above precondition and post condition from mscorlib.Contracts.dll, and run the check at compile time and runtime, if the check is enabled. C# language is not designed to be purely functional, neither are .NET APIs. So only a small percentage of built in functions are pure. To demonstrate this, reflection can be used to examine these assembly contracts. The .NET built in reflection APIs does not work well with these assembly contrast. For example, mscorlib.Contracts.dll contains type System.Void, which is considered to be a special type by .NET reflection, and causes crashes. The <a href="https://www.nuget.org/packages/Mono.Cecil/">Mono.Cecil</a> NuGet package, a&nbsp; third party reflection library, can work here. The following LINQ to Objects example calls the Mono.Cecil APIs to query the contract assemblies for the public function members with [Pure], then query all .NET Framework FCL assemblies’ public function members:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">PureFunction(</span><span style="color: blue;">string </span><span style="color: black;">contractsAssemblyDirectory, </span><span style="color: blue;">string </span><span style="color: black;">gacDirectory = </span><span style="color: maroon;">@"C:\Windows\Microsoft.NET\assembly"</span><span style="color: black;">)
+{
+    </span><span style="color: blue;">string</span><span style="color: black;">[] contractAssemblyFiles = </span><span style="color: #2b91af;">Directory
+        </span><span style="color: black;">.EnumerateFiles(contractsAssemblyDirectory, </span><span style="color: #a31515;">"*.dll"</span><span style="color: black;">)
+        .ToArray();
+    </span><span style="color: blue;">string </span><span style="color: black;">pureAttribute = </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">PureAttribute</span><span style="color: black;">).FullName;
+    </span><span style="color: green;">// Query the count of all public function members with [Pure] in all public class in all contract assemblies.
+    </span><span style="color: blue;">int </span><span style="color: black;">pureFunctionCount = contractAssemblyFiles
+        .Select(assemblyContractFile =&gt; </span><span style="color: #2b91af;">AssemblyDefinition</span><span style="color: black;">.ReadAssembly(assemblyContractFile))
+        .SelectMany(assemblyContract =&gt; assemblyContract.Modules)
+        .SelectMany(moduleContract =&gt; moduleContract.GetTypes())
+        .Where(typeContract =&gt; typeContract.IsPublic)
+        .SelectMany(typeContract =&gt; typeContract.Methods)
+        .Count(functionMemberContract =&gt; functionMemberContract.IsPublic
+            &amp;&amp; functionMemberContract.CustomAttributes.Any(attribute =&gt;
+                attribute.AttributeType.FullName.Equals(pureAttribute, </span><span style="color: #2b91af;">StringComparison</span><span style="color: black;">.Ordinal)));
+    pureFunctionCount.WriteLine(); </span><span style="color: green;">// 2473
+
+    </span><span style="color: blue;">string</span><span style="color: black;">[] assemblyFiles = </span><span style="color: blue;">new string</span><span style="color: black;">[] { </span><span style="color: #a31515;">"GAC_64"</span><span style="color: black;">, </span><span style="color: #a31515;">"GAC_MSIL" </span><span style="color: black;">}
+        .Select(platformDirectory =&gt; </span><span style="color: #2b91af;">Path</span><span style="color: black;">.Combine(gacDirectory, platformDirectory))
+        .SelectMany(assemblyDirectory =&gt; </span><span style="color: #2b91af;">Directory
+            </span><span style="color: black;">.EnumerateFiles(assemblyDirectory, </span><span style="color: #a31515;">"*.dll"</span><span style="color: black;">, </span><span style="color: #2b91af;">SearchOption</span><span style="color: black;">.AllDirectories))
+        .ToArray();
+    </span><span style="color: green;">// Query the count of all public function members in all public class in all FCL assemblies.
+    </span><span style="color: blue;">int </span><span style="color: black;">functionCount = contractAssemblyFiles
+        .Select(contractAssemblyFile =&gt; assemblyFiles.First(assemblyFile =&gt; </span><span style="color: #2b91af;">Path</span><span style="color: black;">.GetFileName(contractAssemblyFile)
+            .Replace(</span><span style="color: #a31515;">".Contracts"</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">.Empty)
+            .Equals(</span><span style="color: #2b91af;">Path</span><span style="color: black;">.GetFileName(assemblyFile), </span><span style="color: #2b91af;">StringComparison</span><span style="color: black;">.OrdinalIgnoreCase)))
+        .Select(assemblyFile =&gt; </span><span style="color: #2b91af;">AssemblyDefinition</span><span style="color: black;">.ReadAssembly(assemblyFile))
+        .SelectMany(assembly =&gt; assembly.Modules)
+        .SelectMany(module =&gt; module.GetTypes())
+        .Where(type =&gt; type.IsPublic)
+        .SelectMany(type =&gt; type.Methods)
+        .Count(functionMember =&gt; functionMember.IsPublic);
+    functionCount.WriteLine(); </span><span style="color: green;">// 83447
+</span><span style="color: black;">}</span></pre>
+<p>As a result, in the above mainstream FCL assemblies, there are only 2.96% public function members are pure.</p>
+
+
+</div>
+</body>
+</html>

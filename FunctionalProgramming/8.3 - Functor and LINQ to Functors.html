@@ -1,0 +1,416 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+<h1>Category Theory via C# (3) Functor and LINQ to Functors</h1>
+
+<h1>Functor and functor laws</h1>
+<p>In category theory, <a href="http://en.wikipedia.org/wiki/Functor" target="_blank">functor</a> is a <a href="http://en.wikipedia.org/wiki/Map_(mathematics)" target="_blank">mapping</a> from category to category. Giving category C and D, functor F from category C to D is a structure-preserving morphism from C to D, denoted F: C → D:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Category-Theory-via-C-3-Functor_DC22/image6_thumb_2.png"><img title="image6_thumb" style="border: 0px currentcolor; padding-top: 0px; padding-right: 0px; padding-left: 0px; display: inline; background-image: none;" alt="image6_thumb" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Category-Theory-via-C-3-Functor_DC22/image6_thumb_thumb.png" width="640" height="654" border="0"></a></p>
+<ul>
+<li>F maps objects in C to objects in D, for example, X, Y, Z, … ∈ ob(C) are mapped to F(X), F(Y), F(Z), … ∈ in ob(D)</li>
+<li>F also maps morphisms in C to morphisms in D, for example, m: X → Y ∈ hom(C) is mapped to morphism F(m): F(X) → F(Y) ∈ hom(D). In this tutorial, to align to C#/.NET terms, this morphism mapping capability of functor is also called “select”. so F(m) is also denoted Select<sub>F</sub>(m).</li>
+</ul>
+<p>And F must satisfy the following functor laws:</p>
+<ul>
+<li>Composition preservation: F(m<sub>2</sub> ∘ m<sub>1</sub>) ≡ F(m<sub>2</sub>) ∘ F(m<sub>1</sub>), or Select<sub>F</sub>(m<sub>2</sub> ∘ m<sub>1</sub>) ≡ Select<sub>F</sub>(m<sub>2</sub>) ∘ Select<sub>F</sub>(m<sub>1</sub>), F maps composition in C to composition in D</li>
+<li>Identity preservation: F(id<sub>X</sub>) ≡ id<sub>F(X)</sub>, or Select<sub>F</sub>(id<sub>X</sub>) ≡ id<sub>F(X)</sub>, F maps each identity morphism in C to identity morphism in D<br><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Category-Theory-via-C-3-Functor_DC22/image3_thumb_2.png"><img title="image3_thumb" style="border: 0px currentcolor; padding-top: 0px; padding-right: 0px; padding-left: 0px; display: inline; background-image: none;" alt="image3_thumb" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Category-Theory-via-C-3-Functor_DC22/image3_thumb_thumb.png" width="640" height="488" border="0"></a></li>
+</ul>
+<h2>Endofunctor</h2>
+<p>When a functor F’s source category and target category are the same category C, it is called <a href="http://en.wikipedia.org/wiki/Functor#Examples" target="_blank">endofunctor</a>, denoted F: C → C. In the DotNet category, there are endofunctors mapping objects (types) and morphisms (functions) in DotNet category to other objects and morphisms in itself. In C#, endofunctor in DotNet can be defined as:</p>
+<pre class="code"><span style="color: green;">// Cannot be compiled.
+</span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IFunctor</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TFunctor</span><span style="color: black;">&lt;&gt;&gt; </span><span style="color: blue;">where </span><span style="color: #2b91af;">TFunctor</span><span style="color: black;">&lt;&gt; : </span><span style="color: #2b91af;">IFunctor</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TFunctor</span><span style="color: black;">&gt;
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TFunctor<span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;</span></span><span style="color: black;">, </span><span style="color: #2b91af;">TFunctor<span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;</span></span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector);
+}</span></pre>
+<p>In DotNet category, objects are types, so the functor’s type mapping capability is represented by generic type TFunctor&lt;&gt;, which maps type T to another type TFunctor&lt;T&gt;. And in DotNet category, morphisms are functions, so the functor’s function mapping capability is represented by the Select method, which maps function of type TSource –&gt; TResult to another function of type TFunctor&lt;TSource&gt; –&gt; TFunctor&lt;TResult&gt;.</p>
+<p>Unfortunately, the above interface cannot be compiled, because C#/.NET do not support <a href="http://en.wikipedia.org/wiki/Type_class#Higher-kinded_polymorphism" target="_blank">higher-kinded polymorphism</a> for types.</p>
+<h2>Type constructor and higher-kinded type</h2>
+<p><a href="http://en.wikipedia.org/wiki/Kind_(type_theory)" target="_blank">Kind</a> is the meta type of a type:</p>
+<ul>
+<li>A concrete type has the simplest kind, denoted *. All non generic types (types without type parameters) are of kind *. Closed generic types (types with concrete type arguments) are also concrete types of kind *.</li>
+<li>An open generic type definition with type parameter can be viewed as a type constructor, which works like a function. For example,&nbsp; IEnumerable&lt;&gt; can accept a type of kind * (like int), and return another closed type of kind * (like IEnumerable&lt;int&gt;), so IEnumerable&lt;&gt; is a type constructor, its kind is denoted * –&gt; *; ValueTuple&lt;,&gt; can accept 2 types of kind * (like string and bool), and return another closed type of kind * (like ValueTuple&lt;string, bool&gt;) so ValueTuple&lt;,&gt; is a type constructor, its kind is denoted (*, *) –&gt; *, or * –&gt; * –&gt; * in curried style.</li>
+</ul>
+<p>In above IFunctor&lt;TFunctor&lt;&gt;&gt; generic type definition, its type parameter TFunctor&lt;&gt; is an open generic type of kind * –&gt; *. As a result, IFunctor&lt;TFunctor&lt;&gt;&gt; can be viewed as a type constructor, which works like a higher-order function, accepting a TFunctor&lt;&gt; type constructor of kind * –&gt; *, and returning a concrete type of kind *. So&nbsp; IFunctor&lt;TFunctor&lt;&gt;&gt; is of kind (* –&gt; *) –&gt; *. This is called a higher-kinded type, and not supported by .NET and C# compiler. In another word, C# generic type definition does not support its type parameter to have type parameters. In C#, functor support is implemented by LINQ query comprehensions instead of type system.</p>
+<h1>LINQ to Functors</h1>
+<h2>Built-in IEnumerable&lt;&gt; functor</h2>
+<p>IEnumerable&lt;&gt; is a built-in functor of DotNet category, which can be viewed as virtually implementing above IFunctor&lt;TFunctor&lt;&gt;&gt; interface:</p>
+<pre class="code"><span style="color: blue;">public interface </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IFunctor</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: black;">&gt;&gt;, </span><span style="color: #2b91af;">IEnumerable
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Func&lt;IEnumerable&lt;TSource&gt;, IEnumerable&lt;TResult&gt;&gt; Select&lt;TSource, TResult&gt;(Func&lt;TSource, TResult&gt; selector);
+
+    // Other members.
+</span><span style="color: black;">}</span></pre>
+<p>Endofunctor IEnumerable&lt;&gt; in DotNet category maps each T object (type) to IEnumerable&lt;T&gt; object (type), and its Select method maps TSource→ TResult morphism (function) to IEnumerable&lt;TSource&gt; → IEnumerable&lt;TResult&gt; morphism (function). So its Select method is of type (TSource –&gt; TResult) –&gt; (IEnumerable&lt;TSource&gt; –&gt; IEnumerable&lt;TResult&gt;), which can be uncurried to (TSource –&gt; TResult, IEnumerable&lt;TSource&gt;) –&gt; IEnumerable&lt;TResult&gt;:</p>
+<pre class="code"><span style="color: blue;">public interface </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IFunctor</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt;, </span><span style="color: #2b91af;">IEnumerable
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Func&lt;IEnumerable&lt;TSource&gt;, IEnumerable&lt;TResult&gt;&gt; Select&lt;TSource, TResult&gt;(Func&lt;TSource, TResult&gt; selector);
+    // can be equivalently converted to:
+    // IEnumerable&lt;TResult&gt; Select&lt;TSource, TResult&gt;(Func&lt;TSource, TResult&gt; selector, IEnumerable&lt;TSource&gt; source);
+
+    // Other members.
+</span><span style="color: black;">}</span></pre>
+<p>Now swap the 2 parameters of the uncurried Select, then its type becomes (IEnumerable&lt;TSource&gt;, TSource –&gt; TResult) –&gt; IEnumerable&lt;TResult&gt;:</p>
+<pre class="code"><span style="color: blue;">public interface </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IFunctor</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt;, </span><span style="color: #2b91af;">IEnumerable
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Func&lt;IEnumerable&lt;TSource&gt;, IEnumerable&lt;TResult&gt;&gt; Select&lt;TSource, TResult&gt;(Func&lt;TSource, TResult&gt; selector);
+    // can be equivalently converted to:
+    // IEnumerable&lt;TResult&gt; Select&lt;TSource, TResult&gt;(IEnumerable&lt;TSource&gt; source, Func&lt;TSource, TResult&gt; selector);
+
+    // Other members.
+</span><span style="color: black;">}</span></pre>
+<p>In .NET, this equivalent version of Select is exactly the LINQ query method Select. The following is the comparison of functor Select method and LINQ Select method:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">EnumerableExtensions<span style="color: #2b91af;"> </span><span style="color: green;">// IEnumerable&lt;T&gt; : IFunctor&lt;IEnumerable&lt;&gt;&gt;</span>
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Functor Select: (TSource -&gt; TResult) -&gt; (IEnumerable&lt;TSource&gt; -&gt; IEnumerable&lt;TResult&gt;).
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt; source =&gt;
+            Select(source, selector);
+
+    </span><span style="color: green;">// 1. Uncurry to Select: (TSource -&gt; TResult, IEnumerable&lt;TSource&gt;) -&gt; IEnumerable&lt;TResult&gt;.
+    // 2. Swap 2 parameters to Select: (IEnumerable&lt;TSource&gt;, TSource -&gt; TResult) -&gt; IEnumerable&lt;TResult&gt;.
+    // 3. Define as LINQ extension method.
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector)
+    {
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+        {
+            </span><span style="color: blue;">yield return </span><span style="color: black;">selector(value);
+        }
+    }
+}</span></pre>
+<p>So the IEnumerable&lt;&gt; functor’s morphism mapping capability is implemented as the LINQ mapping query. As a part of the LINQ query expression pattern, functor support is built in in the C# language:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Map()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source = System.Linq.</span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5);
+    </span><span style="color: green;">// Map int to string.
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt; selector = </span><span style="color: #2b91af;">Convert</span><span style="color: black;">.ToString;
+    </span><span style="color: green;">// Map IEnumerable&lt;int&gt; to IEnumerable&lt;string&gt;.
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; query = </span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source
+                                </span><span style="color: blue;">select </span><span style="color: black;">selector(value); </span><span style="color: green;">// Define query.
+    </span><span style="color: black;">query.WriteLines(); </span><span style="color: green;">// Execute query.
+</span><span style="color: black;">}</span></pre>
+<p>And the above Select implementation satisfies the functor laws:</p>
+<pre class="code"><span style="color: green;">// using static Dixin.Linq.CategoryTheory.Functions;
+</span><span style="color: blue;">internal static void </span><span style="color: black;">FunctorLaws()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source = </span><span style="color: blue;">new int</span><span style="color: black;">[] { 0, 1, 2, 3, 4 };
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt; selector1 = int32 =&gt; </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(int32);
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt; selector2 = @double =&gt; @double.ToString(</span><span style="color: #a31515;">"0.00"</span><span style="color: black;">);
+
+    </span><span style="color: green;">// Associativity preservation: source.Select(selector2.o(selector1)) == source.Select(selector1).Select(selector2).
+    </span><span style="color: black;">(</span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source
+        </span><span style="color: blue;">select </span><span style="color: black;">selector2.o(selector1)(value)).WriteLines();  </span><span style="color: green;">// 0.00 1.00 1.41 1.73 2.00
+    </span><span style="color: black;">(</span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source
+        </span><span style="color: blue;">select </span><span style="color: black;">selector1(value) </span><span style="color: blue;">into </span><span style="color: black;">value
+        </span><span style="color: blue;">select </span><span style="color: black;">selector2(value)).WriteLines();  </span><span style="color: green;">// 0.00 1.00 1.41 1.73 2.00
+    // Identity preservation: source.Select(Id) == Id(source).
+    </span><span style="color: black;">(</span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source
+        </span><span style="color: blue;">select </span><span style="color: black;">Id(value)).WriteLines(); </span><span style="color: green;">// 0 1 2 3 4
+    </span><span style="color: black;">Id(source).WriteLines(); </span><span style="color: green;">// 0 1 2 3 4
+</span><span style="color: black;">}</span></pre>
+<h2>Functor pattern of LINQ</h2>
+<p>So LINQ Select mapping query’s quintessential mathematics is functor. Generally, in DotNet category, a type is a functor if:</p>
+<ul>
+<li>This type is an open generic type definition, which can be viewed as type constructor of kind * –&gt; *, so that it maps a concrete type T to another concrete functor-wrapped type.</li>
+<li>It is equipped with the standard LINQ query method Select, which can be either instance method or extension method.</li>
+<li>The implementation of Select satisfies the functor laws, so that DotNet category’s associativity law and identity law are preserved.</li>
+</ul>
+<p>On the other hand, to enable the LINQ functor query expression (single from clauses with select clause) for a type does not require that type to be strictly a functor. This LINQ syntax can be enabled for any generic or non generic type with as long as it has such a Select method, , which can be virtually demonstrated as:</p>
+<pre class="code"><span style="color: green;">// Cannot be compiled.
+</span><span style="color: blue;">internal static void </span><span style="color: black;">Map&lt;</span><span style="color: #2b91af;">TFunctor</span><span style="color: black;">&lt;&gt;, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;( </span><span style="color: green;">// Non generic TFunctor can work too.
+    <span style="color: black;"></span><span style="color: #2b91af;">TFunctor</span></span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; functor, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) </span><span style="color: blue;">where </span><span style="color: #2b91af;">TFunctor</span><span style="color: black;">&lt;&gt; : <span style="color: black;"></span><span style="color: #2b91af;">IFunctor</span></span><span style="color: red;"></span><span style="color: black;">&lt;<span style="color: black;"></span><span style="color: #2b91af;">TFunctor</span>&lt;&gt;&gt;
+{
+    <span style="color: black;"></span><span style="color: #2b91af;">TFunctor</span>&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; query = </span><span style="color: blue;">from </span><span style="color: green;">/* TSource */ </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: green;">/* TFunctor&lt;TSource&gt; */ </span><span style="color: black;">functor
+                              <span style="color: black;"></span><span style="color: blue;">select</span> </span><span style="color: green;">/* TResult */ </span><span style="color: black;">selector(value); </span><span style="color: green;">// Define query.
+</span><span style="color: black;">}</span></pre>
+<h1>More LINQ to Functors</h1>
+<p>Many other open generic type definitions provided by .NET can be functor. Take Lazy&lt;&gt; as example, first, apparently it is a type constructor of kind * –&gt; *. Then, its Select query method can be defined as extension method:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">LazyExtensions </span><span style="color: green;">// Lazy&lt;T&gt; : IFunctor&lt;Lazy&lt;&gt;&gt;
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Functor Select: (TSource -&gt; TResult) -&gt; (Lazy&lt;TSource&gt; -&gt; Lazy&lt;TResult&gt;)
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt; source =&gt;
+            Select(source, selector);
+
+    </span><span style="color: green;">// LINQ Select: (Lazy&lt;TSource&gt;, TSource -&gt; TResult) -&gt; Lazy&lt;TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt;
+            </span><span style="color: blue;">new </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(() =&gt; selector(source.Value));
+
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Map()
+    {
+        </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(() =&gt; 1);
+        </span><span style="color: green;">// Map int to string.
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt; selector = </span><span style="color: #2b91af;">Convert</span><span style="color: black;">.ToString;
+        </span><span style="color: green;">// Map Lazy&lt;int&gt; to Lazy&lt;string&gt;.
+        </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; query = </span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source
+                             </span><span style="color: blue;">select </span><span style="color: black;">selector(value); </span><span style="color: green;">// Define query.
+        </span><span style="color: blue;">string </span><span style="color: black;">result = query.Value; </span><span style="color: green;">// Execute query.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>Func&lt;&gt; with 1 type parameter is also a functor with the following Select implementation:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">FuncExtensions </span><span style="color: green;">// Func&lt;T&gt; : IFunctor&lt;Func&lt;&gt;&gt;
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Functor Select: (TSource -&gt; TResult) -&gt; (Func&lt;TSource&gt; -&gt; Func&lt;TResult&gt;)
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt; source =&gt;
+            Select(source, selector);
+
+    </span><span style="color: green;">// LINQ Select: (Func&lt;TSource&gt;, TSource -&gt; TResult) -&gt; Func&lt;TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt;
+            () =&gt; selector(source());
+
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Map()
+    {
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source = () =&gt; 1;
+        </span><span style="color: green;">// Map int to string.
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt; selector = </span><span style="color: #2b91af;">Convert</span><span style="color: black;">.ToString;
+        </span><span style="color: green;">// Map Func&lt;int&gt; to Func&lt;string&gt;.
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; query = </span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source
+                             </span><span style="color: blue;">select </span><span style="color: black;">selector(value); </span><span style="color: green;">// Define query.
+        </span><span style="color: blue;">string </span><span style="color: black;">result = query(); </span><span style="color: green;">// Execute query.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>Here Select maps TSource –&gt; TResult function to Func&lt;TSource&gt; –&gt; Func&lt;TResult&gt; function, which is straightforward. The other Func generic delegate types, like Func&lt;,&gt; with 2 type parameters, could be more interesting. Just like fore mentioned ValueTuple&lt;,&gt;, Func&lt;,&gt; is of kind * –&gt; * –&gt; *, and can be viewed as a type constructor accepting 2 concrete types and returning another concrete type, which is different from functor. However, if Func&lt;,&gt; already has a concrete type T as its first type parameter, then Func&lt;T,&gt; can be viewed as a partially applied type constructor of kind * –&gt; *, which can map one concrete type (its second type parameter) to another concrete type. So that Func&lt;T,&gt; is also a functor, with the following Select method:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">FuncExtensions </span><span style="color: green;">// Func&lt;T, TResult&gt; : IFunctor&lt;Func&lt;T,&gt;&gt;
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Functor Select: (TSource -&gt; TResult) -&gt; (Func&lt;T, TSource&gt; -&gt; Func&lt;T, TResult&gt;)
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; Select&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt; source =&gt;
+            Select(source, selector);
+
+    </span><span style="color: green;">// LINQ Select: (Func&lt;T, TSource&gt;, TSource -&gt; TResult) -&gt; Func&lt;T, TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt;
+            value =&gt; selector(source(value)); </span><span style="color: green;">// selector.o(source);
+</span><span style="color: black;">}</span></pre>
+<p>This time Select maps TSource –&gt; TResult function to Func&lt;T, TSource&gt; –&gt; Func&lt;T, TResult&gt; function. Actually, Func&lt;T,&gt; functor’s Select is exactly the function composition:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Map&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T </span><span style="color: black;">input)
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt; source = value =&gt; value.ToString();
+    </span><span style="color: green;">// Map string to bool.
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; selector = </span><span style="color: blue;">string</span><span style="color: black;">.IsNullOrWhiteSpace;
+    </span><span style="color: green;">// Map Func&lt;T, string&gt; to Func&lt;T, bool&gt;.
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; query = </span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source
+                          </span><span style="color: blue;">select </span><span style="color: black;">selector(value); </span><span style="color: green;">// Define query.
+    </span><span style="color: blue;">bool </span><span style="color: black;">result = query(input); </span><span style="color: green;">// Execute query.
+
+    // Equivalent to:
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt; function1 = source;
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; function2 = selector</span><span style="color: black;">;
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; composition = function2.o(function1);
+    result = composition(input);
+}</span></pre>
+<p>ValueTuple&lt;&gt; with 1 type parameter simply wraps a value. It is the eager version of Lazy&lt;&gt;, and it is also functor, with the following Select method:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ValueTupleExtensions </span><span style="color: green;">// ValueTuple&lt;T&gt; : IFunctor&lt;ValueTuple&lt;&gt;&gt;
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Functor Select: (TSource -&gt; TResult) -&gt; (ValueTuple&lt;TSource&gt; -&gt; ValueTuple&lt;TResult&gt;)
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt; source =&gt;
+            Select(source, selector); </span><span style="color: green;">// Immediate execution.
+
+    // LINQ Select: (ValueTuple&lt;TSource&gt;, TSource -&gt; TResult) -&gt; ValueTuple&lt;TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt;
+            </span><span style="color: blue;">new </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(selector(source.Item1)); </span><span style="color: green;">// Immediate execution.
+</span><span style="color: black;">}</span></pre>
+<p>Unlike all the previous Select, here ValueTuple&lt;&gt;’s Select query method cannot implement deferred execution. To construct a ValueTuple&lt;TResult&gt; instance and return, selector must be called immediately to evaluate the result value.</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Map()
+{
+    </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source = </span><span style="color: blue;">new </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(1);
+    </span><span style="color: green;">// Map int to string.
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt; selector = int32 =&gt;
+        {
+            </span><span style="color: #a31515;">$"</span><span style="color: black;">{</span><span style="color: blue;">nameof</span><span style="color: black;">(selector)} </span><span style="color: #a31515;">is called with </span><span style="color: black;">{int32}</span><span style="color: #a31515;">."</span><span style="color: black;">.WriteLine();
+            </span><span style="color: blue;">return </span><span style="color: #2b91af;">Convert</span><span style="color: black;">.ToString(int32);
+        };
+    </span><span style="color: green;">// Map ValueTuple&lt;int&gt; to ValueTuple&lt;string&gt;.
+    </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; query = </span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source </span><span style="color: green;">// Define and execute query.
+                                </span><span style="color: blue;">select </span><span style="color: black;">selector(value); </span><span style="color: green;">// selector is called with 1.
+    </span><span style="color: blue;">string </span><span style="color: black;">result = query.Item1; </span><span style="color: green;">// Query result.
+</span><span style="color: black;">}</span></pre>
+<p>Similar to Func&lt;T,&gt;, ValueTuple&lt;T,&gt; is also functor, with the following Select method of immediate execution:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ValueTupleExtensions </span><span style="color: green;">// ValueTuple&lt;T, T2&gt; : IFunctor&lt;ValueTuple&lt;T,&gt;&gt;
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Functor Select: (TSource -&gt; TResult) -&gt; (ValueTuple&lt;T, TSource&gt; -&gt; ValueTuple&lt;T, TResult&gt;)
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">), (</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">)&gt; Select&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt; source =&gt;
+            Select</span><span style="color: red;"></span><span style="color: black;">(source, selector); </span><span style="color: green;">// Immediate execution.
+
+    // LINQ Select: (ValueTuple&lt;T, TSource&gt;, TSource -&gt; TResult) -&gt; ValueTuple&lt;T, TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: black;">(</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">) Select&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this</span><span style="color: black;">(</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">) source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt;
+            (source.Item1, selector(source.Item2)); </span><span style="color: green;">// Immediate execution.
+
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Map&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T </span><span style="color: black;">item1)
+    {
+        (</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">) source = (item1, 1);
+        </span><span style="color: green;">// Map int to string.
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt; selector = int32 =&gt;
+        {
+            </span><span style="color: #a31515;">$"</span><span style="color: black;">{</span><span style="color: blue;">nameof</span><span style="color: black;">(selector)} </span><span style="color: #a31515;">is called with </span><span style="color: black;">{int32}</span><span style="color: #a31515;">."</span><span style="color: black;">.WriteLine();
+            </span><span style="color: blue;">return </span><span style="color: #2b91af;">Convert</span><span style="color: black;">.ToString(int32);
+        };
+        </span><span style="color: green;">// Map ValueTuple&lt;T, int&gt; to ValueTuple&lt;T, string&gt;.
+        </span><span style="color: black;">(</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">) query = </span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source </span><span style="color: green;">// Define and execute query.
+                            <span style="color: green;"></span><span style="color: blue;">select </span></span><span style="color: red;"></span><span style="color: black;">selector(value); </span><span style="color: green;">// selector is called with 1.
+        </span><span style="color: blue;">string </span><span style="color: black;">result = query.Item2; </span><span style="color: green;">// Query result.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>Task is also an example of functor, with the following Select method:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">TaskExtensions </span><span style="color: green;">// Task&lt;T&gt; : IFunctor&lt;Task&lt;&gt;&gt;
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Functor Select: (TSource -&gt; TResult) -&gt; (Task&lt;TSource&gt; -&gt; Task&lt;TResult&gt;)
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Task</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Task</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt; source =&gt;
+            Select(source, selector); </span><span style="color: green;">// Immediate execution, impure.
+
+    // LINQ Select: (Task&lt;TSource&gt;, TSource -&gt; TResult) -&gt; Task&lt;TResult&gt;
+    </span><span style="color: blue;">public static async </span><span style="color: #2b91af;">Task</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Task</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt;
+            selector(</span><span style="color: blue;">await </span><span style="color: black;">source); </span><span style="color: green;">// Immediate execution, impure.
+
+    </span><span style="color: blue;">internal static async <span style="color: black;"></span><span style="color: #2b91af;">Task</span> </span><span style="color: black;">MapAsync()
+    {
+        </span><span style="color: #2b91af;">Task</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source = System.Threading.Tasks.</span><span style="color: #2b91af;">Task</span><span style="color: black;">.FromResult(1);
+        </span><span style="color: green;">// Map int to string.
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt; selector = </span><span style="color: #2b91af;">Convert</span><span style="color: black;">.ToString;
+        </span><span style="color: green;">// Map Task&lt;int&gt; to Task&lt;string&gt;.
+        </span><span style="color: #2b91af;">Task</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; query = </span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source
+                             </span><span style="color: blue;">select </span><span style="color: black;">selector(value); </span><span style="color: green;">// Define and execute query.
+        </span><span style="color: blue;">string </span><span style="color: black;">result = </span><span style="color: blue;">await </span><span style="color: black;">query; </span><span style="color: green;">// Query result.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>Similar to ValueTuple&lt;&gt;, above Select implementation is not deferred either. When Select is called, if the source task is already completed, the selector function is called immediately. And unlike all the previous Select methods are pure (referential transparent and side effect free), this Select use the await syntactic sugar to construct a state machine and start it immediately. So it changes state and is impure.</p>
+<p>Nullable&lt;&gt; is also an interesting type. It is of kind * –&gt; * and the following Select method can be defined:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">NullableExtensions </span><span style="color: green;">// Nullable&lt;T&gt; : IFunctor&lt;Nullable&lt;&gt;&gt;
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Functor Select: (TSource -&gt; TResult) -&gt; (Nullable&lt;TSource&gt; -&gt; Nullable&lt;TResult&gt;)
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">?, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">?&gt; Select2&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) </span><span style="color: blue;">where </span><span style="color: #2b91af;">TSource </span><span style="color: black;">: </span><span style="color: blue;">struct where </span><span style="color: #2b91af;">TResult </span><span style="color: black;">: </span><span style="color: blue;">struct </span><span style="color: black;">=&gt; source =&gt;
+            Select(source, selector); </span><span style="color: green;">// Immediate execution.
+
+    // LINQ Select: (Nullable&lt;TSource&gt;, TSource -&gt; TResult) -&gt; Nullable&lt;TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">TResult</span><span style="color: black;">? Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">TSource</span><span style="color: black;">? source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) </span><span style="color: blue;">where </span><span style="color: #2b91af;">TSource </span><span style="color: black;">: </span><span style="color: blue;">struct where </span><span style="color: #2b91af;">TResult </span><span style="color: black;">: </span><span style="color: blue;">struct </span><span style="color: black;">=&gt;
+            source.HasValue ? selector(source.Value) : </span><span style="color: blue;">default</span><span style="color: black;">; </span><span style="color: green;">// Immediate execution.
+
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Map()
+    {
+        </span><span style="color: blue;">long</span><span style="color: black;">? source1 = 1L;
+        </span><span style="color: green;">// Map int to string.
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">long</span><span style="color: black;">, </span><span style="color: #2b91af;">TimeSpan</span><span style="color: black;">&gt; selector = </span><span style="color: #2b91af;">TimeSpan</span><span style="color: black;">.FromTicks;
+        </span><span style="color: green;">// Map Nullable&lt;int&gt; to Nullable&lt;TimeSpan&gt;.
+        </span><span style="color: #2b91af;">TimeSpan</span><span style="color: black;">? query1 = </span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source1
+                           </span><span style="color: blue;">select </span><span style="color: black;">selector(value); </span><span style="color: green;">// Define and execute query.
+        </span><span style="color: #2b91af;">TimeSpan </span><span style="color: black;">result1 = query1.Value; </span><span style="color: green;">// Query result.
+
+        </span><span style="color: blue;">long</span><span style="color: black;">? source2 = </span><span style="color: blue;">null</span><span style="color: black;">;
+        </span><span style="color: green;">// Map Nullable&lt;int&gt; to Nullable&lt;TimeSpan&gt;.
+        </span><span style="color: #2b91af;">TimeSpan</span><span style="color: black;">? query2 = </span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source2
+                           </span><span style="color: blue;">select </span><span style="color: black;">selector(value); </span><span style="color: green;">// Define and execute query.
+        </span><span style="color: blue;">bool </span><span style="color: black;">result2 = query2.HasValue; </span><span style="color: green;">// Query result.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>In the above Select method, if the source Nullable&lt;TSource&gt; instance represents an actual value of TSource, that value is extracted to call selector, and the result is wrapped into another Nullable&lt;TResult&gt; instance to return; if the source represents null, selector is not called, and a Nullable&lt;TResult&gt; instance representing null is directly returned. There are 2 issues here. First, Nullable&lt;&gt;’s type parameter is constrained to be structures, so it can only map some objects of DotNet category (the value types). Second, the Select implementation cannot be deferred. As LINQ query method, deferred execution is always preferred whenever possible. So the following Optional&lt;T&gt; type can be defined to be used with any type parameter, and also be lazy:</p>
+<pre class="code"><span style="color: blue;">public readonly struct </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;(</span><span style="color: blue;">bool</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">)&gt; factory;
+
+    </span><span style="color: blue;">public </span><span style="color: black;">Optional(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;(</span><span style="color: blue;">bool</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">)&gt; factory = </span><span style="color: blue;">null</span><span style="color: black;">) =&gt;
+        </span><span style="color: blue;">this</span><span style="color: black;">.factory = factory == </span><span style="color: blue;">null </span><span style="color: black;">? </span><span style="color: blue;">null </span><span style="color: black;">: </span><span style="color: blue;">new </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;(</span><span style="color: blue;">bool</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">)&gt;(factory);
+
+    </span><span style="color: blue;">public bool </span><span style="color: black;">HasValue =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.factory?.Value.Item1 ?? </span><span style="color: blue;">false</span><span style="color: black;">;
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">T </span><span style="color: black;">Value
+    {
+        </span><span style="color: blue;">get
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">if </span><span style="color: black;">(!</span><span style="color: blue;">this</span><span style="color: black;">.HasValue)
+            {
+                </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">InvalidOperationException</span><span style="color: black;">(</span><span style="color: #a31515;">$"</span><span style="color: black;">{</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;)} </span><span style="color: #a31515;">object must have a value."</span><span style="color: black;">);
+            }
+            </span><span style="color: blue;">return this</span><span style="color: black;">.factory.Value.Item2;
+        }
+    }
+}</span></pre>
+<p>Optional&lt;T&gt; is still a structure just like Nullable&lt;T&gt;, so its instance cannot be null. Its parameter is not constrained, so it can wrap any valid or invalid value of any type, Its constructor accepts a factory function just like Lazy&lt;&gt;, s the evaluation of its wrapped value can be deferred. And the factory function returns a tuple of bool value and T value, where the bool value indicates if the other T value is a valid value, and that bool value can be returned by the the HasValue property.</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Optional()
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">int32 = 1;
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt; function = </span><span style="color: #2b91af;">Convert</span><span style="color: black;">.ToString;
+
+    </span><span style="color: #2b91af;">Nullable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; nullableInt32 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Nullable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(int32);
+    </span><span style="color: #2b91af;">Nullable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt;&gt; nullableFunction = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Nullable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt;&gt;(function); </span><span style="color: green;">// Cannot be compiled.
+    </span><span style="color: #2b91af;">Nullable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; nullableString = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Nullable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;(); </span><span style="color: green;">// Cannot be compiled.
+
+    </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; optionalInt32 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(() =&gt; (</span><span style="color: blue;">true</span><span style="color: black;">, int32));
+    </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt;&gt; optionalFunction = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt;&gt;(() =&gt; </span><span style="color: blue;">true</span><span style="color: black;">, function));
+    </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; optionalString = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;(); </span><span style="color: green;">// Equivalent to: new Optional&lt;string&gt;(() =&gt; false, default);
+</span><span style="color: black;">}</span></pre>
+<p>Apparently, Optional&lt;&gt; is a factor, and its Select can be defined with deferred execution:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">OptionalExtensions </span><span style="color: green;">// Optional&lt;T&gt; : IFunctor&lt;Optional&lt;&gt;&gt;
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Functor Select: (TSource -&gt; TResult) -&gt; (Optional&lt;TSource&gt; -&gt; Optional&lt;TResult&gt;)
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt; source =&gt;
+            Select(source, selector);
+
+    </span><span style="color: green;">// LINQ Select: (Optional&lt;TSource&gt;, TSource -&gt; TResult) -&gt; Optional&lt;TResult&gt;
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt;
+            </span><span style="color: blue;">new </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(() =&gt; source.HasValue
+                ? (</span><span style="color: blue;">true</span><span style="color: black;">, selector(source.Value)) : (</span><span style="color: blue;">false</span><span style="color: black;">, </span><span style="color: blue;">default</span><span style="color: black;">));
+
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Map()
+    {
+        </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source1 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(() =&gt; (</span><span style="color: blue;">true</span><span style="color: black;">, 1));
+        </span><span style="color: green;">// Map int to string.
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt; selector = </span><span style="color: #2b91af;">Convert</span><span style="color: black;">.ToString;
+        </span><span style="color: green;">// Map Optional&lt;int&gt; to Optional&lt;string&gt;.
+        </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; query1 = </span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source1
+                                    </span><span style="color: blue;">select </span><span style="color: black;">selector(value); </span><span style="color: green;">// Define query.
+        </span><span style="color: blue;">if </span><span style="color: black;">(query1.HasValue) </span><span style="color: green;">// Execute query.
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">string </span><span style="color: black;">result1 = query1.Value;
+        }
+
+        </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source2 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;();
+        </span><span style="color: green;">// Map Optional&lt;int&gt; to Optional&lt;string&gt;.
+        </span><span style="color: #2b91af;">Optional</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; query2 = </span><span style="color: blue;">from </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source2
+                                    </span><span style="color: blue;">select </span><span style="color: black;">selector(value); </span><span style="color: green;">// Define query.
+        </span><span style="color: blue;">if </span><span style="color: black;">(query2.HasValue) </span><span style="color: green;">// Execute query.
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">string </span><span style="color: black;">result2 = query2.Value;
+        }
+    }
+}</span></pre>
+<p>It is easy to verify all the above Select methods satisfy the functor laws. However, not any Select can automatically satisfy the functor laws. The following is a different Select implementation for Lazy&lt;&gt;:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt;
+        </span><span style="color: blue;">new </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(() =&gt; </span><span style="color: blue;">default</span><span style="color: black;">);</span><span style="color: blue;">
+</span></pre>
+<p>And it breaks the functor because it does not preserve the identity law:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">FunctorLaws()
+{
+    </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; lazy = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Lazy</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(() =&gt; 1);
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt; selector1 = </span><span style="color: #2b91af;">Convert</span><span style="color: black;">.ToString;
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt; selector2 = </span><span style="color: #2b91af;">Convert</span><span style="color: black;">.ToDouble;
+
+    </span><span style="color: green;">// Associativity preservation: TFunctor&lt;T&gt;.Select(f2.o(f1)) == TFunctor&lt;T&gt;.Select(f1).Select(f2)
+    </span><span style="color: black;">lazy.Select(selector2.o(selector1)).Value.WriteLine(); </span><span style="color: green;">// 0
+    </span><span style="color: black;">lazy.Select(selector1).Select(selector2).Value.WriteLine(); </span><span style="color: green;">// 0
+    // Identity preservation: TFunctor&lt;T&gt;.Select(Id) == Id(TFunctor&lt;T&gt;)
+    </span><span style="color: black;">lazy.Select(Id).Value.WriteLine(); </span><span style="color: green;">// 0
+    </span><span style="color: black;">Id(lazy).Value.WriteLine(); </span><span style="color: green;">// 1
+</span><span style="color: black;">}</span>
+
+
+</div>
+</body>
+</html>

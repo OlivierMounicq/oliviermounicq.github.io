@@ -1,0 +1,263 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+
+<h1>Entity Framework/Core and LINQ to Entities (3) Logging and Tracing Queries</h1>
+
+<p>As fore mentioned, LINQ to Entities queries are translated to database queries. To understand how EF/Core work with databases, it is important to uncover the actual underlying operations to the SQL database, which can be traced or logged in C# application side and in SQL database.</p>
+<h1>Application side logging</h1>
+<p>EF Core follows the ASP.NET Core logging infrastructure. To log EF Core operations, a logger (implementing Microsoft.Extensions.Logging.ILogger) and a logger provider (implementing Microsoft.Extensions.Logging.ILoggerProvider) can be defined. The following&nbsp; is a simple example to simply trace everything:</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">TraceLogger </span><span style="color: black;">: </span><span style="color: #2b91af;">ILogger
+</span><span style="color: black;">{
+    </span><span style="color: blue;">private readonly string </span><span style="color: black;">categoryName;
+
+    </span><span style="color: blue;">public </span><span style="color: black;">TraceLogger(</span><span style="color: blue;">string </span><span style="color: black;">categoryName) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.categoryName = categoryName;
+
+    </span><span style="color: blue;">public bool </span><span style="color: black;">IsEnabled(</span><span style="color: #2b91af;">LogLevel </span><span style="color: black;">logLevel) =&gt; </span><span style="color: blue;">true</span><span style="color: black;">;
+
+    </span><span style="color: blue;">public void </span><span style="color: black;">Log&lt;</span><span style="color: #2b91af;">TState</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">LogLevel </span><span style="color: black;">logLevel,
+        </span><span style="color: #2b91af;">EventId </span><span style="color: black;">eventId,
+        </span><span style="color: #2b91af;">TState </span><span style="color: black;">state,
+        </span><span style="color: #2b91af;">Exception </span><span style="color: black;">exception,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TState</span><span style="color: black;">, </span><span style="color: #2b91af;">Exception</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt; formatter)
+    {
+        </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(</span><span style="color: #a31515;">$"</span><span style="color: black;">{</span><span style="color: #2b91af;">DateTime</span><span style="color: black;">.Now.ToString(</span><span style="color: #a31515;">"o"</span><span style="color: black;">)} {logLevel} {eventId.Id} {</span><span style="color: blue;">this</span><span style="color: black;">.categoryName}</span><span style="color: #a31515;">"</span><span style="color: black;">);
+        </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(formatter(state, exception));
+    }
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">IDisposable </span><span style="color: black;">BeginScope&lt;</span><span style="color: #2b91af;">TState</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TState </span><span style="color: black;">state) =&gt; </span><span style="color: blue;">null</span><span style="color: black;">;
+}
+
+</span><span style="color: blue;">public class </span><span style="color: #2b91af;">TraceLoggerProvider </span><span style="color: black;">: </span><span style="color: #2b91af;">ILoggerProvider
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">ILogger </span><span style="color: black;">CreateLogger(</span><span style="color: blue;">string </span><span style="color: black;">categoryName) =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">TraceLogger</span><span style="color: black;">(categoryName);
+
+    </span><span style="color: blue;">public void </span><span style="color: black;">Dispose() { }
+}
+</span></pre>
+<p>Now the logger provider can be hooked up with EF Core:</p>
+<pre class="code"><span style="color: blue;">public partial class </span><span style="color: #2b91af;">AdventureWorks
+</span><span style="color: black;">{
+    </span><span style="color: blue;">protected override void </span><span style="color: black;">OnConfiguring(</span><span style="color: #2b91af;">DbContextOptionsBuilder </span><span style="color: black;">optionsBuilder)
+    {
+        </span><span style="color: #2b91af;">LoggerFactory </span><span style="color: black;">loggerFactory = </span><span style="color: blue;">new </span><span style="color: #2b91af;">LoggerFactory</span><span style="color: black;">();
+        loggerFactory.AddProvider(</span><span style="color: blue;">new </span><span style="color: #2b91af;">TraceLoggerProvider</span><span style="color: black;">());
+        optionsBuilder.UseLoggerFactory(loggerFactory);
+    }
+}
+</span></pre>
+<p>The following is a simple example of LINQ to Entities query. It pulls all ProductCategory entities from AdventureWorks.ProductCategories data source:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Tracing
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">TraceLogger()
+    {
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+        {
+            </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">&gt; source = adventureWorks.ProductCategories; </span><span style="color: green;">// Define query.
+            </span><span style="color: black;">source.ForEach(); </span><span style="color: green;">// Execute query.
+        </span><span style="color: black;">}
+        </span><span style="color: green;">// 2017-01-11T22:15:43.4625876-08:00 Debug 2 Microsoft.EntityFrameworkCore.Query.Internal.SqlServerQueryCompilationContextFactory
+        // Compiling query model:
+        // 'from ProductCategory &lt;generated&gt;_0 in DbSet&lt;ProductCategory&gt;
+        // select &lt;generated&gt;_0'
+
+        // 2017-01-11T22:15:43.4932882-08:00 Debug 3 Microsoft.EntityFrameworkCore.Query.Internal.SqlServerQueryCompilationContextFactory
+        // Optimized query model:
+        // 'from ProductCategory &lt;generated&gt;_0 in DbSet&lt;ProductCategory&gt;
+        // select &lt;generated&gt;_0'
+
+        // 2017-01-11T22:15:43.6179834-08:00 Debug 5 Microsoft.EntityFrameworkCore.Query.Internal.SqlServerQueryCompilationContextFactory
+        // TRACKED: True
+        // (QueryContext queryContext) =&gt; IEnumerable&lt;ProductCategory&gt; _ShapedQuery(
+        //    queryContext: queryContext,
+        //    shaperCommandContext: SelectExpression:
+        //        SELECT [p].[ProductCategoryID], [p].[Name]
+        //        FROM [Production].[ProductCategory] AS [p]
+        //    ,
+        //    shaper: UnbufferedEntityShaper&lt;ProductCategory&gt;
+        // )
+
+        // 2017-01-11T22:15:43.7272876-08:00 Debug 3 Microsoft.EntityFrameworkCore.Storage.Internal.SqlServerConnection
+        // Opening connection to database 'AdventureWorks' on server 'tcp:dixin.database.windows.net,1433'.
+
+        // 2017-01-11T22:15:44.1024201-08:00 Information 1 Microsoft.EntityFrameworkCore.Storage.IRelationalCommandBuilderFactory
+        // Executed DbCommand (66ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+        // SELECT [p].[ProductCategoryID], [p].[Name]
+        // FROM [Production].[ProductCategory] AS [p]
+
+        // 2017-01-11T22:15:44.1505353-08:00 Debug 4 Microsoft.EntityFrameworkCore.Storage.Internal.SqlServerConnection
+        // Closing connection to database 'AdventureWorks' on server 'tcp:dixin.database.windows.net,1433'.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>The logs uncovers that a SELECT statement is executed in database to query all categories. The logs also uncovers how exactly EF Core execute the operation – it compiles LINQ to Entities query and generates SQL, then opens a connection to SQL database, execute the generated SQL in database, and close the connection. This mechanism is discussed in the query translation part.</p>
+<blockquote>
+<p>EF has different logging APIs. It provides 3 options: LINQ to Entities query’s ToString method, database façade’s Log property, and IDbInterceptor.</p>
+<p>In EF, the easiest way is to call the query’s ToString method. In EF, LINQ to Entities query represented by IQueryable&lt;T&gt; is actually implemented with System.Data.Entity.Infrastructure.DbQuery&lt;T&gt;. The fore mentioned DbSet&lt;T&gt; type representing table is derived from DbQuery&lt;T&gt; too. For example:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Tracing
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">DbQueryToString()
+    {
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+        {
+            </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">&gt; source = adventureWorks.ProductCategories; </span><span style="color: green;">// Define query.
+            </span><span style="color: black;">source.ToString().WriteLine();
+            </span><span style="color: green;">// SELECT
+            //    [Extent1].[ProductCategoryID] AS [ProductCategoryID],
+            //    [Extent1].[Name] AS [Name]
+            //    FROM [Production].[ProductCategory] AS [Extent1]
+            </span><span style="color: black;">source.ForEach(); </span><span style="color: green;">// Execute query.
+        </span><span style="color: black;">}
+    }
+}</span></pre>
+<p>The DbContext type has a Database property to expose a System.Data.Entity.Database instance, where a log function of type string –&gt; void can be specified:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Data.Entity
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">DbContext </span><span style="color: black;">: </span><span style="color: #2b91af;">IDisposable</span><span style="color: black;">, </span><span style="color: #2b91af;">IObjectContextAdapter
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public </span><span style="color: #2b91af;">Database </span><span style="color: black;">Database { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">Database
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; Log { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>The logger function is called with message for all database operations:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">DatabaseLog()
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+    {
+        adventureWorks.Database.Log = log =&gt; </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.Write(log);
+        </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">&gt; source = adventureWorks.ProductCategories; </span><span style="color: green;">// Define query.
+        </span><span style="color: black;">source.ForEach(); </span><span style="color: green;">// Execute query.
+    </span><span style="color: black;">}
+    </span><span style="color: green;">// Opened connection at 5/21/2016 12:33:34 AM -07:00
+    // SELECT
+    //    [Extent1].[ProductCategoryID] AS [ProductCategoryID],
+    //    [Extent1].[Name] AS [Name]
+    //    FROM [Production].[ProductCategory] AS [Extent1]
+    // -- Executing at 5/21/2016 12:31:58 AM -07:00
+    // -- Completed in 11 ms with result: SqlDataReader4
+    // Closed connection at 5/21/2016 12:33:35 AM -07:00
+</span><span style="color: black;">}</span></pre>
+<p>EF also introduces interceptors for lower level logging control. Under System.Data.Entity.Infrastructure.Interception namespace, EF defines the IDbInterceptor interfaces, which is an empty interface inherited by IDbConfigurationInterceptor, IDbCommandInterceptor, IDbConnectionInterceptor, IDbTransactionInterceptor, and IDbCommandTreeInterceptor. For example, the following is the definition of IDbCommandInterceptor, whose methods are called before and after the execution of the translated SQL queries:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Data.Entity.Infrastructure.Interception
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IDbCommandInterceptor </span><span style="color: black;">: </span><span style="color: #2b91af;">IDbInterceptor </span><span style="color: green;">// IDbInterceptor is an empty interface.
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">void </span><span style="color: black;">NonQueryExecuted(</span><span style="color: #2b91af;">DbCommand </span><span style="color: black;">command, </span><span style="color: #2b91af;">DbCommandInterceptionContext</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; interceptionContext);
+
+        </span><span style="color: blue;">void </span><span style="color: black;">NonQueryExecuting(</span><span style="color: #2b91af;">DbCommand </span><span style="color: black;">command, </span><span style="color: #2b91af;">DbCommandInterceptionContext</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; interceptionContext);
+
+        </span><span style="color: blue;">void </span><span style="color: black;">ReaderExecuted(</span><span style="color: #2b91af;">DbCommand </span><span style="color: black;">command, </span><span style="color: #2b91af;">DbCommandInterceptionContext</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">DbDataReader</span><span style="color: black;">&gt; interceptionContext);
+
+        </span><span style="color: blue;">void </span><span style="color: black;">ReaderExecuting(</span><span style="color: #2b91af;">DbCommand </span><span style="color: black;">command, </span><span style="color: #2b91af;">DbCommandInterceptionContext</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">DbDataReader</span><span style="color: black;">&gt; interceptionContext);
+
+        </span><span style="color: blue;">void </span><span style="color: black;">ScalarExecuted(</span><span style="color: #2b91af;">DbCommand </span><span style="color: black;">command, </span><span style="color: #2b91af;">DbCommandInterceptionContext</span><span style="color: black;">&lt;</span><span style="color: blue;">object</span><span style="color: black;">&gt; interceptionContext);
+
+        </span><span style="color: blue;">void </span><span style="color: black;">ScalarExecuting(</span><span style="color: #2b91af;">DbCommand </span><span style="color: black;">command, </span><span style="color: #2b91af;">DbCommandInterceptionContext</span><span style="color: black;">&lt;</span><span style="color: blue;">object</span><span style="color: black;">&gt; interceptionContext);
+    }
+}</span></pre>
+<p>EF provides a number of built-in interceptor implementations. For example, the DatabaseLogFormatter type under the same namespace implements IDbCommandInterceptor, IDbConnectionInterceptor and IDbTransactionInterceptor. And it has a lot of virtual members to be overridden with custom logging logic. An interceptor has to be registered with DbInterception.Add:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Interceptor()
+{
+    </span><span style="color: #2b91af;">DatabaseLogFormatter </span><span style="color: black;">interceptor = </span><span style="color: blue;">new </span><span style="color: #2b91af;">DatabaseLogFormatter</span><span style="color: black;">(writeAction: log =&gt; </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(log));
+    </span><span style="color: #2b91af;">DbInterception</span><span style="color: black;">.Add(interceptor);
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+    {
+        </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">&gt; source = adventureWorks.ProductCategories; </span><span style="color: green;">// Define query.
+        </span><span style="color: black;">source.ForEach(); </span><span style="color: green;">// Execute query.
+    </span><span style="color: black;">}
+    </span><span style="color: green;">// Opened connection at 1/11/2017 11:51:06 PM -08:00
+    // SELECT
+    // [Extent1].[ProductCategoryID] AS [ProductCategoryID],
+    // [Extent1].[Name] AS [Name]
+    // FROM [Production].[ProductCategory] AS [Extent1]
+    // -- Executing at 1/11/2017 11:51:06 PM -08:00
+    // -- Completed in 10 ms with result: SqlDataReader
+    // Closed connection at 1/11/2017 11:51:06 PM -08:00
+    </span><span style="color: #2b91af;">DbInterception</span><span style="color: black;">.Remove(interceptor);
+}</span></pre>
+</blockquote>
+<h1>Database side tracing with Extended Events</h1>
+<p>SQL database provides variant mechanisms to collect the information of executed operations. Extended Events is such a feature available in all cloud and on-premise SQL database editions. For Windows, SQL Server Management Studio is a rich tools to setup and views the event tracing. And this can also be done from other platform. In any SQL tool (like <a href="https://marketplace.visualstudio.com/items?itemName=ms-mssql.mssql" target="_blank">mssql extension</a> for Visual Studio Code, which works on Linux, Mac, and Windows), connect to the Azure SQL database (or SQL Server on-premise database), and execute the following SQL to create an Extended Events session called Queries:</p>
+<pre class="code"><span style="color: blue;">CREATE EVENT SESSION </span><span style="color: black;">[Queries] </span><span style="color: blue;">ON DATABASE </span><span style="color: green;">-- ON SERVER for SQL Server on-premise database.
+</span><span style="color: blue;">ADD EVENT </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">begin_tran_completed</span><span style="color: gray;">(
+    </span><span style="color: blue;">ACTION</span><span style="color: gray;">(</span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_app_name</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_connection_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_hostname</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_pid</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: blue;">database_name</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">request_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">session_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">sql_text</span><span style="color: gray;">)),
+</span><span style="color: blue;">ADD EVENT </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">commit_tran_completed</span><span style="color: gray;">(
+    </span><span style="color: blue;">ACTION</span><span style="color: gray;">(</span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_app_name</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_connection_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_hostname</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_pid</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: blue;">database_name</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">request_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">session_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">sql_text</span><span style="color: gray;">)),
+</span><span style="color: blue;">ADD EVENT </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">error_reported</span><span style="color: gray;">(
+    </span><span style="color: blue;">ACTION</span><span style="color: gray;">(</span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_app_name</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_connection_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_hostname</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_pid</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: blue;">database_name</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">request_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">session_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">sql_text</span><span style="color: gray;">)),
+</span><span style="color: blue;">ADD EVENT </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">rollback_tran_completed</span><span style="color: gray;">(
+    </span><span style="color: blue;">ACTION</span><span style="color: gray;">(</span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_app_name</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_connection_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_hostname</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_pid</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: blue;">database_name</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">request_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">session_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">sql_text</span><span style="color: gray;">)),
+</span><span style="color: blue;">ADD EVENT </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">rpc_completed</span><span style="color: gray;">(
+    </span><span style="color: blue;">ACTION</span><span style="color: gray;">(</span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_app_name</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_connection_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_hostname</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_pid</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: blue;">database_name</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">request_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">session_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">sql_text</span><span style="color: gray;">)),
+</span><span style="color: blue;">ADD EVENT </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">sp_statement_completed</span><span style="color: gray;">(
+    </span><span style="color: blue;">ACTION</span><span style="color: gray;">(</span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_app_name</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_connection_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_hostname</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_pid</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: blue;">database_name</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">request_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">session_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">sql_text</span><span style="color: gray;">)),
+</span><span style="color: blue;">ADD EVENT </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">sql_batch_completed</span><span style="color: gray;">(
+    </span><span style="color: blue;">ACTION</span><span style="color: gray;">(</span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_app_name</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_connection_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_hostname</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_pid</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: blue;">database_name</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">request_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">session_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">sql_text</span><span style="color: gray;">)),
+</span><span style="color: blue;">ADD EVENT </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">sql_statement_completed</span><span style="color: gray;">(
+    </span><span style="color: blue;">ACTION</span><span style="color: gray;">(</span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_app_name</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_connection_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_hostname</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">client_pid</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: blue;">database_name</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">request_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">session_id</span><span style="color: gray;">, </span><span style="color: black;">sqlserver</span><span style="color: gray;">.</span><span style="color: black;">sql_text</span><span style="color: gray;">))
+</span><span style="color: blue;">ADD TARGET </span><span style="color: black;">package0</span><span style="color: gray;">.</span><span style="color: black;">ring_buffer</span><span style="color: gray;">(</span><span style="color: blue;">SET </span><span style="color: black;">max_events_limit </span><span style="color: gray;">= (</span><span style="color: black;">100</span><span style="color: gray;">)) </span><span style="color: green;">-- Most recent 100 events.
+</span><span style="color: blue;">WITH </span><span style="color: gray;">(</span><span style="color: black;">STARTUP_STATE </span><span style="color: gray;">= </span><span style="color: blue;">OFF</span><span style="color: gray;">);
+</span><span style="color: blue;">GO</span></pre>
+<p>It traces the transactions, SQL executions, and errors, etc. To start the session and collect events, execute the following SQL:</p>
+<pre class="code"><span style="color: blue;">ALTER EVENT SESSION </span><span style="color: black;">[Queries] </span><span style="color: blue;">ON DATABASE </span><span style="color: green;">-- ON SERVER for SQL Server on-premise database.
+    </span><span style="color: blue;">STATE </span><span style="color: gray;">= </span><span style="color: blue;">START</span><span style="color: gray;">;
+</span><span style="color: blue;">GO</span></pre>
+<p>The collected events data is stored as XML, the following query formats the XML data to a statistics table, along with an event table which has the operations requested by .NET Core (or .NET Framework) application:</p>
+<pre class="code"><span style="color: blue;">DECLARE </span><span style="color: black;">@target_data </span><span style="color: blue;">XML </span><span style="color: gray;">=
+(</span><span style="color: blue;">SELECT </span><span style="color: magenta;">CONVERT</span><span style="color: gray;">(</span><span style="color: blue;">XML</span><span style="color: gray;">, </span><span style="color: black;">[targets]</span><span style="color: gray;">.</span><span style="color: black;">[target_data]</span><span style="color: gray;">)
+</span><span style="color: blue;">FROM </span><span style="color: green;">sys</span><span style="color: gray;">.</span><span style="color: black;">dm_xe_database_session_targets </span><span style="color: blue;">AS </span><span style="color: black;">[targets] </span><span style="color: green;">-- sys.dm_xe_session_targets for SQL Server on-premise database.
+</span><span style="color: gray;">INNER JOIN </span><span style="color: green;">sys</span><span style="color: gray;">.</span><span style="color: black;">dm_xe_database_sessions </span><span style="color: blue;">AS </span><span style="color: black;">[sessions] </span><span style="color: green;">-- sys.dm_xe_sessions for SQL Server on-premise database.
+    </span><span style="color: blue;">ON </span><span style="color: black;">[sessions]</span><span style="color: gray;">.</span><span style="color: black;">[address] </span><span style="color: gray;">= </span><span style="color: black;">[targets]</span><span style="color: gray;">.</span><span style="color: black;">[event_session_address]
+</span><span style="color: blue;">WHERE </span><span style="color: black;">[sessions]</span><span style="color: gray;">.</span><span style="color: black;">[name] </span><span style="color: gray;">= </span><span style="color: red;">N'Queries'</span><span style="color: gray;">);
+
+</span><span style="color: blue;">SELECT
+    </span><span style="color: black;">@target_data</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(RingBufferTarget/@truncated)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'bigint'</span><span style="color: gray;">) </span><span style="color: blue;">AS </span><span style="color: black;">[truncated]</span><span style="color: gray;">,
+    </span><span style="color: black;">@target_data</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(RingBufferTarget/@processingTime)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'bigint'</span><span style="color: gray;">) </span><span style="color: blue;">AS </span><span style="color: black;">[processingTime]</span><span style="color: gray;">,
+    </span><span style="color: black;">@target_data</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(RingBufferTarget/@totalEventsProcessed)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'bigint'</span><span style="color: gray;">) </span><span style="color: blue;">AS </span><span style="color: black;">[totalEventsProcessed]</span><span style="color: gray;">,
+    </span><span style="color: black;">@target_data</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(RingBufferTarget/@eventCount)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'bigint'</span><span style="color: gray;">) </span><span style="color: blue;">AS </span><span style="color: black;">[eventCount]</span><span style="color: gray;">,
+    </span><span style="color: black;">@target_data</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(RingBufferTarget/@droppedCount)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'bigint'</span><span style="color: gray;">) </span><span style="color: blue;">AS </span><span style="color: black;">[droppedCount]</span><span style="color: gray;">,
+    </span><span style="color: black;">@target_data</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(RingBufferTarget/@memoryUsed)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'bigint'</span><span style="color: gray;">) </span><span style="color: blue;">AS </span><span style="color: black;">[memoryUsed]</span><span style="color: gray;">;
+
+</span><span style="color: blue;">SELECT
+    </span><span style="color: black;">[event]</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'@timestamp[1]'</span><span style="color: gray;">, </span><span style="color: red;">'datetime'</span><span style="color: gray;">) </span><span style="color: blue;">AS </span><span style="color: black;">[timestamp]</span><span style="color: gray;">,
+    </span><span style="color: black;">[event]</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(action[@name="client_hostname"]/value)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'nvarchar(MAX)'</span><span style="color: gray;">) </span><span style="color: blue;">AS </span><span style="color: black;">[client_hostname]</span><span style="color: gray;">,
+    </span><span style="color: black;">[event]</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(action[@name="client_pid"]/value)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'bigint'</span><span style="color: gray;">) </span><span style="color: blue;">AS </span><span style="color: black;">[client_pid]</span><span style="color: gray;">,
+    </span><span style="color: black;">[event]</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(action[@name="client_connection_id"]/value)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'uniqueidentifier'</span><span style="color: gray;">) </span><span style="color: blue;">AS </span><span style="color: black;">[client_connection_id]</span><span style="color: gray;">,
+    </span><span style="color: black;">[event]</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(action[@name="session_id"]/value)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'bigint'</span><span style="color: gray;">) </span><span style="color: blue;">AS </span><span style="color: black;">[session_id]</span><span style="color: gray;">,
+    </span><span style="color: black;">[event]</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(action[@name="request_id"]/value)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'bigint'</span><span style="color: gray;">) </span><span style="color: blue;">AS </span><span style="color: black;">[request_id]</span><span style="color: gray;">,
+    </span><span style="color: black;">[event]</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(action[@name="database_name"]/value)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'nvarchar(MAX)'</span><span style="color: gray;">) </span><span style="color: blue;">AS </span><span style="color: black;">[database_name]</span><span style="color: gray;">,
+    </span><span style="color: black;">[event]</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'@name[1]'</span><span style="color: gray;">, </span><span style="color: red;">'nvarchar(MAX)'</span><span style="color: gray;">) </span><span style="color: blue;">AS </span><span style="color: black;">[name]</span><span style="color: gray;">,
+    </span><span style="color: black;">[event]</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(data[@name="duration"]/value)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'bigint'</span><span style="color: gray;">) </span><span style="color: blue;">AS </span><span style="color: black;">[duration]</span><span style="color: gray;">,
+    </span><span style="color: black;">[event]</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(data[@name="result"]/text)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'nvarchar(MAX)'</span><span style="color: gray;">) </span><span style="color: blue;">AS </span><span style="color: black;">[result]</span><span style="color: gray;">,
+    </span><span style="color: black;">[event]</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(data[@name="row_count"]/value)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'bigint'</span><span style="color: gray;">) </span><span style="color: blue;">AS </span><span style="color: black;">[row_count]</span><span style="color: gray;">,
+    </span><span style="color: black;">[event]</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(data[@name="cpu_time"]/value)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'bigint'</span><span style="color: gray;">) </span><span style="color: blue;">as </span><span style="color: black;">[cpu_time]</span><span style="color: gray;">,
+    </span><span style="color: black;">[event]</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(data[@name="logical_reads"]/value)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'bigint'</span><span style="color: gray;">) </span><span style="color: blue;">as </span><span style="color: black;">[logical_reads]</span><span style="color: gray;">,
+    </span><span style="color: black;">[event]</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(data[@name="physical_reads"]/value)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'bigint'</span><span style="color: gray;">) </span><span style="color: blue;">as </span><span style="color: black;">[physical_reads]</span><span style="color: gray;">,
+    </span><span style="color: black;">[event]</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(data[@name="writes"]/value)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'bigint'</span><span style="color: gray;">) </span><span style="color: blue;">as </span><span style="color: black;">[writes]</span><span style="color: gray;">,
+    </span><span style="color: black;">[event]</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(action[@name="sql_text"]/value)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'nvarchar(MAX)'</span><span style="color: gray;">) </span><span style="color: blue;">AS </span><span style="color: black;">[sql_text]</span><span style="color: gray;">,
+    </span><span style="color: black;">[event]</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(data[@name="statement"]/value)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'nvarchar(MAX)'</span><span style="color: gray;">) </span><span style="color: blue;">AS </span><span style="color: black;">[statement]</span><span style="color: gray;">,
+    </span><span style="color: black;">[event]</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(data[@name="error_number"]/value)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'bigint'</span><span style="color: gray;">) </span><span style="color: blue;">AS </span><span style="color: black;">[error_number]</span><span style="color: gray;">,
+    </span><span style="color: black;">[event]</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(data[@name="message"]/value)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'nvarchar(MAX)'</span><span style="color: gray;">) </span><span style="color: blue;">AS </span><span style="color: black;">[message]
+</span><span style="color: blue;">FROM </span><span style="color: black;">@target_data</span><span style="color: gray;">.</span><span style="color: black;">nodes</span><span style="color: gray;">(</span><span style="color: red;">'//RingBufferTarget/event'</span><span style="color: gray;">) </span><span style="color: blue;">AS </span><span style="color: black;">[Rows]</span><span style="color: gray;">(</span><span style="color: black;">[event]</span><span style="color: gray;">)
+</span><span style="color: blue;">WHERE </span><span style="color: black;">[event]</span><span style="color: gray;">.</span><span style="color: blue;">value</span><span style="color: gray;">(</span><span style="color: red;">'(action[@name="client_app_name"]/value)[1]'</span><span style="color: gray;">, </span><span style="color: red;">'nvarchar(MAX)'</span><span style="color: gray;">) = </span><span style="color: red;">N'Core .Net SqlClient Data Provider' </span><span style="color: green;">-- N'.Net SqlClient Data Provider' for .NET Framework.
+</span><span style="color: blue;">ORDER BY </span><span style="color: black;">[timestamp]</span><span style="color: gray;">;</span></pre>
+<p>The following is an example of how the traced database operations look like:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/749c7f23a919_107A6/image_5.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/749c7f23a919_107A6/image_thumb.png" width="1082" height="791" border="0">
+
+
+  </div>
+  </body>
+  </html>

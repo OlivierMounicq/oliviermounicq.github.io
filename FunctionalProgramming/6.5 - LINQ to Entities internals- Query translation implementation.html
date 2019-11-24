@@ -1,0 +1,1010 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+
+<h1>Entity Framework/Core and LINQ to Entities (5) Query Translation Implementation</h1>
+
+<p>The previous part demonstrated what are the SQL translations of the LINQ to Entities queries. This part discusses how the translation is implemented. Regarding different database systems can have different query languages or different query APIs, EF/Core implement a provider model to work with different kinds of databases. In EF Core, the base libraries are the Microsoft.EntityFrameworkCore and Microsoft.EntityFrameworkCore.Relational NuGet packages. Microsoft.EntityFrameworkCore provides the database provider contracts as Microsoft.EntityFrameworkCore.Storage.IDatabaseProviderServices interface. And the SQL database support is implemented by the Microsoft.EntityFrameworkCore,SqlServer NuGet package, which provides Microsoft.EntityFrameworkCore.Storage.Internal.SqlServerDatabaseProviderServices type to implement IDatabaseProviderServices. There are other libraries for different databases, like Microsoft.EntityFrameworkCore.SQLite NuGet package for SQLite, etc.</p>
+<blockquote>
+<p>In EF, the EntityFramework NuGet package contains 2 assemblies, EntityFramework.dll and EntityFramework.SqlServer.dll. The base library EntityFramework.dll provides database provider contracts as System.Data.Entity.Core.Common.DbProviderServices abstract class, and the SQL database provider library EntityFramework.SqlServer.dll provides System.Data.Entity.SqlServer.SqlProviderServices to implement DbProviderServices</p>
+</blockquote>
+<p>With this provider model, EF/Core breaks the translation into 2 parts. First, IQueryable&lt;T&gt; query methods work with expression trees, and EF/Core base libraries translate these .NET expression tree to generic, intermediate database expression tree; Then the specific EF/Core database provider is responsible to generate query language for the specific database.</p>
+<h1>Code to LINQ expression tree</h1>
+<p>Before translation, .NET expression tree must be built to represent the query logic. As fore mentioned, expression tree enables function as data. In C#, an expression tree shares the same syntax as functions, but is compiled to abstract syntactic tree representing function’s source code. In LINQ, IQueryable&lt;T&gt; utilizes expression tree to represent the abstract syntactic structure of a remote query.</p>
+<h2>IQueryable&lt;T&gt; and IQueryProvider</h2>
+<p>IQueryable&lt;T&gt; has been demonstrated:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Linq
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">, </span><span style="color: #2b91af;">IQueryable
+    </span><span style="color: black;">{
+        </span><span style="color: green;">// IEnumerator&lt;T&gt; GetEnumerator(); from IEnumerable&lt;T&gt;.
+
+        // Type ElementType { get; } from IQueryable.
+
+        // Expression Expression { get; } from IQueryable.
+
+        // IQueryProvider Provider { get; } from IQueryable.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>It is a wrapper of iterator factory, an element type, an expression tree representing the current query’s logic, and a query provider of IQueryProvider type:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Linq
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IQueryProvider
+    </span><span style="color: black;">{
+        </span><span style="color: #2b91af;">IQueryable </span><span style="color: black;">CreateQuery(</span><span style="color: #2b91af;">Expression </span><span style="color: black;">expression);
+
+        </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TElement</span><span style="color: black;">&gt; CreateQuery&lt;</span><span style="color: #2b91af;">TElement</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Expression </span><span style="color: black;">expression);
+
+        </span><span style="color: blue;">object </span><span style="color: black;">Execute(</span><span style="color: #2b91af;">Expression </span><span style="color: black;">expression);
+
+        </span><span style="color: #2b91af;">TResult </span><span style="color: black;">Execute&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Expression </span><span style="color: black;">expression);
+    }
+}</span></pre>
+<p>IQueryProvider has CreateQuery and Execute methods, all accepting a expression tree parameter. CreateQuery methods return an IQueryable&lt;T&gt; query, and Execute methods return a query result. These methods are called inside the Queryable methods.</p>
+<h2>Queryable methods</h2>
+<p>As fore mentioned, Queryable also provides 2 kinds of query methods, sequence queries returning IQueryable&lt;T&gt; query, and value queries returning a query result. Take Where, Select, and First as examples, the following are their implementations:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Linq
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Queryable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Where&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;&gt; predicate)
+        {
+            </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;&gt;, </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; currentMethod =
+                Where;
+            </span><span style="color: #2b91af;">MethodCallExpression </span><span style="color: black;">whereCallExpression = </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Call(
+                method: currentMethod.Method,
+                arg0: source.Expression,
+                arg1: </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Quote(predicate));
+            </span><span style="color: blue;">return </span><span style="color: black;">source.Provider.CreateQuery&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(whereCallExpression);
+        }
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; selector)
+        {
+            </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt;, </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; currentMethod =
+                Select;
+            </span><span style="color: #2b91af;">MethodCallExpression </span><span style="color: black;">selectCallExpression = </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Call(
+                method: currentMethod.Method,
+                arg0: source.Expression,
+                arg1: </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Quote(selector));
+            </span><span style="color: blue;">return </span><span style="color: black;">source.Provider.CreateQuery&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(selectCallExpression);
+        }
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">TSource </span><span style="color: black;">First&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;&gt; predicate)
+        {
+            </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;&gt;, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; currentMethod = First;
+            </span><span style="color: #2b91af;">MethodCallExpression </span><span style="color: black;">firstCallExpression = </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Call(
+                method: currentMethod.Method,
+                arg0: source.Expression,
+                arg1: </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Quote(predicate));
+            </span><span style="color: blue;">return </span><span style="color: black;">source.Provider.Execute&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(firstCallExpression);
+        }
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">TSource </span><span style="color: black;">First&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source)
+        {
+            </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; currentMethod = First;
+            </span><span style="color: #2b91af;">MethodCallExpression </span><span style="color: black;">firstCallExpression = </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Call(
+                method: currentMethod.Method,
+                arg0: source.Expression);
+            </span><span style="color: blue;">return </span><span style="color: black;">source.Provider.Execute&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(firstCallExpression);
+        }
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>They just build a MethodCallExpression expression, representing the current query method is called. Then they obtain query provider from source’s Provider property. The sequence query methods call query provider’s CreateQuery method to return IQueryable&lt;T&gt; query, and the value query methods call query provider’s Execute method to return a query result. All Queryable methods are implemented in this pattern, except AsQueryable, which is discussed in the previous part.</p>
+<h2>Build LINQ to Entities abstract syntax tree</h2>
+<p>With above Where and Select query methods, a simple LINQ to Entities query can be implemented to return an IQueryable&lt;T&gt; of values:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Translation
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">WhereAndSelect(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+    {
+        </span><span style="color: green;">// IQueryable&lt;string&gt; products = adventureWorks.Products
+        //    .Where(product =&gt; product.Name.Length &gt; 10)
+        //    .Select(product =&gt; product.Name);
+        </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; sourceQueryable = adventureWorks.Products;
+        </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; whereQueryable = sourceQueryable.Where(product =&gt; product.Name.Length &gt; 10</span><span style="color: black;">);
+        </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; selectQueryable = whereQueryable.Select(product =&gt; product.Name); </span><span style="color: green;">// Define query.
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">string </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">selectQueryable) </span><span style="color: green;">// Execute query.
+        </span><span style="color: black;">{
+            result.WriteLine();
+        }
+    }
+}</span></pre>
+<p>The above example filters the products with Name longer than 10 characters, and queries the products’ Names. By desugaring the lambda expressions, and unwrapping the query methods, the above LINQ to Entities query is equivalent to:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">WhereAndSelectLinqExpressions(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; sourceQueryable = adventureWorks.Products; </span><span style="color: green;">// DbSet&lt;Product&gt;.
+    </span><span style="color: #2b91af;">ConstantExpression </span><span style="color: black;">sourceConstantExpression = (</span><span style="color: #2b91af;">ConstantExpression</span><span style="color: black;">)sourceQueryable.Expression;
+    </span><span style="color: #2b91af;">IQueryProvider </span><span style="color: black;">sourceQueryProvider = sourceQueryable.Provider; </span><span style="color: green;">// EntityQueryProvider.
+
+    // Expression&lt;Func&lt;Product, bool&gt;&gt; predicateExpression = product =&gt; product.Name.Length &gt; 10;
+    </span><span style="color: #2b91af;">ParameterExpression </span><span style="color: black;">productParameterExpression = </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Parameter(</span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">), </span><span style="color: #a31515;">"product"</span><span style="color: black;">);</span><span style="color: black;">
+    </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;&gt; predicateExpression = </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Lambda&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;&gt;(
+        body: </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.GreaterThan(
+            left: </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Property(
+                expression: </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Property(
+                    expression: productParameterExpression, propertyName: </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.Name)),
+                propertyName: </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: blue;">string</span><span style="color: black;">.Length)),
+            right: </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Constant(10)),
+        parameters: productParameterExpression);
+
+    </span><span style="color: green;">// IQueryable&lt;Product&gt; whereQueryable = sourceQueryable.Where(predicateExpression);
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;&gt;, </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt;&gt; whereMethod =
+        </span><span style="color: #2b91af;">Queryable</span><span style="color: black;">.Where;
+    </span><span style="color: #2b91af;">MethodCallExpression </span><span style="color: black;">whereCallExpression = </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Call(
+        method: whereMethod.Method,
+        arg0: sourceConstantExpression,
+        arg1: </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Quote(predicateExpression));
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; whereQueryable = sourceQueryProvider
+        .CreateQuery&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt;(whereCallExpression); </span><span style="color: green;">// EntityQueryable&lt;Product&gt;.
+    </span><span style="color: #2b91af;">IQueryProvider </span><span style="color: black;">whereQueryProvider = whereQueryable.Provider; </span><span style="color: green;">// EntityQueryProvider.
+
+    // Expression&lt;Func&lt;Product, string&gt;&gt; selectorExpression = product =&gt; product.Name;
+    </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt;&gt; selectorExpression = </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Lambda&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt;&gt;(
+        body: </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Property(productParameterExpression, </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.Name)),
+        parameters: productParameterExpression);
+
+    </span><span style="color: green;">// IQueryable&lt;string&gt; selectQueryable = whereQueryable.Select(selectorExpression);
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt;&gt;, </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;&gt; selectMethod =
+        </span><span style="color: #2b91af;">Queryable</span><span style="color: black;">.Select;
+    </span><span style="color: #2b91af;">MethodCallExpression </span><span style="color: black;">selectCallExpression = </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Call(
+        method: selectMethod.Method,
+        arg0: whereCallExpression,
+        arg1: </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Quote(selectorExpression));
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; selectQueryable = whereQueryProvider
+        .CreateQuery&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;(selectCallExpression); </span><span style="color: green;">// EntityQueryable&lt;Product&gt;/DbQuery&lt;Product&gt;.
+
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; iterator = selectQueryable.GetEnumerator()) </span><span style="color: green;">// Execute query.
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">while </span><span style="color: black;">(iterator.MoveNext())
+        {
+            iterator.Current.WriteLine();
+        }
+    }
+}</span></pre>
+<p>Here are the steps how the fluent query builds its query expression tree:</p>
+<ul>
+<li>Build data source:</li>
+<ul>
+<li>The initial source IQueryable&lt;T&gt; is a DbSet&lt;T&gt; instance automatically created by EF/Core. It wraps:</li>
+<ul>
+<li>A ConstantExpression expression representing the data source.</li>
+<li>A query provider that implements IQueryProvider. In EF Core it is an automatically created EntityQueryProvider instance, and in EF it is DbQueryProvider.</li>
+</ul>
+</ul>
+<li>Build Where query:</li>
+<ul>
+<li>A predicate expression is built for Where,</li>
+<li>Where accepts the IQueryable&lt;T&gt; source. But actually Where only needs the source’s expression and query provider. A MethodCallExpression expression is built to represent a call of Where itself with 2 arguments, the source and the predicate expression. Then source query provider’s CreateQuery method is called with the MethodCallExpression expression just built, and return an IQueryable&lt;T&gt; query, which wraps:</li>
+<ul>
+<li>The MethodCallExpression expression representing current Where call</li>
+<li>A query provider, which is the same one from the source.</li>
+</ul>
+</ul>
+<li>Build Select query:</li>
+<ul>
+<li>A selector expression is built for Select</li>
+<li>Select accepts the IQueryable&lt;T&gt; returned by Where as source. Again, Select only needs the expression and query provider from source. A MethodCallExpression expression is built to represent a call to Select itself with 2 arguments, the source and the selector expression. Then source query provider’s CreateQuery method is called with the MethodCallExpression expression just built, and return an IQueryable&lt;T&gt; query, which wraps:</li>
+<ul>
+<li>The MethodCallExpression expression representing current Select call</li>
+<li>A query provider, which is the same one from the source.</li>
+</ul>
+</ul>
+</ul>
+<p>So, the final IQueryable&lt;T&gt; query’s Expression property is the final abstract syntactic tree, which represents the entire LINQ to Entities query logic:</p>
+<pre class="code"><span style="color: black;">MethodCallExpression (NodeType = Call, Type = IQueryable&lt;string&gt;)
+|_Method = Queryable.Select&lt;Product, string&gt;
+|_Object = null
+|_Arguments
+  |_MethodCallExpression (NodeType = Call, Type = IQueryable&lt;Product&gt;)
+  | |_Method = Queryable.Where&lt;Product&gt;
+  | |_Object = null
+  | |_Arguments
+  |   |_ConstantExpression (NodeType = Constant, Type = IQueryable&lt;Product&gt;)
+  |   | |_Value = new EntityQueryable&lt;Product&gt;(adventureWorks.GetService&lt;IAsyncQueryProvider&gt;())
+  |   |_UnaryExpression (NodeType = Quote, Type = Expression&lt;Func&lt;Product, bool&gt;&gt;)
+  |     |_Operand
+  |       |_Expression&lt;Func&lt;Product, bool&gt;&gt; (NodeType = Lambda, Type = Func&lt;Product, bool&gt;)
+  |         |_Parameters
+  |         | |_ParameterExpression (NodeType = Parameter, Type = Product)
+  |         |   |_Name = "product"
+  |         |_Body
+  |           |_BinaryExpression (NodeType = GreaterThan, Type = bool)
+  |             |_Left
+  |             | |_MemberExpression (NodeType = MemberAccess, Type = int)
+  |             |   |_Member = "Length"
+  |             |   |_Expression
+  |             |     |_MemberExpression (NodeType = MemberAccess, Type = string)
+  |             |       |_Member = "Name"
+  |             |       |_Expression
+  |             |         |_ParameterExpression (NodeType = Parameter, Type = Product)
+  |             |           |_Name = "product"
+  |             |_Right
+  |               |_ConstantExpression (NodeType = Constant, Type = int)
+  |                 |_Value = 10
+  |_UnaryExpression (NodeType = Quote, Type = Expression&lt;Func&lt;Product, string&gt;&gt;)
+    |_Operand
+      |_Expression&lt;Func&lt;Product, string&gt;&gt; (NodeType = Lambda, Type = Func&lt;Product, string&gt;)
+        |_Parameters
+        | |_ParameterExpression (NodeType = Parameter, Type = Product)
+        |   |_Name = "product"
+        |_Body
+          |_MemberExpression (NodeType = MemberAccess, Type = string)
+            |_Member = "Name"
+            |_Expression
+              |_ParameterExpression (NodeType = Parameter, Type = Product)
+                |_Name = "product"</span></pre>
+<blockquote>
+<p>In FE, the difference is, the original IQueryable&lt;T&gt; data source wraps a MethodCallExpression expression, which represents an ObjectQuery&lt;T&gt; instance’s MergeAs instance method call with 1 argument, the MergeOption.AppendOnly enumeration. It means append new entities to the entity cache if any entity is constructed by the query. Entity cache will be discussed in a later part.</p>
+</blockquote>
+<p>This also demonstrates that lambda expression, extension methods, and LINQ query expression are powerful language features of C#. Such a rich abstract syntactic tree can be built by C# code as simple as:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">WhereAndSelectQuery(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; products = adventureWorks.Products
+        .Where(product =&gt; product.Name.Length &gt; 10)
+        .Select(product =&gt; product.Name);<span style="color: black;">
+    </span><span style="color: green;">// Equivalent to:</span>
+    </span><span style="color: green;">// IQueryable&lt;string&gt; products =
+    //    from product in adventureWorks.Products
+    //    where product.Name.Length &gt; 10
+    //    select product.Name;
+</span><span style="color: black;">}</span></pre>
+<p>The other kind of query returning a single value works in the similar way. Take above First as example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">SelectAndFirst(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: green;">// string first = adventureWorks.Products.Select(product =&gt; product.Name).First();
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; sourceQueryable = adventureWorks.Products;
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; selectQueryable = sourceQueryable.Select(product =&gt; product.Name);
+    </span><span style="color: blue;">string </span><span style="color: black;">first = selectQueryable.First().WriteLine(); </span><span style="color: green;">// Execute query.
+</span><span style="color: black;">}</span></pre>
+<p>Here the initial source and and Select query are the same as the previous example. So this time, just unwrap the First method. The above First query is equivalent to:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">SelectAndFirstLinqExpressions(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; sourceQueryable = adventureWorks.Products;
+
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; selectQueryable = sourceQueryable.Select(product =&gt; product.Name);
+    </span><span style="color: #2b91af;">MethodCallExpression </span><span style="color: black;">selectCallExpression = (</span><span style="color: #2b91af;">MethodCallExpression</span><span style="color: black;">)selectQueryable.Expression;
+    </span><span style="color: #2b91af;">IQueryProvider </span><span style="color: black;">selectQueryProvider = selectQueryable.Provider; </span><span style="color: green;">// DbQueryProvider.
+
+    // string first = selectQueryable.First();
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;, </span><span style="color: blue;">string</span><span style="color: black;">&gt; firstMethod = </span><span style="color: #2b91af;">Queryable</span><span style="color: black;">.First;
+    </span><span style="color: #2b91af;">MethodCallExpression </span><span style="color: black;">firstCallExpression = </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Call(
+        method: firstMethod.Method, arg0: selectCallExpression);
+
+    </span><span style="color: blue;">string </span><span style="color: black;">first = selectQueryProvider.Execute&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;(firstCallExpression).WriteLine(); </span><span style="color: green;">// Execute query.
+</span><span style="color: black;">}</span></pre>
+<p>In First query, the MethodCallExpression expression is built in the same way to represent current First call. The difference is, query provider’s Execute method is called instead of CreateQuery, so that a query result is returned instead of a query.</p>
+<p>Similarly, the last expression tree built inside First, is the final abstract syntactic tree, which represents the entire LINQ to Entities query logic:</p>
+<pre class="code"><span style="color: black;">MethodCallExpression (NodeType = Call, Type = string)
+|_Method = Queryable.First&lt;string&gt;
+|_Object = null
+|_Arguments
+  |_MethodCallExpression (NodeType = Call, Type = IQueryable&lt;string&gt;)
+    |_Method = Queryable.Select&lt;Product, string&gt;
+    |_Object = null
+    |_Arguments
+      |_ConstantExpression (NodeType = Constant, Type = IQueryable&lt;Product&gt;)
+      | |_Value = new EntityQueryable&lt;Product&gt;(adventureWorks.GetService&lt;IAsyncQueryProvider&gt;())
+      |_UnaryExpression (NodeType = Quote, Type = Expression&lt;Func&lt;Product, string&gt;&gt;)
+       |_Operand
+          |_Expression&lt;Func&lt;Product, string&gt;&gt; (NodeType = Lambda, Type = Func&lt;Product, string&gt;)
+            |_Parameters
+            | |_ParameterExpression (NodeType = Parameter, Type = Product)
+            |   |_Name = "product"
+            |_Body
+              |_MemberExpression (NodeType = MemberAccess, Type = string)
+                |_Member = "Name"
+                |_Expression
+                  |_ParameterExpression (NodeType = Parameter, Type = Product)
+                    |_Name = "product"</span></pre>
+<blockquote>
+<p>Again, in FE, the original IQueryable&lt;Product&gt; data source wraps a MethodCallExpression expression, instead of ConstantExpression.</p>
+</blockquote>
+<p>And again, the entire abstract syntactic tree can be built by C# code as simple as:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">SelectAndFirstQuery(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: blue;">string </span><span style="color: black;">first = adventureWorks.Products.Select(product =&gt; product.Name).First();
+    </span><span style="color: green;">// Equivalent to:
+    // string first = (from product in adventureWorks.Products select product.Name).First();
+</span><span style="color: black;">}</span></pre>
+<h1>.NET expression tree to database expression tree</h1>
+<p>When LINQ to Entities queries are executed by either pulling values from IQueryable&lt;T&gt;, or calling IQueryProvider.Execute,&nbsp; EF/Core compiles .NET expression tree to database expression tree.</p>
+<h2>Database query abstract syntax tree</h2>
+<p>The logic of LINQ to Entities can be represented by .NET expression tree, and EF/Core also use expression tree to represent the database query logic. For example, EF Core base libraries provides the Microsoft.EntityFrameworkCore.Query.Expressions.SelectExpression represents a database SELECT query:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">Microsoft.EntityFrameworkCore.Query.Expressions
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">SelectExpression </span><span style="color: black;">: </span><span style="color: #2b91af;">TableExpressionBase
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">IReadOnlyList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Expression</span><span style="color: black;">&gt; Projection { </span><span style="color: blue;">get</span><span style="color: black;">; } </span><span style="color: green;">// SELECT.
+
+        </span><span style="color: blue;">public virtual bool </span><span style="color: black;">IsDistinct { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; } </span><span style="color: green;">// DISTINCT.
+
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">Expression </span><span style="color: black;">Limit { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; } </span><span style="color: green;">// TOP.
+
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">IReadOnlyList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TableExpressionBase</span><span style="color: black;">&gt; Tables { </span><span style="color: blue;">get</span><span style="color: black;">; } </span><span style="color: green;">// FROM.
+
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">Expression </span><span style="color: black;">Predicate { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; } </span><span style="color: green;">// WHERE.
+
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">IReadOnlyList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Ordering</span><span style="color: black;">&gt; OrderBy { </span><span style="color: blue;">get</span><span style="color: black;">; } </span><span style="color: green;">// ORDER BY.
+
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">Expression </span><span style="color: black;">Offset { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; } </span><span style="color: green;">// OFFSET.
+
+        </span><span style="color: blue;">public override </span><span style="color: #2b91af;">Type </span><span style="color: black;">Type { </span><span style="color: blue;">get</span><span style="color: black;">; }<span style="color: black;">
+
+        </span><span style="color: green;">// Other members.</span>
+    }
+}</span></pre>
+<p>Here are all the database expressions provided by EF Core, and the Remotion.Linq library used by EF Core:</p>
+<p>Expression</p>
+<ul>
+<li>AggregateExpression</li>
+<ul>
+<li>MaxExpression</li>
+<li>MinExpression</li>
+<li>SumExpression</li>
+</ul>
+<li>AliasExpression</li>
+<li>ColumnExpression</li>
+<li>CountExpression</li>
+<li>DatePartExpression</li>
+<li>DiscriminatorPredicateExpression</li>
+<li>ExistsExpression</li>
+<li>ExplicitCastExpression</li>
+<li>InExpression</li>
+<li>IsNullExpression</li>
+<li>LikeExpression</li>
+<li>NotNullableExpression</li>
+<li>NullConditionalExpression</li>
+<li>PartialEvaluationExceptionExpression</li>
+<li>PropertyParameterExpression</li>
+<li>QuerySourceReferenceExpression</li>
+<li>RowNumberExpression</li>
+<li>SqlFunctionExpression</li>
+<li>StringCompareExpression</li>
+<li>SubQueryExpression</li>
+<li>TableExpressionBase</li>
+<ul>
+<li>CrossJoinExpression</li>
+<li>FromSqlExpression</li>
+<li>JoinExpressionBase</li>
+<ul>
+<li>InnerJoinExpression</li>
+<li>LeftOuterJoinExpression</li>
+</ul>
+<li>LateralJoinExpression</li>
+<li>SelectExpression</li>
+<li>TableExpression</li>
+</ul>
+<li>VBStringComparisonExpression</li>
+</ul>
+<blockquote>
+<p>EF provides database command tree, where each node derives from System.Data.Entity.Core.Common.CommandTrees.DbExpression:</p>
+<ul>
+<li>DbExpression</li>
+<ul>
+<li>DbApplyExpression</li>
+<li>DbArithmeticExpression</li>
+<li>DbBinaryExpression</li>
+<ul>
+<li>DbAndExpression</li>
+<li>DbComparisonExpression</li>
+<li>DbExceptExpression</li>
+<li>DbIntersectExpression</li>
+<li>DbOrExpression</li>
+<li>DbUnionAllExpression</li>
+</ul>
+<li>DbCaseExpression</li>
+<li>DbConstantExpression</li>
+<li>DbCrossJoinExpression</li>
+<li>DbFilterExpression</li>
+<li>DbFunctionExpression</li>
+<li>DbGroupByExpression</li>
+<li>DbInExpression</li>
+<li>DbJoinExpression</li>
+<li>DbLambdaExpression</li>
+<li>DbLikeExpression</li>
+<li>DbLimitExpression</li>
+<li>DbNewInstanceExpression</li>
+<li>DbNullExpression</li>
+<li>DbParameterReferenceExpression</li>
+<li>DbProjectExpression</li>
+<li>DbPropertyExpression</li>
+<li>DbQuantifierExpression</li>
+<li>DbRelationshipNavigationExpression</li>
+<li>DbScanExpression</li>
+<li>DbSkipExpression</li>
+<li>DbSortExpression</li>
+<li>DbUnaryExpression</li>
+<ul>
+<li>DbCastExpression</li>
+<li>DbDerefExpression</li>
+<li>DbDistinctExpression</li>
+<li>DbElementExpression</li>
+<li>DbEntityRefExpression</li>
+<li>DbIsEmptyExpression</li>
+<li>DbIsNullExpression</li>
+<li>DbIsOfExpression</li>
+<li>DbNotExpression</li>
+<li>DbOfTypeExpression</li>
+<li>DbRefExpression</li>
+<li>DbTreatExpression</li>
+<li>DbRefKeyExpression</li>
+</ul>
+<li>DbVariableReferenceExpression</li>
+</ul>
+</ul>
+<p>When representing a complete database query, command tree’s top node is a DbQueryCommandTree instance:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Data.Entity.Core.Common.CommandTrees
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public abstract class </span><span style="color: #2b91af;">DbCommandTree
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">KeyValuePair</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: #2b91af;">TypeUsage</span><span style="color: black;">&gt;&gt; Parameters { </span><span style="color: blue;">get</span><span style="color: black;">; }<span style="color: black;">
+
+        </span><span style="color: green;">// Other members.</span>
+    }<span style="color: black;"></span><span style="color: black;">
+    </span>
+    </span><span style="color: blue;">public sealed class </span><span style="color: #2b91af;">DbQueryCommandTree </span><span style="color: black;">: </span><span style="color: #2b91af;">DbCommandTree
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public </span><span style="color: #2b91af;">DbExpression </span><span style="color: black;">Query { </span><span style="color: blue;">get</span><span style="color: black;">; }<span style="color: black;">
+
+        </span><span style="color: green;">// Other members.</span>
+    }
+}</span></pre>
+<p>DbQueryCommandTree’s Parameters property contains the parameters for the database query, and Query property is the top node of the DbExpression tree. They are similar to LambdaExpression’s Parameters and Body properties.</p>
+</blockquote>
+<h2>Compile LINQ expressions to database expressions</h2>
+<p>EF Core calls the third party library Remotion.Linq to compile LINQ expression tree to a query model, then EF Core compiles the query model to database expression tree, which is a SelectExpression instance. The following Compile method demonstrates how the compilation can be done. It accepts a LINQ expression tree, and returns a tuple of SelectExpression and its parameters, if any:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">DbContextExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static </span><span style="color: black;">(</span><span style="color: #2b91af;">SelectExpression</span><span style="color: black;">, </span><span style="color: #2b91af;">IReadOnlyDictionary</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">object</span><span style="color: black;">&gt;) Compile(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">DbContext </span><span style="color: black;">dbContext, </span><span style="color: #2b91af;">Expression </span><span style="color: black;">linqExpression)
+    {
+        </span><span style="color: #2b91af;">QueryContext </span><span style="color: black;">queryContext = dbContext.GetService&lt;</span><span style="color: #2b91af;">IQueryContextFactory</span><span style="color: black;">&gt;().Create();
+        </span><span style="color: #2b91af;">IEvaluatableExpressionFilter </span><span style="color: black;">evaluatableExpressionFilter = dbContext.GetService&lt;</span><span style="color: #2b91af;">IEvaluatableExpressionFilter</span><span style="color: black;">&gt;();
+        linqExpression = </span><span style="color: blue;">new </span><span style="color: #2b91af;">ParameterExtractingExpressionVisitor</span><span style="color: black;">(
+            evaluatableExpressionFilter: evaluatableExpressionFilter,
+            parameterValues: queryContext,
+            logger: dbContext.GetService&lt;</span><span style="color: #2b91af;">IDiagnosticsLogger</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">DbLoggerCategory</span><span style="color: black;">.</span><span style="color: #2b91af;">Query</span><span style="color: black;">&gt;&gt;(),
+            parameterize: </span><span style="color: blue;">true</span><span style="color: black;">).ExtractParameters(linqExpression);
+        </span><span style="color: #2b91af;">QueryParser </span><span style="color: black;">queryParser = </span><span style="color: blue;">new </span><span style="color: #2b91af;">QueryParser</span><span style="color: black;">(</span><span style="color: blue;">new </span><span style="color: #2b91af;">ExpressionTreeParser</span><span style="color: black;">(
+            nodeTypeProvider: dbContext.GetService&lt;</span><span style="color: #2b91af;">INodeTypeProviderFactory</span><span style="color: black;">&gt;().Create(),
+            processor: </span><span style="color: blue;">new </span><span style="color: #2b91af;">CompoundExpressionTreeProcessor</span><span style="color: black;">(</span><span style="color: blue;">new </span><span style="color: #2b91af;">IExpressionTreeProcessor</span><span style="color: black;">[]
+            {
+                </span><span style="color: blue;">new </span><span style="color: #2b91af;">PartialEvaluatingExpressionTreeProcessor</span><span style="color: black;">(evaluatableExpressionFilter),
+                </span><span style="color: blue;">new </span><span style="color: #2b91af;">TransformingExpressionTreeProcessor</span><span style="color: black;">(</span><span style="color: #2b91af;">ExpressionTransformerRegistry</span><span style="color: black;">.CreateDefault())
+            })));
+        </span><span style="color: #2b91af;">QueryModel </span><span style="color: black;">queryModel = queryParser.GetParsedQuery(linqExpression);
+
+        </span><span style="color: #2b91af;">Type </span><span style="color: black;">resultType = queryModel.GetResultType();
+        </span><span style="color: blue;">if </span><span style="color: black;">(resultType.IsConstructedGenericType &amp;&amp; resultType.GetGenericTypeDefinition() == </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;&gt;))
+        {
+            resultType = resultType.GenericTypeArguments.Single();
+        }
+
+        </span><span style="color: #2b91af;">QueryCompilationContext </span><span style="color: black;">compilationContext = dbContext.GetService&lt;</span><span style="color: #2b91af;">IQueryCompilationContextFactory</span><span style="color: black;">&gt;()
+            .Create(async: </span><span style="color: blue;">false</span><span style="color: black;">);
+        </span><span style="color: #2b91af;">RelationalQueryModelVisitor </span><span style="color: black;">queryModelVisitor = (</span><span style="color: #2b91af;">RelationalQueryModelVisitor</span><span style="color: black;">)compilationContext
+            .CreateQueryModelVisitor();
+        queryModelVisitor.GetType()
+            .GetMethod(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">RelationalQueryModelVisitor</span><span style="color: black;">.CreateQueryExecutor))
+            .MakeGenericMethod(resultType)
+            .Invoke(queryModelVisitor, </span><span style="color: blue;">new object</span><span style="color: black;">[] { queryModel });
+        </span><span style="color: #2b91af;">SelectExpression </span><span style="color: black;">databaseExpression = queryModelVisitor.TryGetQuery(queryModel.MainFromClause);
+        databaseExpression.QuerySource = queryModel.MainFromClause;
+        </span><span style="color: blue;">return </span><span style="color: black;">(databaseExpression, queryContext.ParameterValues);
+    }
+}</span></pre>
+<blockquote>
+<p>EF calls ExpressionConverter, PlanCompiler and other components to convert expression tree to database command tree. These APIs are not public.</p>
+</blockquote>
+<p>So above Where and Select query’s expression tree can be converted as:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompileWhereAndSelectExpressions(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">Expression </span><span style="color: black;">linqExpression =adventureWorks.Products
+        .Where(product =&gt; product.Name.Length &gt; 10</span><span style="color: black;">)
+        .Select(product =&gt; product.Name).Expression;
+    (</span><span style="color: #2b91af;">SelectExpression </span><span style="color: black;">DatabaseExpression, </span><span style="color: #2b91af;">IReadOnlyDictionary</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">object</span><span style="color: black;">&gt; Parameters) compilation =
+        adventureWorks.Compile(linqExpression);
+    compilation.DatabaseExpression.WriteLine();
+    compilation.Parameters.WriteLines(parameter =&gt; </span><span style="color: #a31515;">$"</span><span style="color: black;">{parameter.Key}</span><span style="color: #a31515;">: </span><span style="color: black;">{parameter.Value}</span><span style="color: #a31515;">"</span><span style="color: black;">);
+}</span></pre>
+<p>The compiled SelectExpression is the same as the following SelectExpression built on the fly:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">SelectExpression </span><span style="color: black;">WhereAndSelectDatabaseExpressions(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">QueryCompilationContext </span><span style="color: black;">compilationContext = adventureWorks.GetService&lt;</span><span style="color: #2b91af;">IQueryCompilationContextFactory</span><span style="color: black;">&gt;()
+        .Create(async: </span><span style="color: blue;">false</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">SelectExpression </span><span style="color: black;">databaseExpression = </span><span style="color: blue;">new </span><span style="color: #2b91af;">SelectExpression</span><span style="color: black;">(
+        dependencies: </span><span style="color: blue;">new </span><span style="color: #2b91af;">SelectExpressionDependencies</span><span style="color: black;">(adventureWorks.GetService&lt;</span><span style="color: #2b91af;">IQuerySqlGeneratorFactory</span><span style="color: black;">&gt;()),
+        queryCompilationContext: (</span><span style="color: #2b91af;">RelationalQueryCompilationContext</span><span style="color: black;">)compilationContext);
+    </span><span style="color: #2b91af;">MainFromClause </span><span style="color: black;">querySource = </span><span style="color: blue;">new </span><span style="color: #2b91af;">MainFromClause</span><span style="color: black;">(
+        itemName: </span><span style="color: #a31515;">"product"</span><span style="color: black;">,
+        itemType: </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">),
+        fromExpression: </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Constant(adventureWorks.ProductCategories));
+    </span><span style="color: #2b91af;">TableExpression </span><span style="color: black;">tableExpression = </span><span style="color: blue;">new </span><span style="color: #2b91af;">TableExpression</span><span style="color: black;">(
+        table: </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">),
+        schema: </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">.Production,
+        alias: querySource.ItemName,
+        querySource: querySource);
+    databaseExpression.AddTable(tableExpression);
+    </span><span style="color: #2b91af;">IEntityType </span><span style="color: black;">productEntityType = adventureWorks.Model.FindEntityType(</span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">));
+    </span><span style="color: #2b91af;">IProperty </span><span style="color: black;">nameProperty = productEntityType.FindProperty(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.Name));
+    </span><span style="color: #2b91af;">ColumnExpression </span><span style="color: black;">nameColumn = </span><span style="color: blue;">new </span><span style="color: #2b91af;">ColumnExpression</span><span style="color: black;">(
+        name: </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.Name), property: nameProperty, tableExpression: tableExpression);
+    databaseExpression.AddToProjection(nameColumn);
+    databaseExpression.AddToPredicate(</span><span style="color: #2b91af;">Expression</span><span style="color: black;">.GreaterThan(
+        left: </span><span style="color: blue;">new </span><span style="color: #2b91af;">ExplicitCastExpression</span><span style="color: black;">(
+            operand: </span><span style="color: blue;">new </span><span style="color: #2b91af;">SqlFunctionExpression</span><span style="color: black;">(
+                functionName: </span><span style="color: #a31515;">"LEN"</span><span style="color: black;">,
+                returnType: </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: blue;">int</span><span style="color: black;">),
+                arguments: </span><span style="color: blue;">new </span><span style="color: #2b91af;">Expression</span><span style="color: black;">[] { nameColumn }),
+            type: </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: blue;">int</span><span style="color: black;">)),
+        right: </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Constant(10)));
+    </span><span style="color: blue;">return </span><span style="color: black;">databaseExpression.WriteLine();
+}</span></pre>
+<p>This compiled abstract syntactic tree can be visualized as:</p>
+<pre class="code"><span style="color: black;">SelectExpression (NodeType = Extension, Type = string)
+|_Porjection
+| |_ColumnExpression (NodeType = Extension, Type = string)
+|   |_Name = "Name"
+|   |_Property = Product.Name
+|   |_Table
+|     |_TableExpression (NodeType = Extension, Type = object)
+|     |_Schema = "Production"
+|     |_Name = "Product"
+|     |_Alias = "product"
+|_Tables
+| |_TableExpression (NodeType = Extension, Type = object)
+|   |_Schema = "Production"
+|   |_Name = "Product"
+|   |_Alias = "product"
+|_Predicate
+  |_BinaryExpression (NodeType = GreaterThan, Type = bool)
+  |_left
+  | |_ExplicitCastExpression (NodeType = Extension, Type = int)
+  |   |_Operand
+  |     |_SqlFunctionExpression (NodeType = Extension, Type = int)
+  |       |_FunctionName = "LEN"
+  |       |_Arguments
+  |         |_ColumnExpression (NodeType = Extension, Type = string)
+  |           |_Name = "Name"
+  |           |_Property = Product.Name
+  |           |_Table
+  |             |_TableExpression (NodeType = Extension, Type = object)
+  |               |_Schema = "Production"
+  |               |_Name = "Product"
+  |               |_Alias = "product"
+  |_Right
+    |_ConstantExpression (NodeType = Constant, Type = int)
+    |_Value = 1</span></pre>
+<blockquote>
+<p>In EF, the compiled command tree above is equivalent to the command tree built below:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">DbQueryCommandTree </span><span style="color: black;">WhereAndSelectDatabaseExpressions(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">MetadataWorkspace </span><span style="color: black;">metadata = ((</span><span style="color: #2b91af;">IObjectContextAdapter</span><span style="color: black;">)adventureWorks).ObjectContext.MetadataWorkspace;
+    </span><span style="color: #2b91af;">TypeUsage </span><span style="color: black;">stringTypeUsage = </span><span style="color: #2b91af;">TypeUsage</span><span style="color: black;">.CreateDefaultTypeUsage(metadata
+        .GetPrimitiveTypes(</span><span style="color: #2b91af;">DataSpace</span><span style="color: black;">.CSpace)
+        .Single(type =&gt; type.ClrEquivalentType == </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: blue;">string</span><span style="color: black;">)));
+    </span><span style="color: #2b91af;">TypeUsage </span><span style="color: black;">nameRowTypeUsage = </span><span style="color: #2b91af;">TypeUsage</span><span style="color: black;">.CreateDefaultTypeUsage(</span><span style="color: #2b91af;">RowType</span><span style="color: black;">.Create(
+        </span><span style="color: #2b91af;">EnumerableEx</span><span style="color: black;">.Return(</span><span style="color: #2b91af;">EdmProperty</span><span style="color: black;">.Create(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.Name), stringTypeUsage)),
+        </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Empty&lt;</span><span style="color: #2b91af;">MetadataProperty</span><span style="color: black;">&gt;()));
+    </span><span style="color: #2b91af;">TypeUsage </span><span style="color: black;">productTypeUsage = </span><span style="color: #2b91af;">TypeUsage</span><span style="color: black;">.CreateDefaultTypeUsage(metadata
+        .GetType(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">), </span><span style="color: #a31515;">"CodeFirstDatabaseSchema"</span><span style="color: black;">, </span><span style="color: #2b91af;">DataSpace</span><span style="color: black;">.SSpace));
+    </span><span style="color: #2b91af;">EntitySet </span><span style="color: black;">productEntitySet = metadata
+        .GetEntityContainer(</span><span style="color: #a31515;">"CodeFirstDatabase"</span><span style="color: black;">, </span><span style="color: #2b91af;">DataSpace</span><span style="color: black;">.SSpace)
+        .GetEntitySetByName(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">), </span><span style="color: blue;">false</span><span style="color: black;">);
+
+    </span><span style="color: #2b91af;">DbProjectExpression </span><span style="color: black;">query = </span><span style="color: #2b91af;">DbExpressionBuilder</span><span style="color: black;">.Project(
+        </span><span style="color: #2b91af;">DbExpressionBuilder</span><span style="color: black;">.BindAs(
+            </span><span style="color: #2b91af;">DbExpressionBuilder</span><span style="color: black;">.Filter(
+                </span><span style="color: #2b91af;">DbExpressionBuilder</span><span style="color: black;">.BindAs(
+                    </span><span style="color: #2b91af;">DbExpressionBuilder</span><span style="color: black;">.Scan(productEntitySet), </span><span style="color: #a31515;">"Extent1"</span><span style="color: black;">),
+                </span><span style="color: #2b91af;">DbExpressionBuilder</span><span style="color: black;">.GreaterThan(
+                    </span><span style="color: #2b91af;">DbExpressionBuilder</span><span style="color: black;">.Invoke(
+                        ((<span style="color: black;"></span><span style="color: #2b91af;">IObjectCOntextAdapter</span>)adventureWorks).ObjectContext.MetadataWorkspace
+                            .GetFunctions(</span><span style="color: #a31515;">"LEN"</span><span style="color: black;">, </span><span style="color: #a31515;">"SqlServer"</span><span style="color: black;">, </span><span style="color: #2b91af;">DataSpace</span><span style="color: black;">.SSpace).First(),
+                        </span><span style="color: #2b91af;">DbExpressionBuilder</span><span style="color: black;">.Property(
+                            </span><span style="color: #2b91af;">DbExpressionBuilder</span><span style="color: black;">.Variable(productTypeUsage, </span><span style="color: #a31515;">"Extent1"</span><span style="color: black;">), </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.Name))),
+                    </span><span style="color: #2b91af;">DbExpressionBuilder</span><span style="color: black;">.Constant(10))),
+            </span><span style="color: #a31515;">"Filter1"</span><span style="color: black;">),
+        </span><span style="color: #2b91af;">DbExpressionBuilder</span><span style="color: black;">.New(
+            nameRowTypeUsage,
+            </span><span style="color: #2b91af;">DbExpressionBuilder</span><span style="color: black;">.Property(
+                </span><span style="color: #2b91af;">DbExpressionBuilder</span><span style="color: black;">.Variable(productTypeUsage, </span><span style="color: #a31515;">"Filter1"</span><span style="color: black;">), </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.Name))));
+    </span><span style="color: #2b91af;">DbQueryCommandTree </span><span style="color: black;">result = </span><span style="color: blue;">new </span><span style="color: #2b91af;">DbQueryCommandTree</span><span style="color: black;">(metadata, </span><span style="color: #2b91af;">DataSpace</span><span style="color: black;">.SSpace, query);
+    </span><span style="color: blue;">return </span><span style="color: black;">result.WriteLine();
+}</span></pre>
+<p>This abstract syntactic tree can be visualized as:</p>
+<pre class="code"><span style="color: black;">DbQueryCommandTree
+|_Parameters
+|_Query
+  |_DbProjectExpression (ExpressionKind = Project, ResultType = Collection(Row['Name' = Edm.String]))
+    |_Input
+    | |_DbExpressionBinding (VariableType = Product)
+    |   |_VariableName = 'Filter1'
+    |   |_Expression
+    |     |_DbFilterExpression (ExpressionKind = Filter, ResultType = Product)
+    |       |_Input
+    |       | |_DbExpressionBinding (VariableType = Product)
+    |       |   |_VariableName = 'Extent1'
+    |       |   |_Expression
+    |       |     |_DbScanExpression (ExpressionKind = Scan, ResultType = Collection(Product))
+    |       |       |_Target = Products
+    |       |_Predicate
+    |         |_DbComparisonExpression (ExpressionKind = GreaterThan, ResultType = Edm.Boolean)
+    |           |_Left
+    |           | |_DbFunctionExpression (ExpressionKind = Function, ResultType = Edm.Int32)
+    |           |   |_Function = Edm.Length
+    |           |   |_Arguments
+    |           |     |_DbPropertyExpression (ExpressionKind = Property, ResultType = Edm.String)
+    |           |       |_Property = ‘Name’
+    |           |       |_Instance
+    |           |         |_DbVariableReferenceExpression (ExpressionKind = VariableReference, ResultType = Product)
+    |           |           |_VariableName = 'Extent1'
+    |           |_Right
+    |             |_DbConstantExpression (ExpressionKind = Constant, ResultType = Edm.Int32)
+    |               |_Value = 10
+    |_Projection
+      |_DbNewInstanceExpression (ExpressionKind = NewInstance, ResultType = Row['Name' = Edm.String])
+        |_Arguments
+          |_DbPropertyExpression (ExpressionKind = Property, ResultType = Edm.String)
+            |_Property = "Name"
+            |_Instance
+              |_DbVariableReferenceExpression (ExpressionKind = VariableReference, ResultType = Product)
+                |_VariableName = 'Filter1'</span></pre>
+</blockquote>
+<p>Similarly, the other Select and First query’s expression tree is compiled to abstract syntax tree the same as the following:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">SelectExpression </span><span style="color: black;">SelectAndFirstDatabaseExpressions(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">QueryCompilationContext </span><span style="color: black;">compilationContext = adventureWorks.GetService&lt;</span><span style="color: #2b91af;">IQueryCompilationContextFactory</span><span style="color: black;">&gt;()
+        .Create(async: </span><span style="color: blue;">false</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">SelectExpression </span><span style="color: black;">selectExpression = </span><span style="color: blue;">new </span><span style="color: #2b91af;">SelectExpression</span><span style="color: black;">(
+        dependencies: </span><span style="color: blue;">new </span><span style="color: #2b91af;">SelectExpressionDependencies</span><span style="color: black;">(adventureWorks.GetService&lt;</span><span style="color: #2b91af;">IQuerySqlGeneratorFactory</span><span style="color: black;">&gt;()),
+        queryCompilationContext: (</span><span style="color: #2b91af;">RelationalQueryCompilationContext</span><span style="color: black;">)compilationContext);
+    </span><span style="color: #2b91af;">MainFromClause </span><span style="color: black;">querySource = </span><span style="color: blue;">new </span><span style="color: #2b91af;">MainFromClause</span><span style="color: black;">(
+        itemName: </span><span style="color: #a31515;">"product"</span><span style="color: black;">,
+        itemType: </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">),
+        fromExpression: </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Constant(adventureWorks.ProductCategories));
+    </span><span style="color: #2b91af;">TableExpression </span><span style="color: black;">tableExpression = </span><span style="color: blue;">new </span><span style="color: #2b91af;">TableExpression</span><span style="color: black;">(
+        table: </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">),
+        schema: </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">.Production,
+        alias: querySource.ItemName,
+        querySource: querySource);
+    selectExpression.AddTable(tableExpression);
+    </span><span style="color: #2b91af;">IEntityType </span><span style="color: black;">productEntityType = adventureWorks.Model.FindEntityType(</span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">));
+    </span><span style="color: #2b91af;">IProperty </span><span style="color: black;">nameProperty = productEntityType.FindProperty(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.Name));
+    selectExpression.AddToProjection(</span><span style="color: blue;">new </span><span style="color: #2b91af;">ColumnExpression</span><span style="color: black;">(
+        name: </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.Name), property: nameProperty, tableExpression: tableExpression));
+    selectExpression.Limit = </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Constant(1);
+    </span><span style="color: blue;">return </span><span style="color: black;">selectExpression.WriteLine();
+}</span></pre>
+<p>And this abstract syntactic tree can be visualized as:</p>
+<pre class="code"><span style="color: black;">SelectExpression (NodeType = Extension, Type = string)
+|_Limit
+| |_ConstantExpression (NodeType = Constant, Type = int)
+|   |_Value = 1
+|_Porjection
+|   |_ColumnExpression (NodeType = Extension, Type = string)
+|   |_Name = "Name"
+|   |_Property = Product.Name
+|   |_Table
+|     |_TableExpression (NodeType = Extension, Type = object)
+|     |_Schema = "Production"
+|     |_Name = "Product"
+|     |_Alias = "product"
+|_Tables
+  |_TableExpression (NodeType = Extension, Type = object)
+    |_Schema = "Production"
+    |_Name = "Product"
+    |_Alias = "product"</span></pre>
+<blockquote>
+<p>In EF, the compiled command tree above is equivalent to the command tree built below:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">DbQueryCommandTree </span><span style="color: black;">SelectAndFirstDatabaseExpressions(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">MetadataWorkspace </span><span style="color: black;">metadata = ((</span><span style="color: #2b91af;">IObjectContextAdapter</span><span style="color: black;">)adventureWorks).ObjectContext.MetadataWorkspace;
+    </span><span style="color: #2b91af;">TypeUsage </span><span style="color: black;">stringTypeUsage = </span><span style="color: #2b91af;">TypeUsage</span><span style="color: black;">.CreateDefaultTypeUsage(metadata
+        .GetPrimitiveTypes(</span><span style="color: #2b91af;">DataSpace</span><span style="color: black;">.CSpace)
+        .Single(type =&gt; type.ClrEquivalentType == </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: blue;">string</span><span style="color: black;">)));
+    </span><span style="color: #2b91af;">TypeUsage </span><span style="color: black;">nameRowTypeUsage = </span><span style="color: #2b91af;">TypeUsage</span><span style="color: black;">.CreateDefaultTypeUsage(</span><span style="color: #2b91af;">RowType</span><span style="color: black;">.Create(
+        </span><span style="color: #2b91af;">EnumerableEx</span><span style="color: black;">.Return(</span><span style="color: #2b91af;">EdmProperty</span><span style="color: black;">.Create(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.Name), stringTypeUsage)),
+        </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Empty&lt;</span><span style="color: #2b91af;">MetadataProperty</span><span style="color: black;">&gt;()));
+    </span><span style="color: #2b91af;">TypeUsage </span><span style="color: black;">productTypeUsage = </span><span style="color: #2b91af;">TypeUsage</span><span style="color: black;">.CreateDefaultTypeUsage(metadata
+        .GetType(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">), </span><span style="color: #a31515;">"CodeFirstDatabaseSchema"</span><span style="color: black;">, </span><span style="color: #2b91af;">DataSpace</span><span style="color: black;">.SSpace));
+    </span><span style="color: #2b91af;">EntitySet </span><span style="color: black;">productEntitySet = metadata
+        .GetEntityContainer(</span><span style="color: #a31515;">"CodeFirstDatabase"</span><span style="color: black;">, </span><span style="color: #2b91af;">DataSpace</span><span style="color: black;">.SSpace)
+        .GetEntitySetByName(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">), </span><span style="color: blue;">false</span><span style="color: black;">);
+
+    </span><span style="color: #2b91af;">DbProjectExpression </span><span style="color: black;">query = </span><span style="color: #2b91af;">DbExpressionBuilder</span><span style="color: black;">.Project(
+        </span><span style="color: #2b91af;">DbExpressionBuilder</span><span style="color: black;">.BindAs(
+            </span><span style="color: #2b91af;">DbExpressionBuilder</span><span style="color: black;">.Limit(
+                </span><span style="color: #2b91af;">DbExpressionBuilder</span><span style="color: black;">.Scan(productEntitySet),
+                </span><span style="color: #2b91af;">DbExpressionBuilder</span><span style="color: black;">.Constant(1)),
+            </span><span style="color: #a31515;">"Limit1"</span><span style="color: black;">),
+        </span><span style="color: #2b91af;">DbExpressionBuilder</span><span style="color: black;">.New(
+            nameRowTypeUsage,
+            </span><span style="color: #2b91af;">DbExpressionBuilder</span><span style="color: black;">.Property(
+                </span><span style="color: #2b91af;">DbExpressionBuilder</span><span style="color: black;">.Variable(productTypeUsage, </span><span style="color: #a31515;">"Limit1"</span><span style="color: black;">), </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.Name))));
+    </span><span style="color: #2b91af;">DbQueryCommandTree </span><span style="color: black;">commandTree = </span><span style="color: blue;">new </span><span style="color: #2b91af;">DbQueryCommandTree</span><span style="color: black;">(metadata, </span><span style="color: #2b91af;">DataSpace</span><span style="color: black;">.SSpace, query);
+    </span><span style="color: blue;">return </span><span style="color: black;">commandTree.WriteLine();
+}</span></pre>
+<p>And this abstract syntactic tree can be visualized as:</p>
+<pre class="code"><span style="color: black;">DbQueryCommandTree
+|_Parameters
+|_Query
+  |_DbProjectExpression (ExpressionKind = Project, ResultType = Collection(Row['Name' = Edm.String]))
+    |_Input
+    | |_DbExpressionBinding (VariableType = Product)
+    |   |_VariableName = 'Limit1'
+    |   |_Expression
+    |     |_DbLimitExpression (ExpressionKind = Limit, ResultType = Collection(Product))
+    |       |_Argument
+    |       | |_DbScanExpression (ExpressionKind = Scan, ResultType = Collection(Product))
+    |       |   |_Target = Products
+    |       |_Limit
+    |         |_DbConstantExpression (ExpressionKind = Constant, ResultType = Edm.Int32)
+    |           |_Value = 1
+    |_Projection
+      |_DbNewInstanceExpression (ExpressionKind = NewInstance, ResultType = Row['Name' = Edm.String])
+        |_Arguments
+          |_DbPropertyExpression (ExpressionKind = Property, ResultType = Edm.String)
+            |_Property = ‘Name’
+            |_Instance
+              |_DbVariableReferenceExpression (ExpressionKind = VariableReference, ResultType = Product)
+                |_VariableName = 'Limit1'</span></pre>
+</blockquote>
+<h2>Compile LINQ query method calls</h2>
+<p>EF Core first calls Remotion.Linq library to compile LINQ query method call nodes to QueryModel. Under Remotion.Linq.Parsing.Structure.IntermediateModel namespace, Remotion.Linq provides IExpressionNode interface, and many types implementing that interface, where each type can process a certain kind of query method call, for example:</p>
+<ul>
+<li>MethodCallExpression node representing Queryable.Where call is processed by WhereExpressionNode, and converted to Remotion.Linq.Clauses.WhereClause, which is a part of QueryModel</li>
+<li>MethodCallExpression node representing Queryable.Select call is processed by SelectExpressionNode, and converted to Remotion.Linq.Clauses.SelectClause, which is a part of QueryModel</li>
+<li>MethodCallExpression node representing Queryable.First or Queryable.FirstOrDefault call is processed by FirstExpressionNode, and converted to Remotion.Linq.Clauses.ResultOperators.FirstResultOperator, which is a part of QueryModel</li>
+</ul>
+<p>etc. Then EF Core continues to compile QueryModel to SelectExpression. For example:</p>
+<ul>
+<li>WhereClause is converted to predicate child nodes of the SelectExpression</li>
+<li>SelectClause is converted to projection child nodes of the SelectExpression</li>
+<li>FirstResultOperator is converted to limit child node of the SelectExpression</li>
+</ul>
+<p>etc.</p>
+<blockquote>
+<p>In EF, the fore mentioned ExpressionConverter is a huge type. It has tons of nested translator types for all supported expression tree nodes. For example</p>
+<ul>
+<li>WhereTranslator compiles Queryable.Where node to FilterDbExpression node</li>
+<li>SelectTranslator compiles Queryable.Select node to ProjectDbExpression node</li>
+<li>FirstTranslator compiles Queryable.First or Queryable.FirstOrDefault to LimitDbExpression node</li>
+</ul>
+<p>etc.</p>
+</blockquote>
+<h2>Compile .NET API calls</h2>
+<p>The above Where query’s predicate has a logic to call string.Length and compare the result to a constant. EF Core provides translator types under Microsoft.EntityFrameworkCore.Query.ExpressionTranslators.Internal namespace to translate these .NET API calls. Here MemberExpression node representing string.Length call is processed by SqlServerStringLengthTranslator, and converted to a SqlFunctionExpression node representing SQL database function LEN call:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">Microsoft.EntityFrameworkCore.Query.ExpressionTranslators.Internal
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">SqlServerStringLengthTranslator </span><span style="color: black;">: </span><span style="color: #2b91af;">IMemberTranslator
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">Expression </span><span style="color: black;">Translate(</span><span style="color: #2b91af;">MemberExpression </span><span style="color: black;">memberExpression) =&gt;
+            memberExpression.Expression != </span><span style="color: blue;">null
+            </span><span style="color: black;">&amp;&amp; memberExpression.Expression.Type == </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: blue;">string</span><span style="color: black;">)
+            &amp;&amp; memberExpression.Member.Name == </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: blue;">string</span><span style="color: black;">.Length)
+                ? </span><span style="color: blue;">new </span><span style="color: #2b91af;">SqlFunctionExpression</span><span style="color: black;">(</span><span style="color: #a31515;">"LEN"</span><span style="color: black;">, memberExpression.Type, </span><span style="color: blue;">new </span><span style="color: #2b91af;">Expression</span><span style="color: black;">[] { memberExpression.Expression })
+                : </span><span style="color: blue;">null</span><span style="color: black;">;
+    }
+}</span></pre>
+<p>There are many other translators to cover other basic .NET APIs of System.String, System.Enum, System.DateTime, System.Guid, System.Math, for example:</p>
+<ul>
+<li>MethodCallExpression node representing string.Contains call (e.g. product.Name.Contains(“M”)) is processed by SqlServerContainsOptimizedTranslator, and converted to a BinaryExpression node representing SQL database int comparison, where the left child node is a SqlFunctionExpression node representing SQL database function CHARINDEX call, and the right child node is a ConstantExpression node representing 0 (e.g. CHARINDEX(N'M', product.Name) &gt; 0)</li>
+<li>MethodCallExpression node representing Math.Ceiling call is processed by SqlServerMathCeilingTranslator, and converted to SqlFunctionExpression node representing SQL database function CEILING call</li>
+<li>MemberExpression node representing DateTime.Now or DateTime.UtcNow property access, is processed by SqlServerDateTimeNowTranslator, and converted to SqlFunctionExpression node representing SQL database function GETDATE or GETUTCDATE call</li>
+</ul>
+<p>etc.</p>
+<p>There are also a few other APIs covered with other EF Core components. For example, In Remotion.Linq, MethodCallExpression node representing Enumerable.Contains or List&lt;T&gt;.Contains call is converted to to Remotion.Linq.Clauses.ResultOperators.ContainsResultOperator. Then in EF Core, ContainsResultOperator is processed by Microsoft.EntityFrameworkCore.Query.ExpressionVisitors.SqlTranslatingExpressionVisitor. and converted to InExpression node representing SQL database IN operation.</p>
+<blockquote>
+<p>As fore mentioned, EF provides nested translator types inside ExpressionConverter.There are also many other translators covering .NET APIs of System.String, Microsoft.VisualBasic.Strings, System.Decimal, System.Enum, System.DateTime, System.DateTimeOffset, Microsoft.VisualBasic.DateAndTime, System.Math, System.Guid, System.Nullable&lt;T&gt;, System.Data.Spatial.DbGeography, System.Data.Spatial.DbGeometry, etc.For example,</p>
+<ul>
+<li>MethodCallExpression node representing string.Contains call (e.g. product.Name.Contains(“M”)) is processed by StringContainsTranslator, and converted to a DbLikeExpression node representing SQL database LIKE operation (e.g. product.Name LIKE N'%M%').</li>
+<li>MethodCallExpression node representing Math.Ceiling call is processed by CanonicalFunctionDefaultTranslator, and converted to DbFunctionExpression node representing SQL database function CEILING call</li>
+<li>MemberExpression node representing DateTime.Now or DateTime.UtcNow property access, is processed by SqlServerDateTimeNowTranslator, and converted to DbFunctionExpression node representing SQL database function SYSDATETIME or SYSUTCDATETIME call</li>
+</ul>
+<p>Similar to EF Core, in EF MethodCallExpression node representing Enumerable.Contains or List&lt;T&gt;.Contains call is not processed by translators, but by System.Data.Entity.Core.Objects.ELinq.LinqExpressionNormalizer.</p>
+</blockquote>
+<h2>Remote API call vs. local API call</h2>
+<p>Apparently EF/Core can only compile the supported .NET API calls, like the above string.Length call. It cannot compile arbitrary API calls. The following example wraps the string.Length call and result comparison with constant into a custom predicate:</p>
+<pre class="code"><span style="color: blue;">private static bool </span><span style="color: black;">FilterName(</span><span style="color: blue;">string </span><span style="color: black;">name) =&gt; name.Length &gt; 10;
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">WhereAndSelectWithCustomPredicate(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; source = adventureWorks.Products;
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; products = source
+        .Where(product =&gt; FilterName(product.Name))
+        .Select(product =&gt; product.Name); </span><span style="color: green;">// Define query.
+    </span><span style="color: black;">products.WriteLines(); </span><span style="color: green;">// Execute query.</span><span style="color: gray;">
+    </span><span style="color: green;">// SELECT [product].[Name]
+    // FROM [Production].[Product] AS [product]</span><span style="color: gray;">
+</span><span style="color: black;">}</span></pre>
+<p>At compile time, the predicate expression tree has a MethodCallExpression node representing FilterName call, which apparently cannot be compiled to SQL by EF/Core. In this case, EF Core execute FilterName locally.</p>
+<blockquote>
+<p>When EF fails to compile query, it throws exception. So in EF, the above example throws NotSupportedException: LINQ to Entities does not recognize the method 'Boolean FilterName(System.String)' method, and this method cannot be translated into a store expression. To make it work, the Where query has to be manually specified as local LINQ to Objects query:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">WhereAndSelectWithLocalPredicate(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; source = adventureWorks.Products;
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; products = source
+        .Select(product =&gt; product.Name) </span><span style="color: green;">// LINQ to Entities.
+        </span><span style="color: black;">.AsEnumerable() </span><span style="color: green;">// LINQ to Objects.
+        </span><span style="color: black;">.Where(name =&gt; FilterName(name)); </span><span style="color: green;">// Define query, IEnumerable&lt;string&gt; instead of IQueryable&lt;string&gt;.
+    </span><span style="color: black;">products.WriteLines(); </span><span style="color: green;">// Execute query.
+</span><span style="color: black;">}</span></pre>
+</blockquote>
+<h2>Compile database function call</h2>
+<p>EF Core does not support database function call.</p>
+<blockquote>
+<p>Not all database APIs has .NET built-in APIs to translated from, for example, there is no mapping .NET API for SQL database DATEDIFF function. EF provides mapping methods to address these scenarios. As fore mentioned, EF implements a provider model, and these mapping methods are provides in 2 levels too:</p>
+<ul>
+<li>In EntityFramework.dll, System.Data.Entity.DbFunctions provides mapping methods supported by all database providers, like DbFunctions.Reverse to reverse a string, DbFunction.AsUnicode to ensure a string is treated as Unicode, etc. These common database functions are also called <a href="https://msdn.microsoft.com/en-us/library/bb738626.aspx" target="_blank">canonical functions</a>.</li>
+<li>In EntityFramework.SqlServer.dll, System.Data.Entity.SqlServer.SqlFunctions provides mapping methods from SQL database functions, like SqlFunctions.Checksum method for CHECKSUM function, SqlFunctions.CurrentUser for CURRENT_USER function, etc.</li>
+</ul>
+<p>The following LINQ to Entities query calculates the number of days between current time and photo’s last modified time. In the following LINQ to Entities query expression tree, the MethodCallExpression node representing DbFunctions.DiffDays call can be compiled by EF, and is converted to a DbFunctionExpression node representing canonical function Edm.DiffDays call:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">DbFunction(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: blue;">var </span><span style="color: black;">photos = adventureWorks.ProductPhotos.Select(photo =&gt; </span><span style="color: blue;">new
+    </span><span style="color: black;">{
+        LargePhotoFileName = photo.LargePhotoFileName,
+        UnmodifiedDays = </span><span style="color: #2b91af;">DbFunctions</span><span style="color: black;">.DiffDays(photo.ModifiedDate, </span><span style="color: #2b91af;">DateTime</span><span style="color: black;">.UtcNow)
+    });
+    adventureWorks.Compile(photos.Expression).WriteLine();
+    photos.WriteLines();
+    </span><span style="color: green;">// SELECT
+    //    1 AS [C1],
+    //    [Extent1].[LargePhotoFileName] AS [LargePhotoFileName],
+    //    DATEDIFF (day, [Extent1].[ModifiedDate], SysUtcDateTime()) AS [C2]
+    //    FROM [Production].[ProductPhoto] AS [Extent1]
+</span><span style="color: black;">}</span></pre>
+<p>The following example filters the product’s names with a pattern. The SqlFunction.PatIndex call is compiled by EF, and converted to SQL database function SqlServer.PATINDEX call:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">SqlFunction(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; products = adventureWorks.Products
+        .Select(product =&gt; product.Name)
+        .Where(name =&gt; </span><span style="color: #2b91af;">SqlFunctions</span><span style="color: black;">.PatIndex(name, </span><span style="color: #a31515;">"%Touring%50%"</span><span style="color: black;">) &gt; 0); </span><span style="color: green;">// Define query.
+    </span><span style="color: black;">products.WriteLines(); </span><span style="color: green;">// Execute query.
+    // SELECT
+    //    [Extent1].[Name] AS [Name]
+    //    FROM [Production].[Product] AS [Extent1]
+    //    WHERE ( CAST(PATINDEX([Extent1].[Name], N'%Touring%50%') AS int)) &gt; 0
+</span><span style="color: black;">}</span></pre>
+</blockquote>
+<h1>Database expression tree to SQL</h1>
+<h2>SQL generator and SQL command</h2>
+<p>The SQL database provider of EF/Core provides a SQL generator to traverse the compiled database query abstract syntactic tree, and generate SQL database specific remote SQL query. EF Core provides SQL generator as Microsoft.EntityFrameworkCore.Query.Sql.IQuerySqlGenerator interface:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">Microsoft.EntityFrameworkCore.Query.Sql
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IQuerySqlGenerator
+    </span><span style="color: black;">{
+        </span><span style="color: #2b91af;">IRelationalCommand </span><span style="color: black;">GenerateSql(</span><span style="color: #2b91af;">IReadOnlyDictionary</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">object</span><span style="color: black;">&gt; parameterValues);
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}
+</span></pre>
+<p>It is implemented by Microsoft.EntityFrameworkCore.Query.Sql.Internal.SqlServerQuerySqlGenerator. SQL generator wraps a database expression tree inside, and provides a GenerateSql method, which returns Microsoft.EntityFrameworkCore.Storage.IRelationalCommand to represents generated SQL:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">Microsoft.EntityFrameworkCore.Storage
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IRelationalCommand
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">string </span><span style="color: black;">CommandText { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: #2b91af;">IReadOnlyList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IRelationalParameter</span><span style="color: black;">&gt; Parameters { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: #2b91af;">RelationalDataReader </span><span style="color: black;">ExecuteReader(
+            </span><span style="color: #2b91af;">IRelationalConnection </span><span style="color: black;">connection, </span><span style="color: #2b91af;">IReadOnlyDictionary</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">object</span><span style="color: black;">&gt; parameterValues);
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>It is generated by Microsoft.EntityFrameworkCore.Storage.Internal.RelationalCommand in Microsoft.EntityFrameworkCore.Relational package.</p>
+<blockquote>
+<p>Similarly, EF also provides SQL generator with a GenerateSql method:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Data.Entity.SqlServer.SqlGen
+{</span><span style="color: black;">
+    </span><span style="color: blue;">internal class </span><span style="color: #2b91af;">SqlGenerator </span><span style="color: black;">: </span><span style="color: #2b91af;">DbExpressionVisitor</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ISqlFragment</span><span style="color: black;">&gt;
+    {
+        </span><span style="color: blue;">internal string </span><span style="color: black;">GenerateSql(</span><span style="color: #2b91af;">DbQueryCommandTree </span><span style="color: black;">tree, </span><span style="color: blue;">out </span><span style="color: #2b91af;">HashSet</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; paramsToForceNonUnicode);
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>And EF represents the generated SQL with System.Data.Common.DbCommand in ADO.NET:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Data.Common
+{
+    </span><span style="color: blue;">public abstract class </span><span style="color: #2b91af;">DbCommand </span><span style="color: black;">: Component, </span><span style="color: #2b91af;">IDbCommand</span><span style="color: black;">, </span><span style="color: #2b91af;">IDisposable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public abstract string </span><span style="color: black;">CommandText { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+        </span><span style="color: blue;">public </span><span style="color: #2b91af;">DbParameterCollection </span><span style="color: black;">Parameters { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: blue;">public </span><span style="color: #2b91af;">DbDataReader </span><span style="color: black;">ExecuteReader();<span style="color: black;">
+
+        </span><span style="color: green;">// Other members.</span>
+    }
+}</span></pre>
+<p>And EF’s SQL database provider uses ADO.NET type System.Data.SqlClient.SqlCommand, which is derived from DbCommand.</p>
+</blockquote>
+<h2>Generate SQL from database expression tree</h2>
+<p>The following extension method of DbContext can take database command tree, and generate SQL:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IRelationalCommand </span><span style="color: black;">Generate(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">DbContext </span><span style="color: black;">dbContext,
+    </span><span style="color: #2b91af;">SelectExpression </span><span style="color: black;">databaseExpression,
+    </span><span style="color: #2b91af;">IReadOnlyDictionary</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">object</span><span style="color: black;">&gt; parameters = </span><span style="color: blue;">null</span><span style="color: black;">)
+{
+    </span><span style="color: #2b91af;">IQuerySqlGeneratorFactory </span><span style="color: black;">sqlGeneratorFactory = dbContext.GetService&lt;</span><span style="color: #2b91af;">IQuerySqlGeneratorFactory</span><span style="color: black;">&gt;();
+    </span><span style="color: #2b91af;">IQuerySqlGenerator </span><span style="color: black;">sqlGenerator = sqlGeneratorFactory.CreateDefault(databaseExpression);
+    </span><span style="color: blue;">return </span><span style="color: black;">sqlGenerator.GenerateSql(parameters ?? </span><span style="color: blue;">new </span><span style="color: #2b91af;">Dictionary</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">object</span><span style="color: black;">&gt;());
+}</span></pre>
+<blockquote>
+<p>In EF:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">DbCommand </span><span style="color: black;">Generate(</span><span style="color: blue;">this </span><span style="color: #2b91af;">DbContext </span><span style="color: black;">context, </span><span style="color: #2b91af;">DbQueryCommandTree </span><span style="color: black;">commandTree)
+{</span><span style="color: black;">
+    </span><span style="color: #2b91af;">MetadataWorkspace </span><span style="color: black;">metadataWorkspace = ((<span style="color: blue;"></span><span style="color: #2b91af;">IObjectContextAdapter</span>)context).ObjectContext.MetadataWorkspace;
+    </span><span style="color: #2b91af;">StoreItemCollection </span><span style="color: black;">itemCollection = (</span><span style="color: #2b91af;">StoreItemCollection</span><span style="color: black;">)metadataWorkspace
+        .GetItemCollection(</span><span style="color: #2b91af;">DataSpace</span><span style="color: black;">.SSpace);
+    </span><span style="color: #2b91af;">DbCommandDefinition </span><span style="color: black;">commandDefinition = </span><span style="color: #2b91af;">SqlProviderServices</span><span style="color: black;">.Instance
+        .CreateCommandDefinition(itemCollection.ProviderManifest, commandTree);
+    </span><span style="color: blue;">return </span><span style="color: black;">commandDefinition.CreateCommand();</span><span style="color: green;">
+</span><span style="color: black;">}
+</span></pre>
+<p>Inside the last DbCommandDefinition.CreateCommand call, a SqlGenerator instance is constructed with SQL database’s version (detected with ADO.NET API SqlConnection.ServerVersion), and its GenerateSql method is called to generate SQL, then the generated SQL and parameters (provided by DbQueryCommandTree.Parameters) are wrapped into a DbCommand instance.</p>
+</blockquote>
+<p>The above WhereAndSelectDatabaseExpressions and SelectAndFirstDatabaseExpressions method builds database expression trees from scratch. Take them as an example to generate SQL:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">WhereAndSelectSql(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">SelectExpression </span><span style="color: black;">databaseExpression = WhereAndSelectDatabaseExpressions(adventureWorks);
+    </span><span style="color: #2b91af;">IRelationalCommand </span><span style="color: black;">sql = adventureWorks.Generate(databaseExpression: databaseExpression, parameters: </span><span style="color: blue;">null</span><span style="color: black;">);
+    sql.CommandText.WriteLine();
+    </span><span style="color: green;">// SELECT [product].[Name]
+    // FROM [Production].[ProductCategory] AS [product]
+    // WHERE CAST(LEN([product].[Name]) AS int) &gt; 10
+</span><span style="color: black;">}
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">SelectAndFirstSql(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">SelectExpression </span><span style="color: black;">databaseExpression = SelectAndFirstDatabaseExpressions(adventureWorks);
+    </span><span style="color: #2b91af;">IRelationalCommand </span><span style="color: black;">sql = adventureWorks.Generate(databaseExpression: databaseExpression, parameters: </span><span style="color: blue;">null</span><span style="color: black;">);
+    sql.CommandText.WriteLine();
+    </span><span style="color: green;">// SELECT TOP(1) [product].[Name]
+    // FROM [Production].[Product] AS [product]
+</span><span style="color: black;">}</span></pre>
+<p>SQL generator traverses the command tree nodes, a specific Visit overloads is called for each supported node type. It generates SELECT clause from DbProjectionExpression node, FROM clause from DbScanExpression node, WHERE clause from DbFilterExpression node, LIKE operator from DbLikeExpression, etc.</p>
+<blockquote>
+<p>In EF, SQL can be generated in similar way:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">WhereAndSelectSql(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">DbQueryCommandTree </span><span style="color: black;">databaseExpressionAndParameters = WhereAndSelectDatabaseExpressions(adventureWorks);
+    </span><span style="color: #2b91af;">DbCommand </span><span style="color: black;">sql = adventureWorks.Generate(databaseExpressionAndParameters);
+    sql.CommandText.WriteLine();
+    </span><span style="color: green;">// SELECT
+    //    [Extent1].[Name] AS [Name]
+    //    FROM [Production].[Product] AS [Extent1]
+    //    WHERE [Extent1].[Name] LIKE N'M%'
+</span><span style="color: black;">}
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">SelectAndFirstSql(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">DbQueryCommandTree </span><span style="color: black;">databaseExpressionAndParameters = SelectAndFirstDatabaseExpressions(adventureWorks);
+    </span><span style="color: #2b91af;">DbCommand </span><span style="color: black;">sql = adventureWorks.Generate(databaseExpressionAndParameters);
+    sql.CommandText.WriteLine();
+    </span><span style="color: green;">// SELECT TOP (1)
+    //    [c].[Name] AS [Name]
+    //    FROM [Production].[Product] AS [c]
+</span><span style="color: black;">}</span></pre>
+<p>SQL generator generates TOP expression from DbLimitExpression node, which is an example where SQL database’s version matters. Inside the SqlGenerator.Visit overload for DbLimitExpression, TOP 1 is generated for SQL Server 2000 (8.0), and TOP(1) is generated for later version.</p>
+</blockquote>
+<p>So finally LINQ to Entities queries are translated to remote SQL database queries. The next part discusses the query execution and data loading
+
+
+  </div>
+  </body>
+  </html>

@@ -1,0 +1,352 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+
+<h1>C# functional programming in-depth (4) Function input and output</h1>
+
+<h1>Pass by value vs. pass by reference (ref parameter)</h1>
+<p>In C#, by default, arguments are passed to parameters by value. In the following example, the PassByValue function has a Uri parameter and a int type parameter. Uri is class so it is reference type, and int is structure so it is value type:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Functions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">PassByValue(</span><span style="color: #2b91af;">Uri </span><span style="color: black;">reference, </span><span style="color: blue;">int </span><span style="color: black;">value)
+    {
+        reference = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Uri</span><span style="color: black;">(</span><span style="color: #a31515;">"https://flickr.com/dixin"</span><span style="color: black;">);
+        value = 10;
+    }
+
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">CallPassByValue()
+    {
+        </span><span style="color: #2b91af;">Uri </span><span style="color: black;">reference = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Uri</span><span style="color: black;">(</span><span style="color: #a31515;">"https://weblogs.asp.net/dixin"</span><span style="color: black;">);
+        </span><span style="color: blue;">int </span><span style="color: black;">value = 1;
+        PassByValue(reference, value); </span><span style="color: green;">// Copied.
+        </span><span style="color: black;">reference.WriteLine(); </span><span style="color: green;">// https://weblogs.asp.net/dixin
+        </span><span style="color: black;">value.WriteLine(); </span><span style="color: green;">// 1
+    </span><span style="color: black;">}
+}</span></pre>
+<p>PassByValue is called with a reference type variable and a value type variable. With the default passing by value behavior, the reference and the value are both copied, then the copied reference and the copied value are passed to PassByValue. Inside PassByValue, it changes the reference and the value, but indeed it changes the copy of the outer variables. So after the execution of PassByValue, the outer variables passed to PassByValue remain unchanged.</p>
+<p>Parameter with a ref modifier is passed by reference, which means passed directly without being copied:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">PassByReference(</span><span style="color: blue;">ref </span><span style="color: #2b91af;">Uri </span><span style="color: black;">reference, </span><span style="color: blue;">ref int </span><span style="color: black;">value)
+{
+    reference = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Uri</span><span style="color: black;">(</span><span style="color: #a31515;">"https://flickr.com/dixin"</span><span style="color: black;">);
+    value = 10;
+}
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">CallPassByReference()
+{
+    </span><span style="color: #2b91af;">Uri </span><span style="color: black;">reference = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Uri</span><span style="color: black;">(</span><span style="color: #a31515;">"https://weblogs.asp.net/dixin"</span><span style="color: black;">);
+    </span><span style="color: blue;">int </span><span style="color: black;">value = 1;
+    PassByReference(</span><span style="color: blue;">ref </span><span style="color: black;">reference, </span><span style="color: blue;">ref </span><span style="color: black;">value); </span><span style="color: green;">// Not copied.
+    </span><span style="color: black;">reference.WriteLine(); </span><span style="color: green;">// https://flickr.com/dixin
+    </span><span style="color: black;">value.WriteLine(); </span><span style="color: green;">// 10
+</span><span style="color: black;">}</span></pre>
+<p>This time, when PassByReference is called, the reference type variable and value type variable are both directly passed without being copied. After calling PassByReference, the outer variables are also changed.</p>
+<h2>Pass by read only reference (in parameter)</h2>
+<p>To prevent called function from modifying the argument passed by reference, in modifier can be used for the parameter since C# 7.2:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">PassByReadOnlyReference(</span><span style="color: blue;">in </span><span style="color: black;">Uri reference, </span><span style="color: blue;">in int </span><span style="color: black;">value)
+{
+    reference = </span><span style="color: blue;">new </span><span style="color: black;">Uri(</span><span style="color: #a31515;">"https://flickr.com/dixin"</span><span style="color: black;">); </span><span style="color: green;">// Cannot be compiled.
+    </span><span style="color: black;">value = 10; </span><span style="color: green;">// Cannot be compiled.
+</span><span style="color: black;">}</span></pre>
+<p>Trying to modify the parameter passed by read only reference causes error at compile time.</p>
+<h1>Output parameter (out parameter) and out variable</h1>
+<p>C# also supports output parameter, which has a out modifier. The output parameter is also passed by reference, just like ref parameter:</p>
+<pre class="code"><span style="color: blue;">internal static bool </span><span style="color: black;">Output(</span><span style="color: blue;">out </span><span style="color: black;">Uri reference, </span><span style="color: blue;">out int </span><span style="color: black;">value)
+{
+    reference = </span><span style="color: blue;">new </span><span style="color: black;">Uri(</span><span style="color: #a31515;">"https://flickr.com/dixin"</span><span style="color: black;">);
+    value = 10;
+    </span><span style="color: blue;">return false</span><span style="color: black;">;
+}
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">CallOutput()
+{
+    Uri reference;
+    </span><span style="color: blue;">int </span><span style="color: black;">value;
+    Output(</span><span style="color: blue;">out </span><span style="color: black;">reference, </span><span style="color: blue;">out </span><span style="color: black;">value); </span><span style="color: green;">// Not copied.
+    </span><span style="color: black;">reference.WriteLine(); </span><span style="color: green;">// https://flickr.com/dixin
+    </span><span style="color: black;">value.WriteLine(); </span><span style="color: green;">// 10
+</span><span style="color: black;">}</span></pre>
+<p>The difference is, the ref parameter can be viewed as input of the function, so a variable must be initialized before passed to the ref parameter. The output parameter can be viewed as output of the function, so a variable is not required to be initialized before it is passed to the output parameter. Instead, output parameter must be initialized inside the function before returning.</p>
+<p>C# 7.0 introduces a convenient syntactic sugar called out variable, so that a variable can be declared inline when it is passed to an output parameter:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">OutVariable()
+{
+    Output(</span><span style="color: blue;">out </span><span style="color: #2b91af;">Uri </span><span style="color: black;">reference, </span><span style="color: blue;">out int </span><span style="color: black;">value);
+    reference.WriteLine(); </span><span style="color: green;">// https://flickr.com/dixin
+    </span><span style="color: black;">value.WriteLine(); </span><span style="color: green;">// 10
+</span><span style="color: black;">}</span></pre>
+<p>The compilation of OutVariable is exactly the same as above CallOutput.</p>
+<h2>Discard out variable</h2>
+<p>Since C# 7.0, if a out argument is not needed, it can be simply discarded with special character _. This syntax works with local variable too.</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Discard()
+{
+    </span><span style="color: blue;">bool </span><span style="color: black;">result = Output(</span><span style="color: blue;">out </span><span style="color: black;">_, </span><span style="color: blue;">out </span><span style="color: black;">_);
+    _ = Output(</span><span style="color: blue;">out </span><span style="color: black;">_, </span><span style="color: blue;">out </span><span style="color: black;">_);
+}</span></pre>
+<h1>Parameter array</h1>
+<p>Array parameter with params modifier is called parameter array:</p>
+<pre class="code"><span style="color: blue;">internal static int </span><span style="color: black;">Sum(</span><span style="color: blue;">params int</span><span style="color: black;">[] values)
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">sum = 0;
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">values)
+    {
+        sum += value;
+    }
+    </span><span style="color: blue;">return </span><span style="color: black;">sum;
+}</span></pre>
+<p>When calling above function, any number of arguments can be passed to its parameter array, and, of course, array can be passed to parameter array too:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CallSum(</span><span style="color: blue;">int</span><span style="color: black;">[] array)
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">sum1 = Sum();
+    </span><span style="color: blue;">int </span><span style="color: black;">sum2 = Sum(1);
+    </span><span style="color: blue;">int </span><span style="color: black;">sum3 = Sum(1, 2, 3, 4, 5);
+    </span><span style="color: blue;">int </span><span style="color: black;">sum4 = Sum(array);
+}</span></pre>
+<p>The params modifier is compiled to System.ParamArrayAttribute:</p>
+<pre class="code"><span style="color: blue;">internal static int </span><span style="color: black;">CompiledSum([</span><span style="color: #2b91af;">ParamArray</span><span style="color: black;">] </span><span style="color: blue;">int</span><span style="color: black;">[] values)
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">sum = 0;
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">values)
+    {
+        sum += value;
+    }
+    </span><span style="color: blue;">return </span><span style="color: black;">sum;
+}</span></pre>
+<p>When passing argument list to parameter array, the argument list is compiled to array:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledCallSum(</span><span style="color: blue;">int</span><span style="color: black;">[] array)
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">sum1 = Sum(</span><span style="color: #2b91af;">Array</span><span style="color: black;">.Empty&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;());
+    </span><span style="color: blue;">int </span><span style="color: black;">sum2 = Sum(</span><span style="color: blue;">new int</span><span style="color: black;">[] { 1 });
+    </span><span style="color: blue;">int </span><span style="color: black;">sum3 = Sum(</span><span style="color: blue;">new int</span><span style="color: black;">[] { 1, 2, 3, 4, 5 });
+    </span><span style="color: blue;">int </span><span style="color: black;">sum4 = Sum(array);
+}</span></pre>
+<p>When function has multiple parameters, the parameter array must be the last:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ParameterArray(</span><span style="color: blue;">bool </span><span style="color: black;">required1, </span><span style="color: blue;">int </span><span style="color: black;">required2, </span><span style="color: blue;">params string</span><span style="color: black;">[] optional) { }</span></pre>
+<h1>Positional argument vs. named argument</h1>
+<p>By default, when calling a function, each argument must align with the parameter’s position. C# 4.0 introduces named argument, which enables specifying parameter name when passing an argument. Both positional argument and named argument can be used to call function:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">PositionalAndNamed()
+{
+    PassByValue(</span><span style="color: blue;">null</span><span style="color: black;">, 0); </span><span style="color: green;">// Positional arguments.
+    </span><span style="color: black;">PassByValue(reference: </span><span style="color: blue;">null</span><span style="color: black;">, value: 0); </span><span style="color: green;">// Named arguments.
+    </span><span style="color: black;">PassByValue(value: 0, reference: </span><span style="color: blue;">null</span><span style="color: black;">); </span><span style="color: green;">// Named arguments.
+    </span><span style="color: black;">PassByValue(</span><span style="color: blue;">null</span><span style="color: black;">, value: 0); </span><span style="color: green;">// Positional argument followed by named argument.
+    </span><span style="color: black;">PassByValue(reference: </span><span style="color: blue;">null</span><span style="color: black;">, 0); </span><span style="color: green;">// Named argument followed by positional argument.
+</span><span style="color: black;">}</span></pre>
+<p>When a function is called with positional arguments, the arguments must align with the parameters. When a function is called with named arguments, the named arguments can be in arbitrary order. And when using positional and named arguments together, before C# 7.2, positional arguments must be followed by named arguments. Since C# 7.2, when all arguments are in correct position, then named argument can precede positional argument. At compile time, all named arguments are compiled to positional arguments. The above PassByValue calls are compiled to:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledPositionalAndNamed()
+{
+    PassByValue(</span><span style="color: blue;">null</span><span style="color: black;">, 1);
+    PassByValue(</span><span style="color: blue;">null</span><span style="color: black;">, 1);
+    PassByValue(</span><span style="color: blue;">null</span><span style="color: black;">, 1);
+    PassByValue(</span><span style="color: blue;">null</span><span style="color: black;">, 1);<span style="color: black;">
+    PassByValue(</span><span style="color: blue;">null</span><span style="color: black;">, 1);</span>
+}</span></pre>
+<p>If the named arguments are evaluated inline with the function call, the order of evaluation is the same as their appearance:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">NamedEvaluation()
+{
+    PassByValue(reference: GetUri(), value: GetInt32()); </span><span style="color: green;">// Call GetUri then GetInt32.
+    </span><span style="color: black;">PassByValue(value: GetInt32(), reference: GetUri()); </span><span style="color: green;">// Call GetInt32 then GetUri.
+</span><span style="color: black;">}
+
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">Uri </span><span style="color: black;">GetUri() { </span><span style="color: blue;">return default</span><span style="color: black;">; }
+
+</span><span style="color: blue;">internal static int </span><span style="color: black;">GetInt32() { </span><span style="color: blue;">return default</span><span style="color: black;">; }</span></pre>
+<p>When the above PassByValue calls are compiled, local variable is generated to ensure the arguments are evaluated in the specified order:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledNamedArgument()
+{
+    PassByValue(GetUri(), GetInt32()); </span><span style="color: green;">// Call GetUri then GetInt32.
+    </span><span style="color: blue;">int </span><span style="color: black;">value = GetInt32(); </span><span style="color: green;">// Call GetInt32 then GetUri.
+    </span><span style="color: black;">PassByValue(GetUri(), value);
+}</span></pre>
+<p>In practice, this syntax should be used with cautious because it can generate local variable, which can be slight performance hit. This tutorial uses named argument syntax frequently for readability:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Named()
+{
+    </span><span style="color: #2b91af;">UnicodeEncoding </span><span style="color: black;">unicodeEncoding1 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">UnicodeEncoding</span><span style="color: black;">(</span><span style="color: blue;">true</span><span style="color: black;">, </span><span style="color: blue;">true</span><span style="color: black;">, </span><span style="color: blue;">true</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">UnicodeEncoding </span><span style="color: black;">unicodeEncoding2 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">UnicodeEncoding</span><span style="color: black;">(
+        bigEndian: </span><span style="color: blue;">true</span><span style="color: black;">, byteOrderMark: </span><span style="color: blue;">true</span><span style="color: black;">, throwOnInvalidBytes: </span><span style="color: blue;">true</span><span style="color: black;">);
+}</span></pre>
+<h1>Required parameter vs. optional parameter</h1>
+<p>By default, function parameters requires arguments. C# 4.0 also introduces optional parameter, with a default value specified:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Optional(
+    </span><span style="color: blue;">bool </span><span style="color: black;">required1, </span><span style="color: blue;">char </span><span style="color: black;">required2,
+    </span><span style="color: blue;">int </span><span style="color: black;">optional1 = </span><span style="color: blue;">int</span><span style="color: black;">.MaxValue, </span><span style="color: blue;">string </span><span style="color: black;">optional2 = </span><span style="color: #a31515;">"Default value."</span><span style="color: black;">,
+    </span><span style="color: #2b91af;">Uri </span><span style="color: black;">optional3 = </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: #2b91af;">Guid </span><span style="color: black;">optional4 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Guid</span><span style="color: black;">(),
+    </span><span style="color: #2b91af;">Uri </span><span style="color: black;">optional5 = </span><span style="color: blue;">default</span><span style="color: black;">, </span><span style="color: #2b91af;">Guid </span><span style="color: black;">optional6 = </span><span style="color: blue;">default</span><span style="color: black;">) { }</span></pre>
+<p>The default value for optional parameter must be compile time constant, or default value of the type (null for reference type, or default constructor call for value type, or default expression). If a function has both required parameters and optional parameters, the required parameters must be followed by optional parameters. Optional parameter is not a syntactic sugar. The above function is compiled as the following CIL:</p>
+<pre class="code"><span style="color: black;">.method assembly hidebysig static
+    void Optional (
+        bool required1,
+        char required2,
+        [opt] int32 optional1,
+        [opt] string optional2,
+        [opt] class [System]System.Uri optional3,
+        [opt] valuetype [mscorlib]System.Guid optional4,
+        [opt] class [System]System.Uri optional5,
+        [opt] valuetype [mscorlib]System.Guid optional6
+    ) cil managed
+{
+    .param [3] = int32(2147483647) // optional1 = int.MaxValue
+    .param [4] = "Default value." // optional2 = "Default value."
+    .param [5] = nullref // optional3 = null
+    .param [6] = nullref // optional4 = new Guid()
+    .param [7] = nullref // optional5 = default
+    .param [8] = nullref // optional6 = default
+
+    .maxstack 8
+
+    IL_0000: nop
+    IL_0001: ret
+}</span></pre>
+<p>And function with optional parameters can be called with the named argument syntax too:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CallOptional()
+{
+    Optional(</span><span style="color: blue;">true</span><span style="color: black;">, </span><span style="color: #a31515;">'@'</span><span style="color: black;">);
+    Optional(</span><span style="color: blue;">true</span><span style="color: black;">, </span><span style="color: #a31515;">'@'</span><span style="color: black;">, 1);
+    Optional(</span><span style="color: blue;">true</span><span style="color: black;">, </span><span style="color: #a31515;">'@'</span><span style="color: black;">, 1, </span><span style="color: blue;">string</span><span style="color: black;">.Empty);
+    Optional(</span><span style="color: blue;">true</span><span style="color: black;">, </span><span style="color: #a31515;">'@'</span><span style="color: black;">, optional2: </span><span style="color: blue;">string</span><span style="color: black;">.Empty);
+    Optional(
+        optional6: </span><span style="color: #2b91af;">Guid</span><span style="color: black;">.NewGuid(), optional3: GetUri(), required1: </span><span style="color: blue;">false</span><span style="color: black;">, optional1: GetInt32(),
+        required2: </span><span style="color: #2b91af;">Convert</span><span style="color: black;">.ToChar(64)); </span><span style="color: green;">// Call Guid.NewGuid, then GetUri, then GetInt32, then Convert.ToChar.
+</span><span style="color: black;">}</span></pre>
+<p>When calling function with optional parameter, if the argument is not provided, the specified default value is used. Also, local variables can be generated to ensure the argument evaluation order. The above Optional calls are compiled to:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledCallOptional()
+{
+    Optional(</span><span style="color: blue;">true</span><span style="color: black;">, </span><span style="color: #a31515;">'@'</span><span style="color: black;">, <span style="color: black;">1</span>, </span><span style="color: #a31515;">"Default value."</span><span style="color: black;">, </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: blue;">new </span><span style="color: #2b91af;">Guid</span><span style="color: black;">(), </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: blue;">new </span><span style="color: #2b91af;">Guid</span><span style="color: black;">());
+    Optional(</span><span style="color: blue;">true</span><span style="color: black;">, </span><span style="color: #a31515;">'@'</span><span style="color: black;">, <span style="color: black;">1</span>, </span><span style="color: #a31515;">"Default value."</span><span style="color: black;">, </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: blue;">new </span><span style="color: #2b91af;">Guid</span><span style="color: black;">(), </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: blue;">new </span><span style="color: #2b91af;">Guid</span><span style="color: black;">());
+    Optional(</span><span style="color: blue;">true</span><span style="color: black;">, </span><span style="color: #a31515;">'@'</span><span style="color: black;">, <span style="color: black;">1</span>, </span><span style="color: blue;">string</span><span style="color: black;">.Empty, </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: blue;">new </span><span style="color: #2b91af;">Guid</span><span style="color: black;">(), </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: blue;">new </span><span style="color: #2b91af;">Guid</span><span style="color: black;">());
+    Optional(</span><span style="color: blue;">true</span><span style="color: black;">, </span><span style="color: #a31515;">'@'</span><span style="color: black;">, <span style="color: black;">1</span>, </span><span style="color: blue;">string</span><span style="color: black;">.Empty, </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: blue;">new </span><span style="color: #2b91af;">Guid</span><span style="color: black;">(), </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: blue;">new </span><span style="color: #2b91af;">Guid</span><span style="color: black;">());
+    </span><span style="color: #2b91af;">Guid </span><span style="color: black;">optional6 = </span><span style="color: #2b91af;">Guid</span><span style="color: black;">.NewGuid(); </span><span style="color: green;">// Call Guid.NewGuid, then GetUri, then GetInt32, then Convert.ToChar.
+    </span><span style="color: #2b91af;">Uri </span><span style="color: black;">optional3 = GetUri();
+    </span><span style="color: blue;">int </span><span style="color: black;">optional1 = GetInt32();
+    Optional(</span><span style="color: blue;">false</span><span style="color: black;">, </span><span style="color: #2b91af;">Convert</span><span style="color: black;">.ToChar(64), optional1, </span><span style="color: #a31515;">"Default value."</span><span style="color: black;">, optional3);
+}</span></pre>
+<h1>Caller information parameter</h1>
+<p>C# 5.0 introduces caller information parameters. System.Runtime.CompilerServices.CallerMemberNameAttribute, System.Runtime.CompilerServices.CallerFilePathAttribute, System.Runtime.CompilerServices.CallerLineNumberAttribute can be used for optional parameters to obtain the caller function name, caller function file name, and line number:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">TraceWithCaller(
+    </span><span style="color: blue;">string </span><span style="color: black;">message,
+    [</span><span style="color: #2b91af;">CallerMemberName</span><span style="color: black;">] </span><span style="color: blue;">string </span><span style="color: black;">callerMemberName = </span><span style="color: blue;">null</span><span style="color: black;">,
+    [</span><span style="color: #2b91af;">CallerFilePath</span><span style="color: black;">] </span><span style="color: blue;">string </span><span style="color: black;">callerFilePath = </span><span style="color: blue;">null</span><span style="color: black;">,
+    [</span><span style="color: #2b91af;">CallerLineNumber</span><span style="color: black;">] </span><span style="color: blue;">int </span><span style="color: black;">callerLineNumber = 0)
+{
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(</span><span style="color: #a31515;">$"[</span><span style="color: black;">{callerMemberName}</span><span style="color: #a31515;">, </span><span style="color: black;">{callerFilePath}</span><span style="color: #a31515;">, </span><span style="color: black;">{callerLineNumber}</span><span style="color: #a31515;">]: </span><span style="color: black;">{message}</span><span style="color: #a31515;">"</span><span style="color: black;">);
+}</span></pre>
+<p>When calling function with caller information parameters, just omit those arguments:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CallTraceWithCaller()
+{
+    TraceWithCaller(</span><span style="color: #a31515;">"Message."</span><span style="color: black;">);
+    </span><span style="color: green;">// [CallTraceWithCaller, /home/dixin/CodeSnippets/Tutorial.Shared/Functional/Parameters.cs, 242]: Message.
+</span><span style="color: black;">}</span></pre>
+<p>At compile time, the caller information arguments are generated. The above TraceWithCaller call is compiled to:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledCallTraceWithCaller()
+{
+    TraceWithCaller(</span><span style="color: #a31515;">"Message."</span><span style="color: black;">, </span><span style="color: #a31515;">"CompiledCallTraceWithCaller"</span><span style="color: black;">, </span><span style="color: maroon;">@"/home/dixin/CodeSnippets/Tutorial.Shared/Functional/Parameters.cs"</span><span style="color: black;">, 242);
+}</span></pre>
+<h1>Return by value vs. return by reference</h1>
+<p>By default, function return result by value. Similar to passing argument by value, returning by value means the returned reference or value is copied. The following functions retrieve the last item from the specified array:</p>
+<pre class="code"><span style="color: blue;">internal static int </span><span style="color: black;">LastValue(</span><span style="color: blue;">int</span><span style="color: black;">[] values)
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">length = values.Length;
+    </span><span style="color: blue;">if </span><span style="color: black;">(length &gt; 0)
+    {
+        </span><span style="color: blue;">return </span><span style="color: black;">values[length - 1];
+    }
+    </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentException</span><span style="color: black;">(</span><span style="color: #a31515;">"Array is empty."</span><span style="color: black;">, </span><span style="color: blue;">nameof</span><span style="color: black;">(values));
+}
+
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">Uri </span><span style="color: black;">LastReference(</span><span style="color: #2b91af;">Uri</span><span style="color: black;">[] references)
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">length = references.Length;
+    </span><span style="color: blue;">if </span><span style="color: black;">(length &gt; 0)
+    {
+        </span><span style="color: blue;">return </span><span style="color: black;">references[length - 1];
+    }
+    </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentException</span><span style="color: black;">(</span><span style="color: #a31515;">"Array is empty."</span><span style="color: black;">, </span><span style="color: blue;">nameof</span><span style="color: black;">(references));
+}</span></pre>
+<p>When they returns the last item to the caller, they return a copied of the reference or value. When the returned item is changed, the item in the array remain unchanged:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ReturnByValue()
+{
+    </span><span style="color: blue;">int</span><span style="color: black;">[] values = </span><span style="color: blue;">new int</span><span style="color: black;">[] { 0, 1, 2, 3, 4 };
+    </span><span style="color: blue;">int </span><span style="color: black;">lastValue = LastValue(values); </span><span style="color: green;">// Copied.
+    </span><span style="color: black;">lastValue = 10;
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(values[values.Length - 1]); </span><span style="color: green;">// 4
+
+    </span><span style="color: #2b91af;">Uri</span><span style="color: black;">[] references = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Uri</span><span style="color: black;">[] { </span><span style="color: blue;">new </span><span style="color: #2b91af;">Uri</span><span style="color: black;">(</span><span style="color: #a31515;">"https://weblogs.asp.net/dixin"</span><span style="color: black;">) };
+    </span><span style="color: #2b91af;">Uri </span><span style="color: black;">lastReference = LastReference(references); </span><span style="color: green;">// Copied.
+    </span><span style="color: black;">lastReference = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Uri</span><span style="color: black;">(</span><span style="color: #a31515;">"https://flickr.com/dixin"</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(references[references.Length - 1]); </span><span style="color: green;">// <a href="https://weblogs.asp.net/dixin">https://weblogs.asp.net/dixin</a>
+</span><span style="color: black;">}</span></pre>
+<p>C# 7.0 introduces returning by reference. Return result with a ref modifier is not copied:</p>
+<pre class="code"><span style="color: blue;">internal static ref int </span><span style="color: black;">RefLastValue(</span><span style="color: blue;">int</span><span style="color: black;">[] values)
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">length = values.Length;
+    </span><span style="color: blue;">if </span><span style="color: black;">(length &gt; 0)
+    {
+        </span><span style="color: blue;">return ref </span><span style="color: black;">values[length - 1];
+    }
+    </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentException</span><span style="color: black;">(</span><span style="color: #a31515;">"Array is empty."</span><span style="color: black;">, </span><span style="color: blue;">nameof</span><span style="color: black;">(values));
+}
+
+</span><span style="color: blue;">internal static ref </span><span style="color: #2b91af;">Uri </span><span style="color: black;">RefLastReference(</span><span style="color: #2b91af;">Uri</span><span style="color: black;">[] references)
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">length = references.Length;
+    </span><span style="color: blue;">if </span><span style="color: black;">(length &gt; 0)
+    {
+        </span><span style="color: blue;">return ref </span><span style="color: black;">references[length - 1];
+    }
+    </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentException</span><span style="color: black;">(</span><span style="color: #a31515;">"Array is empty."</span><span style="color: black;">, </span><span style="color: blue;">nameof</span><span style="color: black;">(references));
+}</span></pre>
+<p>Function returning ref result can be called with the ref modifier. This time, when the returned item is changed, the item in the array is changed too:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ReturnByReference()
+{
+    </span><span style="color: blue;">int</span><span style="color: black;">[] values = </span><span style="color: blue;">new int</span><span style="color: black;">[] { 0, 1, 2, 3, 4 };
+    </span><span style="color: blue;">ref int </span><span style="color: black;">lastValue = </span><span style="color: blue;">ref </span><span style="color: black;">RefLastValue(values); </span><span style="color: green;">// Not copied.
+    </span><span style="color: black;">lastValue = 10;
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(values[values.Length - 1]); </span><span style="color: green;">// 10
+
+    </span><span style="color: #2b91af;">Uri</span><span style="color: black;">[] references = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Uri</span><span style="color: black;">[] { </span><span style="color: blue;">new </span><span style="color: #2b91af;">Uri</span><span style="color: black;">(</span><span style="color: #a31515;">"https://weblogs.asp.net/dixin"</span><span style="color: black;">) };
+    </span><span style="color: blue;">ref </span><span style="color: #2b91af;">Uri </span><span style="color: black;">lastReference = </span><span style="color: blue;">ref </span><span style="color: black;">RefLastReference(references); </span><span style="color: green;">// Not copied.
+    </span><span style="color: black;">lastReference = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Uri</span><span style="color: black;">(</span><span style="color: #a31515;">"https://flickr.com/dixin"</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(references[references.Length - 1]); </span><span style="color: green;">// <a href="https://flickr.com/dixin">https://flickr.com/dixin</a>
+</span><span style="color: black;">}</span></pre>
+<h2>Return by read only reference</h2>
+<p>To prevent caller from modifying the returned result by reference, ref can be used with the readonly modifier since C# 7.2:</p>
+<pre class="code"><span style="color: blue;">internal static ref readonly int </span><span style="color: black;">RefReadOnlyLastValue(</span><span style="color: blue;">int</span><span style="color: black;">[] values)
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">length = values.Length;
+    </span><span style="color: blue;">if </span><span style="color: black;">(length &gt; 0)
+    {
+        </span><span style="color: blue;">return ref </span><span style="color: black;">values[length - 1];
+    }
+    </span><span style="color: blue;">throw new </span><span style="color: black;">ArgumentException(</span><span style="color: #a31515;">"Array is empty."</span><span style="color: black;">, nameof(values));
+}
+
+</span><span style="color: blue;">internal static ref readonly </span><span style="color: black;">Uri RefReadOnlyLastReference(Uri[] references)
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">length = references.Length;
+    </span><span style="color: blue;">if </span><span style="color: black;">(length &gt; 0)
+    {
+        </span><span style="color: blue;">return ref </span><span style="color: black;">references[length - 1];
+    }
+    </span><span style="color: blue;">throw new </span><span style="color: black;">ArgumentException(</span><span style="color: #a31515;">"Array is empty."</span><span style="color: black;">, nameof(references));
+}</span></pre>
+<p>Now the returned result by reference becomes read only. Trying to modify it causes error at compile time:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ReturnByRedOnlyReference()
+{
+    </span><span style="color: blue;">int</span><span style="color: black;">[] values = </span><span style="color: blue;">new int</span><span style="color: black;">[] { 0, 1, 2, 3, 4 };
+    </span><span style="color: blue;">ref readonly int </span><span style="color: black;">lastValue = </span><span style="color: blue;">ref </span><span style="color: black;">RefReadOnlyLastValue(values); </span><span style="color: green;">// Not copied.
+    </span><span style="color: black;">lastValue = 10; </span><span style="color: green;">// Cannot be compiled.
+    </span><span style="color: black;">Trace.WriteLine(values[values.Length - 1]); </span><span style="color: green;">// 10
+
+    </span><span style="color: black;">Uri[] references = </span><span style="color: blue;">new </span><span style="color: black;">Uri[] { </span><span style="color: blue;">new </span><span style="color: black;">Uri(</span><span style="color: #a31515;">"https://weblogs.asp.net/dixin"</span><span style="color: black;">) };
+    </span><span style="color: blue;">ref readonly </span><span style="color: black;">Uri lastReference = </span><span style="color: blue;">ref </span><span style="color: black;">RefReadOnlyLastReference(references); </span><span style="color: green;">// Not copied.
+    </span><span style="color: black;">lastReference = </span><span style="color: blue;">new </span><span style="color: black;">Uri(</span><span style="color: #a31515;">"https://flickr.com/dixin"</span><span style="color: black;">); </span><span style="color: green;">// Cannot be compiled.
+    </span><span style="color: black;">Trace.WriteLine(references[references.Length - 1]); </span><span style="color: green;">// <a href="https://flickr.com/dixin">https://flickr.com/dixin</a>
+</span><span style="color: black;">}</span>
+
+
+</div>
+</body>
+</html>

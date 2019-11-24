@@ -1,0 +1,686 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+
+<h1>Entity Framework/Core and LINQ to Entities (9) Performance</h1>
+
+
+<p>The previous parts has discussed some aspects that can impact the performance of EF/Core and LINQ to Entities, and here is a summary:</p>
+<ul>
+<li>Remote LINQ to Entities query can have better performance than local or hybrid query. An intuitive example is Last query for a table data source, which could query the entire table, load data to local, and query the last result locally. It is better to just have a remote query and only load the specific result.</li>
+<li>Using Select to only query the&nbsp; data can have better performance than querying full entity.</li>
+<li>Disabling entity tracking can improve the performance.</li>
+<li>Disabling automatic change detection can improve the performance.</li>
+<li>When adding a sequence of entities to repository, DbSet&lt;T&gt;.AddRange/DbSet&lt;T&gt;.RemoveRange call can have better performance than many DbSet&lt;T&gt;.Add/DbSet&lt;T&gt;.Remove calls.</li>
+</ul>
+<blockquote>
+<p>And, in EF, with lazy loading, accessing an entity’s navigation property can cause additional database query round trips (the N + 1 queries problem). Eager loading can improve the performance by read all needed data with 1 single database query.</p>
+</blockquote>
+<p>This part continues the discussion of performance.</p>
+<h1>Initialization</h1>
+<blockquote>
+<p>EF dies a lot of initialization work before the first database query is executed.</p>
+<p>The following example simply pulls categories from the repository, with one LINQ to Entities query:’</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Performance
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Initialize()
+    {
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+        {
+            </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">&gt; categories = adventureWorks.ProductCategories;
+            categories.WriteLines(category =&gt; category.Name);
+            </span><span style="color: green;">// select cast(serverproperty('EngineEdition') as int)
+
+            // SELECT Count(*)
+            // FROM INFORMATION_SCHEMA.TABLES AS t
+            // WHERE t.TABLE_SCHEMA + '.' + t.TABLE_NAME IN ('HumanResources.Employee','Person.Person','Production.ProductCategory','Production.ProductSubcategory','Production.Product','Production.ProductProductPhoto','Production.ProductPhoto','Production.TransactionHistory','HumanResources.vEmployee')
+            //    OR t.TABLE_NAME = 'EdmMetadata'
+            // exec sp_executesql N'SELECT
+            //    [GroupBy1].[A1] AS [C1]
+            //    FROM ( SELECT
+            //        COUNT(1) AS [A1]
+            //        FROM [dbo].[__MigrationHistory] AS [Extent1]
+            //        WHERE [Extent1].[ContextKey] = @p__linq__0
+            //    )  AS [GroupBy1]',N'@p__linq__0 nvarchar(4000)',@p__linq__0=N'AdventureWorks'
+            // SELECT
+            //    [GroupBy1].[A1] AS [C1]
+            //    FROM ( SELECT
+            //        COUNT(1) AS [A1]
+            //        FROM [dbo].[__MigrationHistory] AS [Extent1]
+            //    )  AS [GroupBy1]
+            // SELECT TOP (1)
+            //    [Extent1].[Id] AS [Id],
+            //    [Extent1].[ModelHash] AS [ModelHash]
+            //    FROM [dbo].[EdmMetadata] AS [Extent1]
+            //    ORDER BY [Extent1].[Id] DESC
+            // SELECT
+            //    [Extent1].[ProductCategoryID] AS [ProductCategoryID],
+            //    [Extent1].[Name] AS [Name]
+            //    FROM [Production].[ProductCategory] AS [Extent1]
+        </span><span style="color: black;">}
+    }
+}</span></pre>
+<p>Executing above code, a bunch of SQL queries can be traced. And only the last SELECT query is the expected LINQ to Entities query translation. Actually, before a database’s first operation at runtime (e.g., querying Production.ProductCategory table here), EF does a lot of work to initialize its object-relational mapping:</p>
+<ol>
+<li>Initialize provider manifest</li>
+<li>Initialize the entity data model. EF automatically builds the object models (CLR models, not above entities), conceptual models, storage models, object-conceptual model mappings, conceptual-storage model mappings, etc..</li>
+<li>Initialize the database, if needed.</li>
+<li>Initialize mapping views, which are the mapping information for entity sets.</li>
+<li>Initialize a dynamic assembly "EntityFrameworkDynamicProxies-{OriginalAssemblyName}, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null", and define proxy types in it.</li>
+</ol>
+<p>The above initialization steps executes only once at runtime, and their performance can be improved from the default behavior.</p>
+</blockquote>
+<h2>Provider initialization</h2>
+<blockquote>
+<p>As fore mentioned, EF implements the provider model to work with different kinds of data stores, and it need to get the basic information of current data store. For SQL database:</p>
+<ul>
+<li>The SQL database server’s version is detected by calling DbConnection.ServerVersion</li>
+<li>The engine edition is queried by above <a href="https://msdn.microsoft.com/en-us/library/ms174396.aspx" target="_blank">SERVERPROPERTY</a> metadata function, to determine whether it is a on premise database (SQL Server) or cloud database (SQL Azure, aka Azure SQL Database).</li>
+</ul>
+<p>For SQL database, the supported provider manifest tokens are:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Data.Entity.SqlServer
+{</span><span style="color: black;">
+    </span><span style="color: blue;">internal class </span><span style="color: #2b91af;">SqlProviderManifest </span><span style="color: black;">: </span><span style="color: #2b91af;">DbXmlEnabledProviderManifest
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">internal const string </span><span style="color: black;">TokenSql8 = </span><span style="color: #a31515;">"2000"</span><span style="color: black;">;
+
+        </span><span style="color: blue;">internal const string </span><span style="color: black;">TokenSql9 = </span><span style="color: #a31515;">"2005"</span><span style="color: black;">;
+
+        </span><span style="color: blue;">internal const string </span><span style="color: black;">TokenSql10 = </span><span style="color: #a31515;">"2008"</span><span style="color: black;">;
+
+        </span><span style="color: blue;">internal const string </span><span style="color: black;">TokenSql11 = </span><span style="color: #a31515;">"2012"</span><span style="color: black;">;
+
+        </span><span style="color: blue;">internal const string </span><span style="color: black;">TokenAzure11 = </span><span style="color: #a31515;">"2012.Azure"</span><span style="color: black;">;
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>For any on premise SQL database later than 11.0, just use “2012”. For cloud SQL database, use “2012.Azure”. In this tutorial, the server version and engine edition is known. So these information can be provided to EF via System.Data.Entity.Infrastructure.IManifestTokenResolver:</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">SqlConfiguration </span><span style="color: black;">: </span><span style="color: #2b91af;">DbConfiguration
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public </span><span style="color: black;">SqlConfiguration() =&gt;
+            </span><span style="color: blue;">this</span><span style="color: black;">.SetManifestTokenResolver(</span><span style="color: blue;">new </span><span style="color: #2b91af;">SqlManifestTokenResolver</span><span style="color: black;">());
+}
+
+</span><span style="color: blue;">public class </span><span style="color: #2b91af;">SqlManifestTokenResolver </span><span style="color: black;">: </span><span style="color: #2b91af;">IManifestTokenResolver
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public string </span><span style="color: black;">ResolveManifestToken(</span><span style="color: #2b91af;">DbConnection </span><span style="color: black;">connection) =&gt; </span><span style="color: #a31515;">"2012.Azure"</span><span style="color: black;">;
+}</span></pre>
+<p>Then engine edition query is not executed during initialization. Notice EF only support defining a single type derived from DbConfiguration. In the object-relational mapping part, there us already a RetryConfiguration type defined to specify the retry strategy. The logic in both types must be merged intto one type, otherwise EF throws exception during initialization.</p>
+</blockquote>
+<h2>Database initialization</h2>
+<blockquote>
+<p>The database initialization work is represented by System.Data.Entity.IDatabaseInitializer&lt;TContext&gt; interface:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Data.Entity
+{
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IDatabaseInitializer</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">TContext</span><span style="color: black;">&gt; </span><span style="color: blue;">where </span><span style="color: #2b91af;">TContext </span><span style="color: black;">: </span><span style="color: #2b91af;">DbContext
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">void </span><span style="color: black;">InitializeDatabase(</span><span style="color: #2b91af;">TContext </span><span style="color: black;">context);
+    }
+}</span></pre>
+<p>EF provides several built-in initializers under System.Data.Entity namespace:</p>
+<ul>
+<li>NullDatabaseInitializer&lt;TContext&gt;: Do nothing for initialization</li>
+<li>DropCreateDatabaseAlways&lt;TContext&gt;: Always drop the database and create again</li>
+<li>DropCreateDatabaseIfModelChanges&lt;TContext&gt;: Drop and create database when the code mapping mismatches database schema.</li>
+<li>MigrateDatabaseToLatestVersion&lt;TContext, TMigrationsConfiguration&gt;: Use the specified code to update the database to the latest version.</li>
+<li>CreateDatabaseIfNotExists&lt;TContext&gt;: Create database if not exist.</li>
+</ul>
+<p>CreateDatabaseIfNotExists&lt;TContext&gt;: is the default initializer, so it is executed here too. As a result, EF attempts to <a href="https://romiller.com/2014/06/10/reducing-code-first-database-chatter/" target="_blank">query the existence of the mapped tables and views, database migration history, and entity data model info, etc</a>. Apparently, here AdventureWorks database does not have the migration and entity data model info; recreating database is not needed as well. So the database initialization can be turned off, by setting the initializer to NullDatabaseInitializer&lt;TContext&gt;:</p>
+<pre class="code"><span style="color: blue;">public partial class </span><span style="color: #2b91af;">AdventureWorks
+</span><span style="color: black;">{
+    </span><span style="color: blue;">static </span><span style="color: black;">AdventureWorks()
+    {
+        </span><span style="color: #2b91af;">Database</span><span style="color: black;">.SetInitializer(</span><span style="color: blue;">new </span><span style="color: #2b91af;">NullDatabaseInitializer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">&gt;()); </span><span style="color: green;">// Call once.
+        // Equivalent to: Database.SetInitializer&lt;AdventureWorks&gt;(null);
+    </span><span style="color: black;">}
+}</span></pre>
+<p>where NullDatabaseInitializer&lt;TContext&gt; provide empty operation that does nothing:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Data.Entity
+{
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">NullDatabaseInitializer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TContext</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IDatabaseInitializer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TContext</span><span style="color: black;">&gt; </span><span style="color: blue;">where </span><span style="color: #2b91af;">TContext </span><span style="color: black;">: </span><span style="color: #2b91af;">DbContext
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public virtual void </span><span style="color: black;">InitializeDatabase(</span><span style="color: #2b91af;">TContext </span><span style="color: black;">context)
+        {
+        }
+    }
+}</span></pre>
+<p>Now all the additional database queries for initialization are turned off.</p>
+</blockquote>
+<h2>Mapping views initialization</h2>
+<blockquote>
+<p>In EF, mapping views are not the views inside the database. They are System.Data.Entity.Infrastructure.MappingViews.DbMappingView instances, representing the mapping information for entity sets. Instead of generate these instances at runtime, pre-generate them at design time can improve the performance. Microsoft provides a Visual Studio extension, EF Power Tools, to generate these code. It needs to be <a href="http://thedatafarm.com/data-access/installing-ef-power-tools-into-vs2015/" target="_blank">modified</a> to installed with the latest Visual Studio. After the installation, just right click the code file containing the database mapping (the class derived from DbContext), and in the menu click EF =&gt; Generate Views, it generates a file, containing the code to create the DbMappingView instances.</p>
+</blockquote>
+<h1>Cache</h1>
+<p>After the object-relational mapping metadata is initialized, they are cached, so that the initialization only happens once for the AppDomain. EF/Core also implement cache for entities and query translation.</p>
+<h2>Entity cache</h2>
+<p>As fore mentioned, by default, the entities queried from repository are cached and tracked. This behavior can be demonstrated by the following example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CachedEntity(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">categoryCopy1 = adventureWorks.ProductCategories
+        .Single(entity =&gt; entity.ProductCategoryID == 1);
+    categoryCopy1.Name = </span><span style="color: #a31515;">"Cache"</span><span style="color: black;">;
+
+    </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">categoryCopy2 = adventureWorks.ProductCategories
+        .Single(entity =&gt; entity.Name == </span><span style="color: #a31515;">"Bikes"</span><span style="color: black;">);
+    categoryCopy2.Name.WriteLine(); </span><span style="color: green;">// Cache
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(categoryCopy1, categoryCopy2).WriteLine(); </span><span style="color: green;">// True
+
+    </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">categoryCopy3 = adventureWorks.ProductCategories
+</span><span style="color: gray;">#if </span><span style="color: black;">EF
+        .SqlQuery(
+</span><span style="color: gray;">#else
+        .FromSql(
+#endif
+            </span><span style="color: maroon;">@"SELECT TOP (1) [ProductCategory].[ProductCategoryID], [ProductCategory].[Name]
+            FROM [Production].[ProductCategory]
+            ORDER BY [ProductCategory].[ProductCategoryID]"</span><span style="color: black;">)
+        .Single();
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(categoryCopy1, categoryCopy3).WriteLine(); </span><span style="color: green;">// True
+</span><span style="color: black;">}</span></pre>
+<p>In this example, the first query reads data from the repository and materialize the data to a category entity, and update its Name. Then the repository is queried again by Name. After reading the data, EF/Core find the primary key is the same as the cached entity, so EF/Core do not materialize the data just read, it reuses the previous category entity. Performance can be improved by skipping the materialization, but tricky result can happen. The second query reads entity with Name “Bikes”, but the query result entity has Name “Cache”. This is not only LINQ to Entities queries’ behavior, When DbSet&lt;T&gt; directly executes SQL query in the repository, EF/Core still uses cached entities.</p>
+<p>Entity is not cached when tracking is turned off, or entity is not queried from the repository. Each of the following queries materializes a new entity:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">UncachedEntity(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">categoryCopy1 = adventureWorks.ProductCategories
+        .Single(entity =&gt; entity.ProductCategoryID == 1);
+    categoryCopy1.Name = </span><span style="color: #a31515;">"Cache"</span><span style="color: black;">;
+
+    </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">categoryCopy2 = adventureWorks.ProductCategories
+        .AsNoTracking().Single(entity =&gt; entity.Name == </span><span style="color: #a31515;">"Bikes"</span><span style="color: black;">);
+    categoryCopy2.Name.WriteLine(); </span><span style="color: green;">// Bikes
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(categoryCopy1, categoryCopy2).WriteLine(); </span><span style="color: green;">// False
+
+    </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">categoryCopy3 = adventureWorks.ProductCategories
+</span><span style="color: gray;">#if </span><span style="color: black;">EF
+        .SqlQuery(
+</span><span style="color: gray;">#else
+        .FromSql(
+#endif
+            </span><span style="color: maroon;">@"SELECT TOP (1) [ProductCategory].[ProductCategoryID], [ProductCategory].[Name]
+            FROM [Production].[ProductCategory]
+            ORDER BY [ProductCategory].[ProductCategoryID]"</span><span style="color: black;">)
+        .AsNoTracking()
+        .Single();
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(categoryCopy1, categoryCopy3).WriteLine(); </span><span style="color: green;">// False
+
+</span><span style="color: gray;">#if </span><span style="color: black;">EF
+    </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">categoryCopy4 = adventureWorks.Database
+        .SqlQuery&lt;</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">&gt;(</span><span style="color: maroon;">@"
+            SELECT TOP (1) [ProductCategory].[ProductCategoryID], [ProductCategory].[Name]
+            FROM [Production].[ProductCategory]
+            ORDER BY [ProductCategory].[ProductCategoryID]"</span><span style="color: black;">)
+        .Single();
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(categoryCopy1, categoryCopy4).WriteLine(); </span><span style="color: green;">// False
+</span><span style="color: gray;">#endif
+</span><span style="color: black;">}</span></pre>
+<p>DbSet.Find accept the primary keys and returns an entity. Calling Find can improve the performance, because it looks up cache before querying the repository:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Find(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">Product</span><span style="color: black;">[] products = adventureWorks.Products
+        .Where(entity =&gt; entity.Name.StartsWith(</span><span style="color: #a31515;">"Road"</span><span style="color: black;">)).ToArray(); </span><span style="color: green;">// Execute query.
+    </span><span style="color: #2b91af;">Product </span><span style="color: black;">product = adventureWorks.Products.Find(999); </span><span style="color: green;">// No database query.
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(products.Last(), product).WriteLine(); </span><span style="color: green;">// True
+</span><span style="color: black;">}</span></pre>
+<p>Here when Find is called, entity with the specified primary key is already queries, cached and tracked, so Find directly returns the cached entity, without repository query or data materialization.</p>
+<h2>LINQ query translation cache</h2>
+<p>As discussed in the query translation part, EF/Core translate a LINQ to Entities query in 2 steps:</p>
+<ul>
+<li>Compile LINQ expression tree to database expression tree</li>
+<li>Generate SQL from database expression tree</li>
+</ul>
+<p>To improve the performance, EF Core caches the query translations in a Microsoft.Extensions.Caching.Memory.MemoryCache. Before processing a LINQ query, EF Core computes the cache key, and looks up the cache. If the translation is found, then it reuses the translation; if not, it translates the query, and add the translation to cache.. For SQL database queries, the cache key’s hash code is computed with the the hash code of the following values:</p>
+<ul>
+<li>The LINQ query expression tree. The LINQ query expression tree is scanned recursively, the hash code of the nodes and APIs represented by the expression tree nodes are used to compute the hash code of the entire expression tree.</li>
+<li>DbContext.Model</li>
+<li>DbContext.ChangeTracker.QueryTrackingBehavior, which is an enumeration of TrackAll or NoTracking</li>
+<li>A Boolean value that indicates whether the query is executed asynchronously</li>
+<li>SqlServerOptionsExtension.UseRelationalNulls, which can be specified with SqlServerDbContextOptionsBuilder.UseRelationalNulls</li>
+<li>SqlServerOptionsExtension.RowNumberPaging, which can be specified with SqlServerDbContextOptionsBuilder.UseRowNumberForPaging</li>
+</ul>
+<blockquote>
+<p>EF always compiles the LINQ expression tree to database expression tree, then cache the SQL generation in a dictionary. For example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">TranslationCache(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">minLength = 1;
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; query = adventureWorks.Products
+        .Where(product =&gt; product.Name.Length &gt;= minLength)
+        .Include(product =&gt; product.ProductSubcategory);
+    query.Load();
+}</span></pre>
+<p>EF generates the cache key with the following values:</p>
+<ul>
+<li>The database expression tree’s string representation. Here it is: [Filter](BV'LQ1'=([Scan](AdventureWorks.Products:Transient.collection[Product(Nullable=True,DefaultValue=)]))([&gt;=](FUNC&lt;Edm.Length(In Edm.String(Nullable=True,DefaultValue=,MaxLength=,Unicode=,FixedLength=))&gt;:ARGS((Var('LQ1')[.]Name)),@p__linq__0:Edm.Int32(Nullable=False,DefaultValue=))))</li>
+<li>The parameters’ string representation: @@1p__linq__0:System.Int32</li>
+<li>The path of the Include query. Here it is ProductSubcategory</li>
+<li>The query’s MergeOption, which is AppendOnly by default.</li>
+<li>System.Data.Entity.Core.Objects.ObjectContextOptions.UseCSharpNullComparisonBehavior</li>
+</ul>
+</blockquote>
+<p>The following example executes 2 LINQ to Entities queries:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">UnreusedTranslationCache(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; queryWithConstant1 = adventureWorks.Products
+        .Where(product =&gt; product.Name.Length &gt;= 1);
+    queryWithConstant1.Load();
+
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; queryWithConstant2 = adventureWorks.Products
+        .Where(product =&gt; product.Name.Length &gt;= 10);
+    queryWithConstant2.Load();
+}</span></pre>
+<p>These first LINQ query builds expression trees with a ConstantExpression node representing int value 1. The second query builds similar expression tree but with a different ConstantExpression node representing int value 10. So these LINQ expression trees are different. In EF Core, the first expression tree’s translation cannot be reused for the second query.</p>
+<blockquote>
+<p>In EF, their compiled database expression trees are different too, with 2 different DbConstantExpression nodes. The 2 database expression trees’ string representations are:</p>
+<ul>
+<li>[Filter](BV'LQ1'=([Scan](AdventureWorks.ProductCategories:Transient.collection[ProductCategory(Nullable=True,DefaultValue=)]))([&gt;=](FUNC&lt;Edm.Length(In Edm.String(Nullable=True,DefaultValue=,MaxLength=,Unicode=,FixedLength=))&gt;:ARGS((Var('LQ1')[.]Name)),1:Edm.Int32(Nullable=True,DefaultValue=))))</li>
+<li>[Filter](BV'LQ1'=([Scan](AdventureWorks.ProductCategories:Transient.collection[ProductCategory(Nullable=True,DefaultValue=)]))([&gt;=](FUNC&lt;Edm.Length(In Edm.String(Nullable=True,DefaultValue=,MaxLength=,Unicode=,FixedLength=))&gt;:ARGS((Var('LQ1')[.]Name)),10:Edm.Int32(Nullable=True,DefaultValue=))))</li>
+</ul>
+<p>So the first query’s SQL generation cannot be used for the second query either.</p>
+</blockquote>
+<p>To reuse the translation cache, these queries can be parameterized by simply replace the constants with variables:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ReusedTranslationCache(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">minLength = 1;
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; queryWithClosure1 = adventureWorks.Products
+        .Where(product =&gt; product.Name.Length &gt;= minLength);
+    queryWithClosure1.Load();
+
+    minLength = 10;
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; queryWithClosure2 = adventureWorks.Products
+        .Where(product =&gt; product.Name.Length &gt;= minLength);
+    queryWithClosure2.Load();
+}</span></pre>
+<p>As discussed in the C# features chapter, the predicate lambda expressions capture variable minLength with the closure syntactic sugar. The above code is compiled to:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ReusedTranslationCache(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">minLength = 1;
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; queryWithClosure1 = adventureWorks.Products
+        .Where(product =&gt; product.Name.Length &gt;= minLength);
+    queryWithClosure1.Load();
+
+    minLength = 10;
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; queryWithClosure2 = adventureWorks.Products
+        .Where(product =&gt; product.Name.Length &gt;= minLength);
+    queryWithClosure2.Load();
+}</span></pre>
+<p>In the predicates, the outer variable access is compiled to field access. So in the LINQ queries’ expression trees, there are no longer ConstantExpression nodes representing different int values, but MemberExpression nodes representing the same field. As a result, the 2 query’s LINQ expression trees are identical, and the translation is reused.</p>
+<blockquote>
+<p>In EF, if a query method accepts values instead of lambda expression, this parameterization approach does not work. For example, Skip and Take accept int values as parameters:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">UnresuedSkipTakeTranslationCache(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">skip = 1;
+    </span><span style="color: blue;">int </span><span style="color: black;">take = 1;
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; skipTakeWithVariable1 = adventureWorks.Products
+        .OrderBy(product =&gt; product.ProductID).Skip(skip).Take(take);
+    skipTakeWithVariable1.Load();
+
+    skip = 10;
+    take = 10;
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; skipTakeWithVariable2 = adventureWorks.Products
+        .OrderBy(product =&gt; product.ProductID).Skip(skip).Take(take);
+    skipTakeWithVariable2.Load();
+}</span></pre>
+<p>The above LINQ queries access to variable skip and take, but these variable access are also represented by ConstantExpression nodes. So their expression trees are different, and converted database command trees are different, and their translations cannot be reused for each other. To resolve this problem, EF provides a lambda expression version for these methods:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Data.Entity
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">QueryableExtensions
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Skip&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; countAccessor);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Take&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; countAccessor);
+    }
+}</span></pre>
+<p>Now Skip and Take can access variables via closure:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ResuedSkipTakeTranslationCache(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">skip = 1;
+    </span><span style="color: blue;">int </span><span style="color: black;">take = 1;
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; skipTakeWithClosure1 = adventureWorks.Products
+        .OrderBy(product =&gt; product.ProductID).Skip(() =&gt; skip).Take(() =&gt; take);
+    skipTakeWithClosure1.Load();
+
+    skip = 10;
+    take = 10;
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; skipTakeWithClosure2 = adventureWorks.Products
+        .OrderBy(product =&gt; product.ProductID).Skip(() =&gt; skip).Take(() =&gt; take);
+    skipTakeWithClosure2.Load();
+}</span></pre>
+<p>These LINQ queries have MemberExpression nodes again. EF can convert them to identical parameterized database expression trees. Now their translations can be reused for each other.</p>
+</blockquote>
+<h2>SQL query plan cache</h2>
+<p>LINQ queries with different constants are translated to different SQL queries. Above queryWithConstant1 and queryWithConstant2 are translated to:</p>
+<pre class="code"><span style="color: blue;">SELECT </span><span style="color: black;">[product]</span><span style="color: gray;">.</span><span style="color: black;">[ProductID]</span><span style="color: gray;">, </span><span style="color: black;">[product]</span><span style="color: gray;">.</span><span style="color: black;">[ListPrice]</span><span style="color: gray;">, </span><span style="color: black;">[product]</span><span style="color: gray;">.</span><span style="color: black;">[Name]</span><span style="color: gray;">, </span><span style="color: black;">[product]</span><span style="color: gray;">.</span><span style="color: black;">[ProductSubcategoryID]</span><span style="color: gray;">, </span><span style="color: black;">[product]</span><span style="color: gray;">.</span><span style="color: black;">[RowVersion]
+</span><span style="color: blue;">FROM </span><span style="color: black;">[Production]</span><span style="color: gray;">.</span><span style="color: black;">[Product] </span><span style="color: blue;">AS </span><span style="color: black;">[product]
+</span><span style="color: blue;">WHERE </span><span style="color: magenta;">LEN</span><span style="color: gray;">(</span><span style="color: black;">[product]</span><span style="color: gray;">.</span><span style="color: black;">[Name]</span><span style="color: gray;">) &gt;= </span><span style="color: black;">1
+
+</span><span style="color: blue;">SELECT </span><span style="color: black;">[product]</span><span style="color: gray;">.</span><span style="color: black;">[ProductID]</span><span style="color: gray;">, </span><span style="color: black;">[product]</span><span style="color: gray;">.</span><span style="color: black;">[ListPrice]</span><span style="color: gray;">, </span><span style="color: black;">[product]</span><span style="color: gray;">.</span><span style="color: black;">[Name]</span><span style="color: gray;">, </span><span style="color: black;">[product]</span><span style="color: gray;">.</span><span style="color: black;">[ProductSubcategoryID]</span><span style="color: gray;">, </span><span style="color: black;">[product]</span><span style="color: gray;">.</span><span style="color: black;">[RowVersion]
+</span><span style="color: blue;">FROM </span><span style="color: black;">[Production]</span><span style="color: gray;">.</span><span style="color: black;">[Product] </span><span style="color: blue;">AS </span><span style="color: black;">[product]
+</span><span style="color: blue;">WHERE </span><span style="color: magenta;">LEN</span><span style="color: gray;">(</span><span style="color: black;">[product]</span><span style="color: gray;">.</span><span style="color: black;">[Name]</span><span style="color: gray;">) &gt;= </span><span style="color: black;">10</span></pre>
+<p>Apparently they have different query plans in SQL database, which cannot be reused for each other:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Entity-Framework-and-LINQ-to-Entities-9-_9F66/image_8.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Entity-Framework-and-LINQ-to-Entities-9-_9F66/image_thumb_3.png" width="713" height="432" border="0"></a></p>
+<p>With parameterization, queryWithClosure1 and queryWithClosure2 are translated to identical SQL queries, with different parameter values:</p>
+<pre class="code"><span style="color: blue;">exec </span><span style="color: maroon;">sp_executesql </span><span style="color: red;">N'SELECT [product].[ProductID], [product].[ListPrice], [product].[Name], [product].[ProductSubcategoryID], [product].[RowVersion]
+FROM [Production].[Product] AS [product]
+WHERE LEN([product].[Name]) &gt;= @__minLength_0'</span><span style="color: gray;">,</span><span style="color: red;">N'@__minLength_0 int'</span><span style="color: gray;">,</span><span style="color: black;">@__minLength_0</span><span style="color: gray;">=</span><span style="color: black;">1
+
+</span><span style="color: blue;">exec </span><span style="color: maroon;">sp_executesql </span><span style="color: red;">N'SELECT [product].[ProductID], [product].[ListPrice], [product].[Name], [product].[ProductSubcategoryID], [product].[RowVersion]
+FROM [Production].[Product] AS [product]
+WHERE LEN([product].[Name]) &gt;= @__minLength_0'</span><span style="color: gray;">,</span><span style="color: red;">N'@__minLength_0 int'</span><span style="color: gray;">,</span><span style="color: black;">@__minLength_0</span><span style="color: gray;">=</span><span style="color: black;">10</span></pre>
+<p>So in SQL database, queryWithClosure1’s query plan is cached and reused for queryWithClosure2:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Entity-Framework-and-LINQ-to-Entities-9-_9F66/image_6.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Entity-Framework-and-LINQ-to-Entities-9-_9F66/image_thumb_2.png" width="713" height="432" border="0"></a></p>
+<h1>Asynchrony</h1>
+<p>Generally, for long running I/O bound operation,&nbsp; asynchrony can improve the application responsiveness and service scalability. EF/Core support asynchrony for database CRUD operations, and these async APIs are very easy to use with C# async/await keywords. Please notice this does not mean all the synchronous API calls must be replaced by asynchronous API calls, the application must be tested to identify which API has better performance.</p>
+<h2>Asynchronous data queries and data changes</h2>
+<p>For LINQ to Entities queries, EF/Core start to read the data when values are pulled from IQueryable&lt;T&gt; data source, for example:</p>
+<ul>
+<li>Pull the values from the query represented by IQueryable&lt;T&gt;.</li>
+<li>Call a query method to return a single value from the IQueryable&lt;T&gt;, like First, etc..</li>
+<li>Call a LINQ to Objects query method to return a new collection, like ToArray, etc..</li>
+</ul>
+<p>For these operations and APIs, async parities are provided as IQueryable&lt;T&gt; extension methods. In EF Core, these async query APIs are also provided as extension methods in Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions:</p>
+<ul>
+<li>async iteration method: ForEachAsync asynchronously pulls each value from IQueryable&lt;T&gt; data source and call the specified function.</li>
+<li>async methods to return a single value:</li>
+<ul>
+<li>Element: FirstAsync, FirstOrDefaultAsync, LastAsync, LastOrDefaultAsync, SingleAsync, SingleOrDefaultAsync</li>
+<li>Aggregation: CountAsync, LongCountAsync, MinAsync, MaxAsync, SumAsync, AverageAsync</li>
+<li>Quantifier: AllAsync, AnyAsync, ContainsAsync</li>
+</ul>
+<li>async methods to return a new collection: ToArrayAsync, ToDictionaryAsync, ToListAsync</li>
+</ul>
+<blockquote>
+<p>In EF, these methods are provided in System.Data.Entity.QueryableExtensions, and LastAsync, LastOrDefaultAsync are not provided, since EF does not support Last, LastOrDefault.</p>
+</blockquote>
+<p>For data changes, DbContext.SaveChangesAsync is provided as a parity of DbContext.SaveChanges. For example:</p>
+<pre class="code"><span style="color: blue;">internal static async </span><span style="color: #2b91af;">Task </span><span style="color: black;">Async(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">&gt; categories = adventureWorks.ProductCategories;
+    </span><span style="color: blue;">await </span><span style="color: black;">categories.ForEachAsync( </span><span style="color: green;">// Async version of foreach/ForEach.
+        </span><span style="color: black;">category =&gt; category.Name.WriteLine());
+
+    </span><span style="color: #2b91af;">ProductSubcategory </span><span style="color: black;">subcategory = </span><span style="color: blue;">await </span><span style="color: black;">adventureWorks.ProductSubcategories
+        .FirstAsync(entity =&gt; entity.Name.Contains(</span><span style="color: #a31515;">"Bike"</span><span style="color: black;">)); </span><span style="color: green;">// Async version of First.
+    </span><span style="color: black;">subcategory.Name.WriteLine();
+
+    </span><span style="color: #2b91af;">Product</span><span style="color: black;">[] products = </span><span style="color: blue;">await </span><span style="color: black;">adventureWorks.Products
+        .Where(product =&gt; product.ListPrice &lt;= 10)
+        .ToArrayAsync(); </span><span style="color: green;">// Async version of ToArray.
+
+    </span><span style="color: black;">adventureWorks.Products.RemoveRange(products);
+    (</span><span style="color: blue;">await </span><span style="color: black;">adventureWorks.SaveChangesAsync()).WriteLine(); </span><span style="color: green;">// Async version of SaveChanges.
+</span><span style="color: black;">}</span></pre>
+<h2>Transactions and connection resiliency with asynchronous operations</h2>
+<p>These async APIs work in EF/Core transaction. In this tutorial, connection resiliency is enabled because cloud SQL database is used, so call the retry strategy’s ExecuteAsync method:</p>
+<pre class="code"><span style="color: blue;">internal static async </span><span style="color: #2b91af;">Task </span><span style="color: black;">DbContextTransactionAsync(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: blue;">await </span><span style="color: black;">adventureWorks.Database.CreateExecutionStrategy().ExecuteAsync(</span><span style="color: blue;">async </span><span style="color: black;">() =&gt;
+    {
+</span><span style="color: gray;">#if </span><span style="color: black;">EF
+        </span><span style="color: gray;">using (IDbContextTransaction transaction = adventureWorks.Database.BeginTransaction(
+#else
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IDbContextTransaction </span><span style="color: black;">transaction = </span><span style="color: blue;">await </span><span style="color: black;">adventureWorks.Database.BeginTransactionAsync(
+</span><span style="color: gray;">#endif
+            </span><span style="color: #2b91af;">IsolationLevel</span><span style="color: black;">.ReadUncommitted))
+        {
+            </span><span style="color: blue;">try
+            </span><span style="color: black;">{
+                adventureWorks.CurrentIsolationLevel().WriteLine(); </span><span style="color: green;">// ReadUncommitted
+
+                </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">category = </span><span style="color: blue;">new </span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">() { Name = </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">) };
+</span><span style="color: gray;">#if </span><span style="color: black;">EF
+                </span><span style="color: gray;">adventureWorks.ProductCategories.Add(category);
+#else
+                </span><span style="color: blue;">await </span><span style="color: black;">adventureWorks.ProductCategories.AddAsync(category);
+</span><span style="color: gray;">#endif
+                </span><span style="color: black;">(</span><span style="color: blue;">await </span><span style="color: black;">adventureWorks.SaveChangesAsync()).WriteLine(); </span><span style="color: green;">// 1
+
+                </span><span style="color: blue;">await </span><span style="color: black;">adventureWorks.Database.ExecuteSqlCommandAsync(
+                    sql: </span><span style="color: #a31515;">"DELETE FROM [Production].[ProductCategory] WHERE [Name] = {0}"</span><span style="color: black;">,
+                    parameters: </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">)).WriteLine(); </span><span style="color: green;">// 1
+                </span><span style="color: black;">transaction.Commit();
+            }
+            </span><span style="color: blue;">catch
+            </span><span style="color: black;">{
+                transaction.Rollback();
+                </span><span style="color: blue;">throw</span><span style="color: black;">;
+            }
+        }
+    });
+}</span></pre>
+<p>These async APIs also work in ADO.NET transaction:</p>
+<pre class="code"><span style="color: blue;">internal static async </span><span style="color: #2b91af;">Task </span><span style="color: black;">DbTransactionAsync()
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">SqlConnection </span><span style="color: black;">connection = </span><span style="color: blue;">new </span><span style="color: #2b91af;">SqlConnection</span><span style="color: black;">(</span><span style="color: #2b91af;">ConnectionStrings</span><span style="color: black;">.AdventureWorks))
+    {
+        </span><span style="color: blue;">await </span><span style="color: black;">connection.OpenAsync();
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">DbTransaction </span><span style="color: black;">transaction = connection.BeginTransaction(</span><span style="color: #2b91af;">IsolationLevel</span><span style="color: black;">.Serializable))
+        {
+            </span><span style="color: blue;">try
+            </span><span style="color: black;">{
+                </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">(connection))
+                {
+                    </span><span style="color: blue;">await </span><span style="color: black;">adventureWorks.Database.CreateExecutionStrategy().ExecuteAsync(</span><span style="color: blue;">async </span><span style="color: black;">() =&gt;
+                    {
+                        adventureWorks.Database.UseTransaction(transaction);
+                        adventureWorks.CurrentIsolationLevel().WriteLine(); </span><span style="color: green;">// Serializable
+
+                        </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">category = </span><span style="color: blue;">new </span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">() { Name = </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">) };
+</span><span style="color: gray;">#if </span><span style="color: black;">EF
+                        </span><span style="color: gray;">adventureWorks.ProductCategories.Add(category);
+#else
+                        </span><span style="color: blue;">await </span><span style="color: black;">adventureWorks.ProductCategories.AddAsync(category);
+</span><span style="color: gray;">#endif
+                        </span><span style="color: black;">(</span><span style="color: blue;">await </span><span style="color: black;">adventureWorks.SaveChangesAsync()).WriteLine(); </span><span style="color: green;">// 1.
+                    </span><span style="color: black;">});
+                }
+
+                </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">DbCommand </span><span style="color: black;">command = connection.CreateCommand())
+                {
+                    command.CommandText = </span><span style="color: #a31515;">"DELETE FROM [Production].[ProductCategory] WHERE [Name] = @p0"</span><span style="color: black;">;
+                    </span><span style="color: #2b91af;">DbParameter </span><span style="color: black;">parameter = command.CreateParameter();
+                    parameter.ParameterName = </span><span style="color: #a31515;">"@p0"</span><span style="color: black;">;
+                    parameter.Value = </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">);
+                    command.Parameters.Add(parameter);
+                    command.Transaction = transaction;
+                    (</span><span style="color: blue;">await </span><span style="color: black;">command.ExecuteNonQueryAsync()).WriteLine(); </span><span style="color: green;">// 1
+                </span><span style="color: black;">}
+                transaction.Commit();
+            }
+            </span><span style="color: blue;">catch
+            </span><span style="color: black;">{
+                transaction.Rollback();
+                </span><span style="color: blue;">throw</span><span style="color: black;">;
+            }
+        }
+    }
+}</span></pre>
+<p>TransactionScope by default does not support across thread transaction flow. Using the the async/await syntactic sugar for TransactionScope causes InvalidOperationException: A TransactionScope must be disposed on the same thread that it was created.. To resolved this, Since .NET 4.5.1, a new constructor for TransactionScope is provided to explicitly enable transaction flow across thread continuations:</p>
+<pre class="code"><span style="color: blue;">internal static async </span><span style="color: #2b91af;">Task </span><span style="color: black;">TransactionScopeAsync()
+{
+    </span><span style="color: blue;">await new </span><span style="color: #2b91af;">ExecutionStrategy</span><span style="color: black;">().ExecuteAsync(</span><span style="color: blue;">async </span><span style="color: black;">() =&gt;
+    {
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">TransactionScope </span><span style="color: black;">scope = </span><span style="color: blue;">new </span><span style="color: #2b91af;">TransactionScope</span><span style="color: black;">(
+            scopeOption: </span><span style="color: #2b91af;">TransactionScopeOption</span><span style="color: black;">.Required,
+            transactionOptions: </span><span style="color: blue;">new </span><span style="color: #2b91af;">TransactionOptions</span><span style="color: black;">()
+            {
+                IsolationLevel = System.Transactions.</span><span style="color: #2b91af;">IsolationLevel</span><span style="color: black;">.RepeatableRead
+            },
+            asyncFlowOption: </span><span style="color: #2b91af;">TransactionScopeAsyncFlowOption</span><span style="color: black;">.Enabled))
+        {
+            </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">DbConnection </span><span style="color: black;">connection = </span><span style="color: blue;">new </span><span style="color: #2b91af;">SqlConnection</span><span style="color: black;">(</span><span style="color: #2b91af;">ConnectionStrings</span><span style="color: black;">.AdventureWorks))
+            </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">DbCommand </span><span style="color: black;">command = connection.CreateCommand())
+            {
+                command.CommandText = </span><span style="color: #2b91af;">DbContextExtensions</span><span style="color: black;">.CurrentIsolationLevelSql;
+                </span><span style="color: blue;">await </span><span style="color: black;">connection.OpenAsync();
+                </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">DbDataReader </span><span style="color: black;">reader = </span><span style="color: blue;">await </span><span style="color: black;">command.ExecuteReaderAsync())
+                {
+                    </span><span style="color: blue;">await </span><span style="color: black;">reader.ReadAsync();
+                    reader[0].WriteLine(); </span><span style="color: green;">// RepeatableRead
+                </span><span style="color: black;">}
+            }
+
+            </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+            {
+                </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">category = </span><span style="color: blue;">new </span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">() { Name = </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">) };
+                adventureWorks.ProductCategories.Add(category);
+                (</span><span style="color: blue;">await </span><span style="color: black;">adventureWorks.SaveChangesAsync()).WriteLine(); </span><span style="color: green;">// 1
+            </span><span style="color: black;">}
+
+            </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+            {
+                adventureWorks.CurrentIsolationLevel().WriteLine(); </span><span style="color: green;">// RepeatableRead
+            </span><span style="color: black;">}
+
+            </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">DbConnection </span><span style="color: black;">connection = </span><span style="color: blue;">new </span><span style="color: #2b91af;">SqlConnection</span><span style="color: black;">(</span><span style="color: #2b91af;">ConnectionStrings</span><span style="color: black;">.AdventureWorks))
+            </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">DbCommand </span><span style="color: black;">command = connection.CreateCommand())
+            {
+                command.CommandText = </span><span style="color: #a31515;">"DELETE FROM [Production].[ProductCategory] WHERE [Name] = @p0"</span><span style="color: black;">;
+                </span><span style="color: #2b91af;">DbParameter </span><span style="color: black;">parameter = command.CreateParameter();
+                parameter.ParameterName = </span><span style="color: #a31515;">"@p0"</span><span style="color: black;">;
+                parameter.Value = </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">);
+                command.Parameters.Add(parameter);
+
+                </span><span style="color: blue;">await </span><span style="color: black;">connection.OpenAsync();
+                (</span><span style="color: blue;">await </span><span style="color: black;">command.ExecuteNonQueryAsync()).WriteLine(); </span><span style="color: green;">// 1
+            </span><span style="color: black;">}
+
+            scope.Complete();
+        }
+    });
+}</span></pre>
+<h2>Asynchronous concurrent conflicts</h2>
+<p>EF/Core also provide async APIs for other database operations. In the previous concurrency part, a DbContext.SaveChanges overload is implemented to handle concurrency conflict, refresh entity, and retry saving changes. Here a async version can be implemented easily:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">DbContextExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static async </span><span style="color: #2b91af;">Task</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; SaveChangesAsync(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">DbContext </span><span style="color: black;">context, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">EntityEntry</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Task</span><span style="color: black;">&gt; resolveConflictsAsync, </span><span style="color: blue;">int </span><span style="color: black;">retryCount = 3)
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(retryCount &lt;= 0)
+        {
+            </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(retryCount)</span><span style="color: black;">);
+        }
+
+        </span><span style="color: blue;">for </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">retry = 1; retry &lt; retryCount; retry++)
+        {
+            </span><span style="color: blue;">try
+            </span><span style="color: black;">{
+                </span><span style="color: blue;">return await </span><span style="color: black;">context.SaveChangesAsync();
+            }
+            </span><span style="color: blue;">catch </span><span style="color: black;">(</span><span style="color: #2b91af;">DbUpdateConcurrencyException </span><span style="color: black;">exception) </span><span style="color: blue;">when </span><span style="color: black;">(retry &lt; retryCount)
+            {
+                </span><span style="color: blue;">await </span><span style="color: black;">resolveConflictsAsync(exception.Entries);
+            }
+        }
+        </span><span style="color: blue;">return await </span><span style="color: black;">context.SaveChangesAsync();
+    }
+
+    </span><span style="color: blue;">public static async </span><span style="color: #2b91af;">Task</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; SaveChangesAsync(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">DbContext </span><span style="color: black;">context, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">EntityEntry</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Task</span><span style="color: black;">&gt; resolveConflictsAsync, </span><span style="color: #2b91af;">RetryStrategy </span><span style="color: black;">retryStrategy)
+    {
+        </span><span style="color: #2b91af;">RetryPolicy </span><span style="color: black;">retryPolicy = </span><span style="color: blue;">new </span><span style="color: #2b91af;">RetryPolicy</span><span style="color: black;">(
+            </span><span style="color: blue;">new </span><span style="color: #2b91af;">TransientDetection</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">DbUpdateConcurrencyException</span><span style="color: black;">&gt;(), retryStrategy);
+        retryPolicy.Retrying += (sender, e) =&gt;
+            resolveConflictsAsync(((</span><span style="color: #2b91af;">DbUpdateConcurrencyException</span><span style="color: black;">)e.LastException).Entries).Wait();
+        </span><span style="color: blue;">return await </span><span style="color: black;">retryPolicy.ExecuteAsync(</span><span style="color: blue;">async </span><span style="color: black;">() =&gt; </span><span style="color: blue;">await </span><span style="color: black;">context.SaveChangesAsync());
+    }
+}</span></pre>
+<p>With the async/await syntactic sugar, the implementation looks very similar to the synchronous version. The following are the SaveChangesAsync overloads to accept RefreshConflict enumeration:</p>
+<pre class="code"><span style="color: blue;">public static async </span><span style="color: #2b91af;">Task</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; SaveChangesAsync(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">DbContext </span><span style="color: black;">context, </span><span style="color: #2b91af;">RefreshConflict </span><span style="color: black;">refreshMode, </span><span style="color: blue;">int </span><span style="color: black;">retryCount = 3)
+{
+    </span><span style="color: blue;">if </span><span style="color: black;">(retryCount &lt;= 0)
+    {
+        </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(retryCount)</span><span style="color: black;">);
+    }
+
+    </span><span style="color: blue;">return await </span><span style="color: black;">context.SaveChangesAsync(
+        </span><span style="color: blue;">async </span><span style="color: black;">conflicts =&gt; </span><span style="color: blue;">await </span><span style="color: #2b91af;">Task</span><span style="color: black;">.WhenAll(conflicts.Select(</span><span style="color: blue;">async </span><span style="color: black;">tracking =&gt;
+            </span><span style="color: blue;">await </span><span style="color: black;">tracking.RefreshAsync(refreshMode))),
+        retryCount);
+}
+
+</span><span style="color: blue;">public static async </span><span style="color: #2b91af;">Task</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; SaveChangesAsync(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">DbContext </span><span style="color: black;">context, </span><span style="color: #2b91af;">RefreshConflict </span><span style="color: black;">refreshMode, </span><span style="color: #2b91af;">RetryStrategy </span><span style="color: black;">retryStrategy) =&gt;
+        </span><span style="color: blue;">await </span><span style="color: black;">context.SaveChangesAsync(
+            </span><span style="color: blue;">async </span><span style="color: black;">conflicts =&gt; </span><span style="color: blue;">await </span><span style="color: #2b91af;">Task</span><span style="color: black;">.WhenAll(conflicts.Select(</span><span style="color: blue;">async </span><span style="color: black;">tracking =&gt;
+                </span><span style="color: blue;">await </span><span style="color: black;">tracking.RefreshAsync(refreshMode))),
+            retryStrategy);</span></pre>
+<p>Instead of calling the previously defined Refresh extension method to refresh the DbEntityEntry instance, here a async method RefreshAsync is called to refresh asynchronously:</p>
+<pre class="code"><span style="color: blue;">public static async </span><span style="color: #2b91af;">Task</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">EntityEntry</span><span style="color: black;">&gt; RefreshAsync(</span><span style="color: blue;">this </span><span style="color: #2b91af;">EntityEntry </span><span style="color: black;">tracking, </span><span style="color: #2b91af;">RefreshConflict </span><span style="color: black;">refreshMode)
+{
+    </span><span style="color: blue;">switch </span><span style="color: black;">(refreshMode)
+    {
+        </span><span style="color: blue;">case </span><span style="color: #2b91af;">RefreshConflict</span><span style="color: black;">.StoreWins:
+        {
+            </span><span style="color: blue;">await </span><span style="color: black;">tracking.ReloadAsync();
+            </span><span style="color: blue;">break</span><span style="color: black;">;
+        }
+        </span><span style="color: blue;">case </span><span style="color: #2b91af;">RefreshConflict</span><span style="color: black;">.ClientWins:
+        {
+            </span><span style="color: #2b91af;">PropertyValues </span><span style="color: black;">databaseValues = </span><span style="color: blue;">await </span><span style="color: black;">tracking.GetDatabaseValuesAsync();
+            </span><span style="color: blue;">if </span><span style="color: black;">(databaseValues == </span><span style="color: blue;">null</span><span style="color: black;">)
+            {
+                tracking.State = </span><span style="color: #2b91af;">EntityState</span><span style="color: black;">.Detached;
+            }
+            </span><span style="color: blue;">else
+            </span><span style="color: black;">{
+                tracking.OriginalValues.SetValues(databaseValues);
+            }
+            </span><span style="color: blue;">break</span><span style="color: black;">;
+        }
+        </span><span style="color: blue;">case </span><span style="color: #2b91af;">RefreshConflict</span><span style="color: black;">.MergeClientAndStore:
+        {
+            </span><span style="color: #2b91af;">PropertyValues </span><span style="color: black;">databaseValues = </span><span style="color: blue;">await </span><span style="color: black;">tracking.GetDatabaseValuesAsync();
+            </span><span style="color: blue;">if </span><span style="color: black;">(databaseValues == </span><span style="color: blue;">null</span><span style="color: black;">)
+            {
+                tracking.State = </span><span style="color: #2b91af;">EntityState</span><span style="color: black;">.Detached;
+            }
+            </span><span style="color: blue;">else
+            </span><span style="color: black;">{
+                </span><span style="color: #2b91af;">PropertyValues </span><span style="color: black;">originalValues = tracking.OriginalValues.Clone();</span><span style="color: gray;">
+                </span><span style="color: black;">tracking.OriginalValues.SetValues(databaseValues);
+</span><span style="color: gray;">#if </span><span style="color: black;">EF
+                databaseValues.PropertyNames
+                    .Where(property =&gt; !</span><span style="color: blue;">object</span><span style="color: black;">.Equals(originalValues[property], databaseValues[property]))
+                    .ForEach(property =&gt; tracking.Property(property).IsModified = </span><span style="color: blue;">false</span><span style="color: black;">);
+</span><span style="color: gray;">#else
+                databaseValues.Properties
+                    .Where(property =&gt; !object.Equals(originalValues[property.Name], databaseValues[property.Name]))
+                    .ForEach(property =&gt; tracking.Property(property.Name).IsModified = false);
+#endif
+            </span><span style="color: black;">}
+            </span><span style="color: blue;">break</span><span style="color: black;">;
+        }
+    }
+    </span><span style="color: blue;">return </span><span style="color: black;">tracking;
+}</span></pre>
+<p>Now concurrency conflict can be resolved automatically and asynchronously:</p>
+<pre class="code"><span style="color: blue;">internal static async </span><span style="color: #2b91af;">Task </span><span style="color: black;">SaveChangesAsync()
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks1 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks2 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+    {
+        </span><span style="color: blue;">int </span><span style="color: black;">id = 950;
+        </span><span style="color: #2b91af;">Product </span><span style="color: black;">productCopy1 = </span><span style="color: blue;">await </span><span style="color: black;">adventureWorks1.Products.FindAsync(id);
+        </span><span style="color: #2b91af;">Product </span><span style="color: black;">productCopy2 = </span><span style="color: blue;">await </span><span style="color: black;">adventureWorks2.Products.FindAsync(id);
+
+        productCopy1.Name = </span><span style="color: blue;">nameof</span><span style="color: black;">(productCopy1);
+        productCopy1.ListPrice = 100;
+        (</span><span style="color: blue;">await </span><span style="color: black;">adventureWorks1.SaveChangesAsync()).WriteLine(); </span><span style="color: green;">// 1
+
+        </span><span style="color: black;">productCopy2.Name = </span><span style="color: blue;">nameof</span><span style="color: black;">(productCopy2);
+        productCopy2.ProductSubcategoryID = 1;
+        (</span><span style="color: blue;">await </span><span style="color: black;">adventureWorks2.SaveChangesAsync(</span><span style="color: #2b91af;">RefreshConflict</span><span style="color: black;">.MergeClientAndStore)).WriteLine(); </span><span style="color: green;">// 1
+    </span><span style="color: black;">}
+}</span></pre>
+<p><audio style="display: none;" controls="controls"></audio></p>
+
+
+</div>
+</body>
+</html>

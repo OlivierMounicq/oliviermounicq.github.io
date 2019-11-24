@@ -1,0 +1,296 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+<h1>C# Functional Programming In-Depth (6) Anonymous Function and Lambda Expression</h1>
+
+<p>Besides named function represented by method members, C# also supports anonymous functions, represented by anonymous method or lambda expression with no name at design time. This part discussed lambda expression as a functional feature of C# language. In the meanwhile, the general concept of lambda expression is the core of lambda calculus, where functional programming originates. General lambda expression and lambda calculus will be discussed in the Lambda Calculus chapter.</p>
+<h1>Anonymous method</h1>
+<p>As fore mentioned, a function can be initialized from a named method:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Functions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static bool </span><span style="color: black;">IsPositive(</span><span style="color: blue;">int </span><span style="color: black;">int32)
+    {
+        </span><span style="color: blue;">return </span><span style="color: black;">int32 &gt; 0;
+    }
+
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">NamedFunction()
+    {
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; isPositive = IsPositive;
+        </span><span style="color: blue;">bool </span><span style="color: black;">result = isPositive(0);
+    }
+}</span></pre>
+<p>C# 2.0 introduces a syntactic sugar called anonymous method, enabling methods to be defined inline with the delegate keyword. The above named method can be inline as:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">AnonymousFunction()
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; isPositive = </span><span style="color: blue;">delegate </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">int32)
+    {
+        </span><span style="color: blue;">return </span><span style="color: black;">int32 &gt; 0;
+    };
+    </span><span style="color: blue;">bool </span><span style="color: black;">result = isPositive(0);
+}</span></pre>
+<p>There is no named method defined at design time. At compile time, compiler generates a normal named method. So the compilation is equivalent to the following:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">CompiledFunctions
+</span><span style="color: black;">{
+    [</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
+    </span><span style="color: blue;">private static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; cachedIsPositive;
+
+    [</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
+    </span><span style="color: blue;">private static bool </span><span style="color: black;">IsPositive(</span><span style="color: blue;">int </span><span style="color: black;">int32)
+    {
+        </span><span style="color: blue;">return </span><span style="color: black;">int32 &gt; 0;
+    }
+
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">AnonymousFunction()
+    {
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; isPositive;
+        </span><span style="color: blue;">if </span><span style="color: black;">(cachedIsPositive == </span><span style="color: blue;">null</span><span style="color: black;">)
+        {
+            cachedIsPositive = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;(IsPositive);
+        }
+        isPositive = cachedIsPositive;
+        </span><span style="color: blue;">bool </span><span style="color: black;">result = isPositive.Invoke(0);
+    }
+}</span></pre>
+<p>Besides named methods, C# compiler also generates a cache field for performance. When AnonymousMethod is called for the first time, the delegate instance is constructed, and stored in the cache filed. when AnonymousMethod is called again, the cache field is used and delegate instantiation does not execute again.</p>
+<h1>Lambda expression</h1>
+<p>C# 3.0 introduces lambda expression syntactic sugar, so above anonymous method can be simplified as:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Lambda()
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; isPositive = (</span><span style="color: blue;">int </span><span style="color: black;">int32) =&gt;
+    {
+        </span><span style="color: blue;">return </span><span style="color: black;">int32 &gt; 0;
+    };
+    </span><span style="color: blue;">bool </span><span style="color: black;">result = isPositive(0);
+}</span></pre>
+<p>Its compilation is identical to above anonymous method with delegate keyword. The =&gt; operator is called lambda operator and reads “go to”. Lambda expression can be further shortened:</p>
+<ul>
+<li>if the type of parameter can be inferred (for example, from the function type), the type declaration of parameter can be omitted. In above example, the lambda expression’s parameter type can be inferred to be int from function type int –&gt; bool (Func&lt;int, bool&gt; delegate type).</li>
+<li>if lambda expression has one parameter, the parentheses for the parameter can be omitted.</li>
+<li>if the body of the lambda expression has only one statement, the expression body syntactic sugar applies, the curly brackets for the body and return keyword can be omitted,</li>
+</ul>
+<p>Lambda expression with expression body are called expression lambda, for example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ExpressionLambda()
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; add = (int32A, int32B) =&gt; int32A + int32B;
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; isPositive = int32 =&gt; int32 &gt; 0;
+    </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; traceLine = int32 =&gt; </span><span style="color: black;">int32.WriteLine();
+}</span></pre>
+<p>When a lambda expression having more than one statements in the body, its body has to be a block with curly brackets. It is called statement lambda:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">StatementLambda()
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; add = (int32A, int32B) =&gt;
+    {
+        </span><span style="color: blue;">int </span><span style="color: black;">sum = int32A + int32B;
+        </span><span style="color: blue;">return </span><span style="color: black;">sum;
+    };
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; isPositive = int32 =&gt;
+    {
+        </span><span style="color: black;">int32.WriteLine();
+        </span><span style="color: blue;">return </span><span style="color: black;">int32 &gt; 0;
+    };
+    </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; traceLine = int32 =&gt;
+    {
+        </span><span style="color: black;">int32.WriteLine();
+        </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.Flush();
+    };
+}</span></pre>
+<p>Lambda expression (both expression lambda and statement lambda) can also be used with the constructor call syntax of delegate, or type conversion syntax:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ConstructorCall()
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; add = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;((int32A, int32B) =&gt; int32A + int32B);
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; isPositive = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;(int32 =&gt;
+    {
+        </span><span style="color: black;">int32.WriteLine();
+        </span><span style="color: blue;">return </span><span style="color: black;">int32 &gt; 0;
+    });
+}
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">TypeConversion()
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; add = (</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;)((int32A, int32B) =&gt; int32A + int32B));
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; isPositive = (</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;)(int32 =&gt;
+    {
+        </span><span style="color: black;">int32.WriteLine();
+        </span><span style="color: blue;">return </span><span style="color: black;">int32 &gt; 0;
+    });
+}</span></pre>
+<h1>Call anonymous function</h1>
+<p>An anonymous function is not required to be assigned to a function variable. It can be used (called) directly. Unfortunately, the following syntax does not work in C#:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CallLambdaExpression()
+{
+    (int32 =&gt; int32 &gt; 0)(1); </span><span style="color: green;">// Define an expression lambda and call.
+</span><span style="color: black;">}</span></pre>
+<p>The above code cannot be compiled because C# compiler cannot infer any type for the lambda expression. For this kind of IIFE (<a href="https://en.wikipedia.org/wiki/Immediately-invoked_function_expression">immediately-invoked function expression</a>), the above constructor call syntax, or type conversion syntax can be used to provide type information to compiler:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CallLambdaExpressionWithConstructor()
+{
+    </span><span style="color: blue;">bool </span><span style="color: black;">result = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;(int32 =&gt; int32 &gt; 0)(1);
+}
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">CallLambdaExpressionWithTypeConversion()
+{
+    </span><span style="color: blue;">bool </span><span style="color: black;">result = ((</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;)(int32 =&gt; int32 &gt; 0))(1);
+}</span></pre>
+<p>Here no function name or named function is involved at design time. At compile time, C# compiler generates identical code for the above 2 syntaxes:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">CompiledFunctions
+</span><span style="color: black;">{
+    [</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
+    [</span><span style="color: #2b91af;">Serializable</span><span style="color: black;">]
+    </span><span style="color: blue;">private sealed class </span><span style="color: #2b91af;">Container
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Container </span><span style="color: black;">Singleton = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Container</span><span style="color: black;">();
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; cachedIsPositive;
+
+        </span><span style="color: blue;">internal bool </span><span style="color: black;">IsPositive(</span><span style="color: blue;">int </span><span style="color: black;">int32)
+        {
+            </span><span style="color: blue;">return </span><span style="color: black;">int32 &gt; 0;
+        }
+    }
+
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">CallLambdaExpressionWithConstructor()
+    {
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; isPositive;
+        </span><span style="color: blue;">if </span><span style="color: black;">(</span><span style="color: #2b91af;">Container</span><span style="color: black;">.cachedIsPositive == </span><span style="color: blue;">null</span><span style="color: black;">)
+        {
+            </span><span style="color: #2b91af;">Container</span><span style="color: black;">.cachedIsPositive = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Container</span><span style="color: black;">.Singleton.IsPositive);
+        }
+        isPositive = </span><span style="color: #2b91af;">Container</span><span style="color: black;">.cachedIsPositive;
+        </span><span style="color: blue;">bool </span><span style="color: black;">result = isPositive.Invoke(1);
+    }
+}</span></pre>
+<p>Here are more examples:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CallAnonymousFunction()
+{
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;((int32A, int32B) =&gt; int32A + int32B)(1, 2);
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(int32 =&gt; </span><span style="color: black;">int32.WriteLine())(1);
+
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;((int32A, int32B) =&gt;
+    {
+        </span><span style="color: blue;">int </span><span style="color: black;">sum = int32A + int32B;
+        </span><span style="color: blue;">return </span><span style="color: black;">sum;
+    })(1, 2);
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;(int32 =&gt;
+    {
+        </span><span style="color: black;">int32.WriteLine();
+        </span><span style="color: blue;">return </span><span style="color: black;">int32 &gt; 0;
+    })(1);
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(int32 =&gt;
+    {
+        </span><span style="color: black;">int32.WriteLine();
+        </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.Flush();
+    })(1);
+}</span></pre>
+<p>Some other functional languages support the IIFE syntax without type information. For example, F# compiler can infer the types in the following lambda expression:</p>
+<pre class="code"><span style="color: black;">(</span><span style="color: blue;">fun </span><span style="color: black;">value </span><span style="color: blue;">-&gt; </span><span style="color: black;">value &gt; 0) 1</span></pre>
+<p>Regarding value is compared with int value 1 with the &gt; operator, F# infers parameter value is of type int, and also infers return type is bool from the result type of the &gt; operator for int. Similarly, the following lambda expression works in Haskell (named after <a href="http://en.wikipedia.org/wiki/Haskell_Curry" target="_blank">Haskell Curry</a>, mathematician and logician):</p>
+<pre class="code">(\value -&gt; value &gt; 0) 1</pre>
+<p>This can also work In some loosely typed languages, like JavaScript:</p>
+<pre class="code"><span style="color: black;">(value =&gt; value &gt; 0)(1);
+
+(</span><span style="color: blue;">function</span><span style="color: black;">(value) {
+     </span><span style="color: blue;">return </span><span style="color: black;">value &gt; 0;
+})(1);</span></pre>
+<h1>Closure</h1>
+<p>Anonymous function has the same closure capability as local function:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Functions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Closure()
+    {
+        </span><span style="color: blue;">int </span><span style="color: black;">outer = 1; </span><span style="color: green;">// Outside the scope of anonymous function.
+        </span><span style="color: blue;">new </span><span style="color: #2b91af;">Action</span><span style="color: black;">(() =&gt;
+        {
+            </span><span style="color: blue;">int </span><span style="color: black;">local = 2; </span><span style="color: green;">// Inside the scope of anonymous function.
+            </span><span style="color: black;">(local + outer).WriteLine();
+        })();</span><span style="color: green;">
+    </span><span style="color: black;">}
+}</span></pre>
+<p>Its compilation is also similar to local function. The difference is, C# compiler generates display structure for local function, and generates display class for anonymous function. The above code is compiled to:</p>
+<pre class="code"><span style="color: black;">[</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
+</span><span style="color: blue;">private sealed class </span><span style="color: #2b91af;">DisplayClass0
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public int </span><span style="color: black;">Outer;
+
+    </span><span style="color: blue;">internal void </span><span style="color: black;">Add()
+    {
+        </span><span style="color: blue;">int </span><span style="color: black;">local = 2;
+        </span><span style="color: black;">(local + </span><span style="color: blue;">this</span><span style="color: black;">.Outer).WriteLine();
+    }
+}
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">CompiledClosure()
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">outer = 1;
+    </span><span style="color: #2b91af;">DisplayClass0 </span><span style="color: black;">display = </span><span style="color: blue;">new </span><span style="color: #2b91af;">DisplayClass0</span><span style="color: black;">(){ Outer = outer };
+    display.Add(); </span><span style="color: green;">// 3
+</span><span style="color: black;">}</span></pre>
+<p>Just like local function, the closure and display class of anonymous function can introduce the same implicit references. Closure must be used with caution for anonymous function too, to avoid the performance pitfall.</p>
+<h1>Expression bodied function member</h1>
+<p>C# 6.0 and 7.0 introduce expression body syntax, which applies the above lambda syntax to simplify function member’s body to an expression. This syntax works for all named functions, including instance method, static method, extension method, as well as static constructor, constructor, conversion operator, operator overload, property, property getter, property setter, indexer, indexer getter, indexer setter. It also works for local function:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">Data
+</span><span style="color: black;">{
+    </span><span style="color: blue;">private int </span><span style="color: black;">value;
+
+    </span><span style="color: blue;">static </span><span style="color: black;">Data() =&gt; MethodBase.GetCurrentMethod().Name.WriteLine(); </span><span style="color: green;">// Static constructor.
+
+    </span><span style="color: blue;">internal </span><span style="color: black;">Data(</span><span style="color: blue;">int </span><span style="color: black;">value) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.value = value; </span><span style="color: green;">// Constructor.
+
+    </span><span style="color: black;">~Data() =&gt; Trace.WriteLine(MethodBase.GetCurrentMethod().Name);<span style="color: black;"> </span><span style="color: green;">// Finalizer.</span>
+
+    </span><span style="color: blue;">internal bool </span><span style="color: black;">Equals(Data other) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.value == other.value; </span><span style="color: green;">// Instance method.
+
+    </span><span style="color: blue;">internal static bool </span><span style="color: black;">Equals(Data @this, Data other) =&gt; @this.value == other.value; </span><span style="color: green;">// Static method.
+
+    </span><span style="color: blue;">public static </span><span style="color: black;">Data </span><span style="color: blue;">operator </span><span style="color: black;">+(Data data1, Data Data) =&gt; </span><span style="color: blue;">new </span><span style="color: black;">Data(data1.value + Data.value); </span><span style="color: green;">// Operator overload.
+
+    </span><span style="color: blue;">public static explicit operator int</span><span style="color: black;">(Data value) =&gt; value.value; </span><span style="color: green;">// Conversion operator.
+
+    </span><span style="color: blue;">public static implicit operator </span><span style="color: black;">Data(</span><span style="color: blue;">int </span><span style="color: black;">value) =&gt; </span><span style="color: blue;">new </span><span style="color: black;">Data(value); </span><span style="color: green;">// Conversion operator.
+
+    </span><span style="color: blue;">internal int </span><span style="color: black;">ReadOnlyValue =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.value; </span><span style="color: green;">// Property.
+
+    </span><span style="color: blue;">internal int </span><span style="color: black;">ReadWriteValue
+    {
+        </span><span style="color: blue;">get </span><span style="color: black;">=&gt; </span><span style="color: blue;">this</span><span style="color: black;">.value; </span><span style="color: green;">// Property getter.
+        </span><span style="color: blue;">set </span><span style="color: black;">=&gt; </span><span style="color: blue;">this</span><span style="color: black;">.value = value; </span><span style="color: green;">// Property setter.
+    </span><span style="color: black;">}
+
+    </span><span style="color: blue;">internal int this</span><span style="color: black;">[</span><span style="color: blue;">long </span><span style="color: black;">index] =&gt; </span><span style="color: blue;">throw new </span><span style="color: #008dd9;">NotImplementedException</span><span style="color: black;">(); </span><span style="color: green;">// Indexer.
+
+    </span><span style="color: blue;">internal int this</span><span style="color: black;">[</span><span style="color: blue;">int </span><span style="color: black;">index]
+    {
+        </span><span style="color: blue;">get </span><span style="color: black;">=&gt; </span><span style="color: blue;">throw new </span><span style="color: #008dd9;">NotImplementedException</span><span style="color: black;">(); </span><span style="color: green;">// Indexer getter.
+        </span><span style="color: blue;">set </span><span style="color: black;">=&gt; </span><span style="color: blue;">throw new </span><span style="color: #008dd9;">NotImplementedException</span><span style="color: black;">(); </span><span style="color: green;">// Indexer setter.
+    </span><span style="color: black;">}
+
+    </span><span style="color: blue;">internal event </span><span style="color: black;">EventHandler Created
+    {
+        </span><span style="color: blue;">add </span><span style="color: black;">=&gt; Trace.WriteLine(MethodBase.GetCurrentMethod().Name); </span><span style="color: green;">// Event accessor.
+        </span><span style="color: blue;">remove </span><span style="color: black;">=&gt; Trace.WriteLine(MethodBase.GetCurrentMethod().Name); </span><span style="color: green;">// Event accessor.
+    </span><span style="color: black;">}
+
+    </span><span style="color: blue;">internal int </span><span style="color: black;">GetValue()
+    {
+        </span><span style="color: blue;">int </span><span style="color: black;">LocalFunction() =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.value; </span><span style="color: green;">// Local function.
+        </span><span style="color: blue;">return </span><span style="color: black;">LocalFunction();
+    }
+}
+
+</span><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">DataExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static bool </span><span style="color: black;">Equals(Data @this, Data other) =&gt; @this.ReadOnlyValue == other.Value; </span><span style="color: green;">// Extension method.
+</span><span style="color: black;">}</span></pre>
+<p>This syntax works for interface explicit implementation too:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">Data </span><span style="color: black;">: </span><span style="color: #2b91af;">IComparable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Data</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">int </span><span style="color: #2b91af;">IComparable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Data</span><span style="color: black;">&gt;.CompareTo(</span><span style="color: #2b91af;">Data </span><span style="color: black;">other) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.value.CompareTo(other.value); </span><span style="color: green;">// Explicit interface implementation.
+</span><span style="color: black;">}</span></pre>
+<p>The expression body is purely a syntactic sugar, it is compiled the same way as normal block body with curly bracket.</p>
+
+</div>
+</body>
+</html>

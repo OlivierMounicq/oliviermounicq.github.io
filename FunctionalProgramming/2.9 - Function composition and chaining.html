@@ -1,0 +1,349 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+<h1>C# Functional Programming In-Depth (9) Function Composition and Chaining</h1>
+
+<p>In object-oriented programming, objects can be composed to build more complex object. Similarly, in functional programming. functions can be composed to build more complex function.</p>
+<h1>Forward and backward composition</h1>
+<p>It is very common to pass a function’s output to another function as input:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">OutputAsInput()
+{
+    </span><span style="color: blue;">string </span><span style="color: black;">input = </span><span style="color: #a31515;">"-2.0"</span><span style="color: black;">;
+    </span><span style="color: blue;">int </span><span style="color: black;">output1 = </span><span style="color: blue;">int</span><span style="color: black;">.Parse(input); </span><span style="color: green;">// string -&gt; int
+    </span><span style="color: blue;">int </span><span style="color: black;">output2 = </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Abs(output1); </span><span style="color: green;">// int -&gt; int
+    </span><span style="color: blue;">double </span><span style="color: black;">output3 = </span><span style="color: #2b91af;">Convert</span><span style="color: black;">.ToDouble(output2); </span><span style="color: green;">// int -&gt; double
+    </span><span style="color: blue;">double </span><span style="color: black;">output4 = </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(output3); </span><span style="color: green;">// double -&gt; double
+</span><span style="color: black;">}</span></pre>
+<p>So above Abs function and Sqrt function can be combined:</p>
+<pre class="code"><span style="color: green;">// string -&gt; double
+</span><span style="color: blue;">internal static double </span><span style="color: black;">Composition(</span><span style="color: blue;">string </span><span style="color: black;">input) =&gt;
+    </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(</span><span style="color: #2b91af;">Convert</span><span style="color: black;">.ToDouble(</span><span style="color: #2b91af;">Math</span><span style="color: black;">.Abs(</span><span style="color: blue;">int</span><span style="color: black;">.Parse(input))));</span></pre>
+<p>The above function is the composition of int.Parse, Math.Abs Convert.ToDouble, and Math.Sqrt. Its return value is the last function Math.Sqrt’s return value. Generally, a forward composition operator and a backward composition operator can be defined as extension method:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">FuncExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult2</span><span style="color: black;">&gt; After&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult1</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult2</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult1</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult2</span><span style="color: black;">&gt; function2, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult1</span><span style="color: black;">&gt; function1) =&gt;
+            value =&gt; function2(function1(value));
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult2</span><span style="color: black;">&gt; Then&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult1</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult2</span><span style="color: black;">&gt;(<span style="color: black;"> </span><span style="color: green;">// Before.</span>
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult1</span><span style="color: black;">&gt; function1, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult1</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult2</span><span style="color: black;">&gt; function2) =&gt;
+            value =&gt; function2(function1(value));
+}</span></pre>
+<p>The above functions can be composed by calling either After or Then:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Compose()
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; parse = </span><span style="color: blue;">int</span><span style="color: black;">.Parse; </span><span style="color: green;">// string -&gt; int
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; abs = </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Abs; </span><span style="color: green;">// int -&gt; int
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt; convert = </span><span style="color: #2b91af;">Convert</span><span style="color: black;">.ToDouble; </span><span style="color: green;">// int -&gt; double
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt; sqrt = </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt; </span><span style="color: green;">// double -&gt; double
+
+    // string -&gt; double
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt; composition1 = sqrt.After(convert).After(abs).After(parse);
+    composition1(</span><span style="color: #a31515;">"-2.0"</span><span style="color: black;">).WriteLine(); </span><span style="color: green;">// 1.4142135623731
+
+    // string -&gt; double
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt; composition2 = parse.Then(abs).Then(convert).Then(sqrt);
+    composition2(</span><span style="color: #a31515;">"-2.0"</span><span style="color: black;">).WriteLine(); </span><span style="color: green;">// 1.4142135623731
+</span><span style="color: black;">}</span></pre>
+<p>The LINQ query methods, like Where, Skip, Take, cannot be directly composed like this:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Linq
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Enumerable
+    </span><span style="color: black;">{
+        </span><span style="color: green;">// (IEnumerable&lt;TSource&gt;, TSource -&gt; bool) -&gt; IEnumerable&lt;TSource&gt;
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Where&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; predicate);
+
+        </span><span style="color: green;">// (IEnumerable&lt;TSource&gt;, int) -&gt; IEnumerable&lt;TSource&gt;
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Skip&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: blue;">int </span><span style="color: black;">count);
+
+        </span><span style="color: green;">// (IEnumerable&lt;TSource&gt;, int) -&gt; IEnumerable&lt;TSource&gt;
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Take&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: blue;">int </span><span style="color: black;">count);
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>They all return IEnumerable&lt;T&gt;, but they are all 2-arity, so one function cannot be called directly with another function’s output. To compose these functions, they need to be partially applied (called) with the parameter other than IEnumerable&lt;T&gt;, so that they become 1-arity functions, which can be composed. To do this, create the following helper functions:</p>
+<pre class="code"><span style="color: green;">// Func&lt;TSource, bool&gt; -&gt; IEnumerable&lt;TSource&gt; -&gt; IEnumerable&lt;TSource&gt;
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; Where&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; predicate) =&gt; source =&gt; </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Where(source, predicate);
+
+</span><span style="color: green;">// int -&gt; IEnumerable&lt;TSource&gt; -&gt; IEnumerable&lt;TSource&gt;
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; Skip&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">int </span><span style="color: black;">count) =&gt; source =&gt; </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Skip(source, count);
+
+</span><span style="color: green;">// int -&gt; IEnumerable&lt;TSource&gt; -&gt; IEnumerable&lt;TSource&gt;
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; Take&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">int </span><span style="color: black;">count) =&gt; source =&gt; </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Take(source, count);</span></pre>
+<p>They are curried from the original query methods, with the first parameter and second parameter swapped. After being called with a argument, they return IEnumerable&lt;TSource&gt; –&gt; IEnumerable&lt;TSource&gt; functions:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">LinqWithPartialApplication()
+{
+    </span><span style="color: green;">// IEnumerable&lt;TSource&gt; -&gt; IEnumerable&lt;TSource&gt;
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; where = Where&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(int32 =&gt; int32 &gt; 0);
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; skip = Skip&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(1);
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; take = Take&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(2);
+
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; query = take(skip(where(</span><span style="color: blue;">new int</span><span style="color: black;">[] { 4, 3, 2, 1, 0, -1 })));
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">query) </span><span style="color: green;">// Execute query.
+    </span><span style="color: black;">{
+        result.WriteLine();
+    }
+}</span></pre>
+<p>So these LINQ query methods can be composed through the curried helper functions:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ComposeLinqWithPartialApplication()
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; composition =
+        Where&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(int32 =&gt; int32 &gt; 0)
+        .Then(Skip&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(1))
+        .Then(Take&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(2));
+
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; query = composition(</span><span style="color: blue;">new int</span><span style="color: black;">[] { 4, 3, 2, 1, 0, -1 });
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">query) </span><span style="color: green;">// Execute query.
+    </span><span style="color: black;">{
+        result.WriteLine();
+    }
+}</span></pre>
+<h1>Forward pipeline</h1>
+<p>The forward pipe operator, which forwards argument to call function, can also help function composition. It can also be defined as extension method:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">FuncExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">TResult </span><span style="color: black;">Forward&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">T </span><span style="color: black;">value, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; function) =&gt;
+        function(value);
+}
+
+</span><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ActionExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static void </span><span style="color: black;">Forward&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">T </span><span style="color: black;">value, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; function) =&gt;
+        function(value);
+}</span></pre>
+<p>The following example demonstrates how to use it:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Forward()
+{
+    </span><span style="color: #a31515;">"-2"
+        </span><span style="color: black;">.Forward(</span><span style="color: blue;">int</span><span style="color: black;">.Parse) </span><span style="color: green;">// string -&gt; int
+        </span><span style="color: black;">.Forward(</span><span style="color: #2b91af;">Math</span><span style="color: black;">.Abs) </span><span style="color: green;">// int -&gt; int
+        </span><span style="color: black;">.Forward(</span><span style="color: #2b91af;">Convert</span><span style="color: black;">.ToDouble) </span><span style="color: green;">// int -&gt; double
+        </span><span style="color: black;">.Forward(</span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt) </span><span style="color: green;">// double -&gt; double
+        </span><span style="color: black;">.Forward(</span><span style="color: #2b91af;">Console</span><span style="color: black;">.WriteLine); </span><span style="color: green;">// double -&gt; void
+
+    // Equivalent to:
+    </span><span style="color: #2b91af;">Console</span><span style="color: black;">.WriteLine(</span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(</span><span style="color: #2b91af;">Convert</span><span style="color: black;">.ToDouble(</span><span style="color: #2b91af;">Math</span><span style="color: black;">.Abs(</span><span style="color: blue;">int</span><span style="color: black;">.Parse(</span><span style="color: #a31515;">"-2"</span><span style="color: black;">)))));
+}</span></pre>
+<p>The Forward extension method can be useful with the null conditional operator to simplify the code, for example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ForwardAndNullConditional(</span><span style="color: #2b91af;">IDictionary</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">object</span><span style="color: black;">&gt; dictionary, </span><span style="color: blue;">string </span><span style="color: black;">key)
+{
+    </span><span style="color: blue;">object </span><span style="color: black;">value = dictionary[key];
+    </span><span style="color: #2b91af;">DateTime</span><span style="color: black;">? dateTime1;
+    </span><span style="color: blue;">if </span><span style="color: black;">(value != </span><span style="color: blue;">null</span><span style="color: black;">)
+    {
+        dateTime1 = </span><span style="color: #2b91af;">Convert</span><span style="color: black;">.ToDateTime(value);
+    }
+    </span><span style="color: blue;">else
+    </span><span style="color: black;">{
+        dateTime1 = </span><span style="color: blue;">null</span><span style="color: black;">;
+    }
+
+    </span><span style="color: green;">// Equivalent to:
+    </span><span style="color: #2b91af;">DateTime</span><span style="color: black;">? dateTime2 = dictionary[key]?.Forward(</span><span style="color: #2b91af;">Convert</span><span style="color: black;">.ToDateTime);
+}</span></pre>
+<p>This operator can alkso help composing LINQ query methods:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ForwardLinqWithPartialApplication()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source = </span><span style="color: blue;">new int</span><span style="color: black;">[] { 4, 3, 2, 1, 0, -1 };
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; query = source
+        .Forward(Where&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(int32 =&gt; int32 &gt; 0))
+        .Forward(Skip&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(1))
+        .Forward(Take&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(2));
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">query) </span><span style="color: green;">// Execute query.
+    </span><span style="color: black;">{
+        result.WriteLine();
+    }
+}</span></pre>
+<h1>Fluent method chaining</h1>
+<p>In contrast of static method, instance methods can be easily composed by just chaining the calls, for example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">InstanceMethodChaining(</span><span style="color: blue;">string </span><span style="color: black;">@string)
+{
+    </span><span style="color: blue;">string </span><span style="color: black;">result = @string.TrimStart().Substring(1, 10).Replace(</span><span style="color: #a31515;">"a"</span><span style="color: black;">, </span><span style="color: #a31515;">"b"</span><span style="color: black;">).ToUpperInvariant();
+}</span></pre>
+<p>The above functions are fluently composed because each of them returns an instance of that type, so that another instance method can be called fluently. Unfortunately, many APIs are not designed following this pattern. Take List&lt;T&gt; as example, here are some of its methods:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Collections.Generic
+{
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IList</span><span style="color: black;">, </span><span style="color: #2b91af;">IReadOnlyList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+    {
+        </span><span style="color: blue;">public void </span><span style="color: black;">Add(</span><span style="color: #2b91af;">T </span><span style="color: black;">item);</span><span style="color: black;">
+
+        </span><span style="color: blue;">public void </span><span style="color: black;">Clear();</span><span style="color: black;">
+
+        </span><span style="color: blue;">public void </span><span style="color: black;">ForEach(</span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; action);</span><span style="color: black;">
+
+        </span><span style="color: blue;">public void </span><span style="color: black;">Insert(</span><span style="color: blue;">int </span><span style="color: black;">index, </span><span style="color: #2b91af;">T </span><span style="color: black;">item);</span><span style="color: black;">
+
+        </span><span style="color: blue;">public void </span><span style="color: black;">RemoveAt(</span><span style="color: blue;">int </span><span style="color: black;">index);</span><span style="color: black;">
+
+        </span><span style="color: blue;">public void </span><span style="color: black;">Reverse();</span><span style="color: black;">
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>These methods return void, so they cannot be composed by chaining. These existing APIs cannot be changed, but the extension method syntactic sugar enables virtually adding new methods to an existing type. So fluent methods can be “added” to List&lt;T&gt; by defining extension methods:</p>
+<pre class="code"><span style="color: blue;">public static class </span><span style="color: #2b91af;">ListExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; FluentAdd&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; list, </span><span style="color: #2b91af;">T </span><span style="color: black;">item)
+    {
+        list.Add(item);
+        </span><span style="color: blue;">return </span><span style="color: black;">list;
+    }
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; FluentClear&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; list)
+    {
+        list.Clear();
+        </span><span style="color: blue;">return </span><span style="color: black;">list;
+    }
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; FluentForEach&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; list, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; action)
+    {
+        list.ForEach(action);
+        </span><span style="color: blue;">return </span><span style="color: black;">list;
+    }
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; FluentInsert&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; list, </span><span style="color: blue;">int </span><span style="color: black;">index, </span><span style="color: #2b91af;">T </span><span style="color: black;">item)
+    {
+        list.Insert(index, item);
+        </span><span style="color: blue;">return </span><span style="color: black;">list;
+    }
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; FluentRemoveAt&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; list, </span><span style="color: blue;">int </span><span style="color: black;">index)
+    {
+        list.RemoveAt(index);
+        </span><span style="color: blue;">return </span><span style="color: black;">list;
+    }
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; FluentReverse&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; list)
+    {
+        list.Reverse();
+        </span><span style="color: blue;">return </span><span style="color: black;">list;
+    }
+}</span></pre>
+<p>By always returning the first parameter, these extension methods can be composed by fluent chaining, as if they are instance methods:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ListFluentExtensions()
+{
+    </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; list = </span><span style="color: blue;">new </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;() { 1, 2, 3, 4, 5 }
+        .FluentAdd(1)
+        .FluentInsert(0, 0)
+        .FluentRemoveAt(1)
+        .FluentReverse()
+        .FluentForEach(value =&gt; value.WriteLine())
+        .FluentClear();
+}</span></pre>
+<p>As fore mentioned, these extension method calls are compiled to normal static method calls:</p>
+<pre class="code"><span style="color: blue;">public static void </span><span style="color: black;">CompiledListExtensions()
+{
+    </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; list =
+        </span><span style="color: #2b91af;">ListExtensions</span><span style="color: black;">.FluentClear(
+            </span><span style="color: #2b91af;">ListExtensions</span><span style="color: black;">.FluentForEach(
+                </span><span style="color: #2b91af;">ListExtensions</span><span style="color: black;">.FluentReverse(
+                    </span><span style="color: #2b91af;">ListExtensions</span><span style="color: black;">.FluentRemoveAt(
+                        </span><span style="color: #2b91af;">ListExtensions</span><span style="color: black;">.FluentInsert(
+                            </span><span style="color: #2b91af;">ListExtensions</span><span style="color: black;">.FluentAdd(
+                                </span><span style="color: blue;">new </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;() { 1, 2, 3, 4, 5 }, 1),
+                            0, 0),
+                        1)
+                    ),
+                value =&gt; </span><span style="color: black;">value).WriteLine()
+            );
+}</span></pre>
+<h2>LINQ query methods composition</h2>
+<p>In C#, LINQ query methods are composed better with this fluent method chaining approach. IEnumerable&lt;T&gt; is provided by .NET Framework 2.0 to represent a sequence of values. It only has a GetEnumerator method, and another version of GetEnumerator method inherited from IEnumerable:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Collections
+{
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IEnumerable
+    </span><span style="color: black;">{
+        </span><span style="color: #2b91af;">IEnumerator </span><span style="color: black;">GetEnumerator();
+    }
+}
+
+</span><span style="color: blue;">namespace </span><span style="color: black;">System.Collections.Generic
+{
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IEnumerable
+    </span><span style="color: black;">{
+        </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; GetEnumerator();
+    }
+}</span></pre>
+<p>When .NET Framework 3.5 introduces LINQ, IEnumerable&lt;T&gt; is used to represent local LINQ data source and query. All the query methods except Empty, Range, Repeat, are defined as extension methods in System.Linq.Enumerable type. Many query methods, like fore mentioned Where, Skip, Take, Select, returns IEnumerable&lt;T&gt;, so that the query methods can be composed by fluent chaining.</p>
+<p>The fore mentioned OrderBy method is slightly different. It accepts IEnumerable&lt;T&gt; but returns IOrderedEnumerable&lt;T&gt;. There are 4 ordering query methods relevant to IOrderedEnumerable&lt;T&gt;:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Linq
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TElement</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TElement</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable
+    </span><span style="color: black;">{
+        </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TElement</span><span style="color: black;">&gt; CreateOrderedEnumerable&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TElement</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector, </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; comparer, </span><span style="color: blue;">bool </span><span style="color: black;">descending);
+    }
+
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Enumerable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; OrderBy&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; OrderByDescending&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; ThenBy&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; ThenByDescending&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+    }
+}</span></pre>
+<p>IOrderedEnumerable&lt;T&gt;is&nbsp; derived from IEnumerable&lt;T&gt;, so ThenBy and ThenByDescending can only be composed after OrderBy and OrderByDescending, which logically makes sense.</p>
+<p>There are also a few methods returning a single value instead of IEnumerable&lt;T&gt;, like First, Last, etc.:</p>
+<pre class="code"><span style="color: blue;">public static class </span><span style="color: #2b91af;">Enumerable
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">TSource </span><span style="color: black;">First&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">TSource </span><span style="color: black;">Last&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source);</span><span style="color: green;">
+</span><span style="color: black;">}</span></pre>
+<p>Usually they terminate the LINQ query, since other query methods cannot be composed after these methods, unless the returned single value is still a IEnumerable&lt;T&gt; instance.</p>
+<p>There are other parities of LINQ to Objects query represented by IEnumerable&lt;T&gt;, like Parallel LINQ to Objects query represented by ParallelQuery&lt;T&gt;, the remote LINQ query represented by IQueryable&lt;T&gt;, their query methods all follow this pattern:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Linq
+{
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">ParallelEnumerable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Where&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; predicate);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">OrderedParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; OrderBy&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector);
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Queryable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Where&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; predicate);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IOrderedQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; OrderBy&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector);
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>The details of IEnumerable&lt;T&gt; queries are covered by the LINQ to Objects chapter, ParallelQuery&lt;T&gt; queries are covered by the Parallel LINQ chapter, and IQueryable&lt;T&gt; queries are covered by the LINQ to Entities chapter.</p>
+
+
+</div>
+</body>
+</html>

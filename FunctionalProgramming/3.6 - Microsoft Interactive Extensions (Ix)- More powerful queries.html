@@ -1,0 +1,1226 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+
+<h1>LINQ to Objects (6) Interactive Extensions (Ix)</h1>
+<p>Besides the built-in query methods (standard query operators) provided by System.Linq.Enumerable, Microsoft also provides additional query methods through the System.Interactive NuGet package (aka <a href="https://github.com/Reactive-Extensions/Rx.NET" target="_blank">Interactive Extensions (Ix)</a> library), which has a System.Linq.EnumerableEx type with the following query methods:</p>
+<ul>
+<li>Sequence queries: return a new IEnumerable&lt;T&gt; sequence (deferred execution)&nbsp;
+<ul>
+<li>Generation: Defer, Create, Return, Repeat</li>
+<li>Filtering: IgnoreElements*, DistinctUntilChanged</li>
+<li>Mapping: SelectMany, Scan, Expand</li>
+<li>Concatenation: Concat, StartWith</li>
+<li>Set: Distinct</li>
+<li>Partitioning: TakeLast*, SkipLast**</li>
+<li>Conversion: Hide</li>
+<li>Buffering: Buffer*, Share, Publish, Memoize</li>
+<li>Exception: Throw, Catch, Finally, OnErrorResumeNext, Retry</li>
+<li>Imperative: If, Case, Using, While, DoWhile, Generate, For</li>
+<li>Iteration: Do</li>
+</ul>
+</li>
+<li>Value queries: return a single value (immediate execution)&nbsp;</li>
+<ul>
+<li>Aggregation: Min, Max, MinBy, MaxBy</li>
+<li>Quantifiers: isEmpty</li>
+</ul>
+<li>Void queries: return void (immediate execution)</li>
+<ul>
+<li>Iteration: ForEach</li>
+</ul>
+</ul>
+<p>There is not much documentation for this library provided from Microsoft, except the APIs’ XML comments. In this part, these query methods are discussed by either examples and/or their internal implementation, whichever can be more intuitive.</p>
+<p>Similar to Enumerable methods, in above list, Methods returning void and methods returning a single value implement immediate execution; and methods returning an IEnumerable&lt;T&gt; sequence implements deferred execution, where the methods marked with * implement eager evaluation, and the unmarked methods implements lazy evaluation. The SkipLast method marked with ** is special, it can be eager evaluation or lazy evaluation, which is discussed later.</p>
+<h1>Sequence queries</h1>
+<h2>Generation</h2>
+<p>Defer accepts a sequence factory:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Defer&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; enumerableFactory)
+{
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TResult </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">enumerableFactory())
+    {
+        </span><span style="color: blue;">yield return </span><span style="color: black;">value;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+    }
+}</span></pre>
+<p>And it defers the execution of the factory:</p>
+<pre class="code"><span style="color: blue;">public static void </span><span style="color: black;">Defer()
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; sequenceFactory = () =&gt;
+    {
+        </span><span style="color: #a31515;">"Executing factory."</span><span style="color: black;">.WriteLine();
+        </span><span style="color: blue;">return </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Empty&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;();
+    };
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; sequence1 = sequenceFactory() </span><span style="color: green;">// Executing factory.
+        </span><span style="color: black;">.Where(int32 =&gt; int32 &gt; 0);
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; sequence2 = </span><span style="color: #2b91af;">EnumerableEx</span><span style="color: black;">.Defer(sequenceFactory)</span><span style="color: green;">
+        </span><span style="color: black;">.Where(int32 =&gt; int32 &gt; 0);
+}</span></pre>
+<p>Similarly, Create accepts an iterator factory method, and delay its execution:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Create&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; getEnumerator)
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; iterator = getEnumerator())
+    {
+        </span><span style="color: blue;">while </span><span style="color: black;">(iterator.MoveNext())
+        {
+            </span><span style="color: blue;">yield return </span><span style="color: black;">iterator.Current;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+        }
+    }
+}</span></pre>
+<p>The other overload of Create is not so intuitive:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; Create&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IYielder</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt; create);</span></pre>
+<p>It accepts a callback function of type System.Linq.IYielder&lt;T&gt; –&gt; void. IYielder&lt;T&gt; has 2 members, Return and Break, representing yield return statement and yield break statement.</p>
+<pre class="code"><span style="color: blue;">public interface </span><span style="color: #2b91af;">IYielder</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+</span><span style="color: gray;">    </span><span style="color: #2b91af;">IAwaitable </span><span style="color: black;">Return(</span><span style="color: #2b91af;">T </span><span style="color: black;">value);
+
+</span><span style="color: gray;">    </span><span style="color: #2b91af;">IAwaitable </span><span style="color: black;">Break();
+}</span></pre>
+<p>In C#, lambda expression does not support yield statements, compiling the following code causes error CS1621: The yield statement cannot be used inside an anonymous method or lambda expression.</p>
+<pre class="code"><span style="color: green;">// Cannot be compiled.
+</span><span style="color: blue;">internal static void </span><span style="color: black;">Create()
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; sequenceFactory = () =&gt;
+    {
+        </span><span style="color: blue;">yield return </span><span style="color: black;">0;
+        </span><span style="color: blue;">yield return </span><span style="color: black;">1;
+        </span><span style="color: blue;">yield break</span><span style="color: black;">;
+        </span><span style="color: blue;">yield return </span><span style="color: black;">2;
+    };
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; sequence = sequenceFactory();
+    sequence.WriteLine(); </span><span style="color: green;">// 0 1
+</span><span style="color: black;">}</span></pre>
+<p>Here Create provides a way to virtually use the yield statements in lambda expression:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Create()
+{</span><span style="color: green;">
+    </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IYielder</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; sequenceFactory = </span><span style="color: blue;">async </span><span style="color: black;">yield =&gt;
+    {
+        </span><span style="color: blue;">await </span><span style="color: black;">yield.Return(0); </span><span style="color: green;">// yield return 0;
+        </span><span style="color: blue;">await </span><span style="color: black;">yield.Return(1); </span><span style="color: green;">// yield return 1;
+        </span><span style="color: blue;">await </span><span style="color: black;">yield.Break(); </span><span style="color: green;">// yield break;
+        </span><span style="color: blue;">await </span><span style="color: black;">yield.Return(2); </span><span style="color: green;">// yield return 2;
+    </span><span style="color: black;">};
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; sequence = </span><span style="color: #2b91af;">EnumerableEx</span><span style="color: black;">.Create(sequenceFactory);
+    sequence.WriteLine(); </span><span style="color: green;">// 0 1
+</span><span style="color: black;">}</span></pre>
+<p>In previous part, when implementing Cast, since return statement cannot be used with yield return statement, the following code cannot be compiled:</p>
+<pre class="code"><span style="color: blue;"><span style="color: blue;">public </span>static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Cast&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable </span><span style="color: black;">source)
+{
+    </span><span style="color: blue;">if </span><span style="color: black;">(source </span><span style="color: blue;">is </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; genericSource)
+    {
+        </span><span style="color: blue;">return </span><span style="color: black;">genericSource; </span><span style="color: green;">// Cannot be compiled.
+    </span><span style="color: black;">}
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">object </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+    {
+        </span><span style="color: blue;">yield return </span><span style="color: black;">(</span><span style="color: #2b91af;">TResult</span><span style="color: black;">)value; </span><span style="color: green;">// Deferred execution.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>With Create and IYielder&lt;T&gt;, Cast can be implemented without yield return statement. The following code works:</p>
+<pre class="code"><span style="color: blue;"><span style="color: blue;">public </span>static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; CastWithCreate&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable </span><span style="color: black;">source) =&gt;
+    source </span><span style="color: blue;">is </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; genericSource
+        ? genericSource
+        : </span><span style="color: #2b91af;">EnumerableEx</span><span style="color: black;">.Create&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: blue;">async </span><span style="color: black;">yield =&gt;
+            {
+                </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">object </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+                {
+                    </span><span style="color: blue;">await </span><span style="color: black;">yield.Return((</span><span style="color: #2b91af;">TResult</span><span style="color: black;">)value); </span><span style="color: green;">// yield return (TResult)value;
+                </span><span style="color: black;">}
+            });</span></pre>
+<p>IYielder&lt;T&gt; is a great idea before C# 7.0 introduces local function, but at runtime, it can have unexpected iterator behavior when used with more complex control flow, like try-catch statement. Please avoid using this query method. In the above examples, define local function to use yield return statement:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Create()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; SequenceFactory()
+    {
+        </span><span style="color: blue;">yield return </span><span style="color: black;">0;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+        </span><span style="color: blue;">yield return </span><span style="color: black;">1;
+        </span><span style="color: blue;">yield break</span><span style="color: black;">;
+        </span><span style="color: blue;">yield return </span><span style="color: black;">2;
+    }
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; sequence = SequenceFactory();
+    sequence.WriteLine(); </span><span style="color: green;">// 0 1
+</span><span style="color: black;">}
+
+</span><span style="color: blue;"><span style="color: blue;">public </span>static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Cast&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable </span><span style="color: black;">source)
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; CastGenerator()
+    {
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">object </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+        {
+            </span><span style="color: blue;">yield return </span><span style="color: black;">(</span><span style="color: #2b91af;">TResult</span><span style="color: black;">)value; </span><span style="color: green;">// Deferred execution.
+        </span><span style="color: black;">}
+    }
+    </span><span style="color: blue;">return </span><span style="color: black;">source </span><span style="color: blue;">is </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; genericSource
+        ? genericSource
+        : CastGenerator();</span><span style="color: green;">
+</span><span style="color: black;">}</span></pre>
+<p>Return just wraps value in a singleton sequence:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Return&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TResult </span><span style="color: black;">value)
+{
+    </span><span style="color: blue;">yield return </span><span style="color: black;">value;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+}</span></pre>
+<p>Actually, Return is a term used in other functional languages like Haskell, means wrap something in a monad (Monad is discussed in detail in the Category Theory chapter). However in C# return has totally different semantic. It could be more consistent with .NET naming convention if this method is named as FromValue, like Task.FromResult, Task.FromException, DateTime.FromBinary, DateTimeOffset.FromFileTime, TimeSpan.FromSeconds, RegistryKey.FromHandle, Observale.FromAsync, etc..</p>
+<p>Repeat generates an infinite sequence by repeating a value forever:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Repeat&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TResult </span><span style="color: black;">value)
+{
+    </span><span style="color: blue;">while </span><span style="color: black;">(</span><span style="color: blue;">true</span><span style="color: black;">)
+    {
+        </span><span style="color: blue;">yield return </span><span style="color: black;">value;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+    }
+}</span></pre>
+<p>Another overload repeats values in the specified sequence:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Repeat&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: blue;">int</span><span style="color: black;">? count = </span><span style="color: blue;">null</span><span style="color: black;">)
+{
+    </span><span style="color: blue;">if </span><span style="color: black;">(count == </span><span style="color: blue;">null</span><span style="color: black;">)
+    {
+        </span><span style="color: blue;">while </span><span style="color: black;">(</span><span style="color: blue;">true</span><span style="color: black;">)
+        {
+            </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+            {
+                </span><span style="color: blue;">yield return </span><span style="color: black;">value;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+            }
+        }
+    }
+
+    </span><span style="color: blue;">for </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">i = 0; i &lt; count; i++)
+    {
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+        {
+            </span><span style="color: blue;">yield return </span><span style="color: black;">value;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+        }
+    }
+}</span></pre>
+<p>When count is not provided, it repeats iterating the source sequence forever.</p>
+<h2>Filtering</h2>
+<p>IgnoreElements filters out all values from the source sequence:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; IgnoreElements&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source)
+{
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source) { } </span><span style="color: green;">// Eager evaluation.
+    </span><span style="color: blue;">yield break</span><span style="color: black;">;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+}</span></pre>
+<p>DistinctUntilChanged removes the continuous duplication:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; DistinctUntilChanged&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source);
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; DistinctUntilChanged&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">IEqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; comparer);
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; DistinctUntilChanged&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; DistinctUntilChanged&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector, </span><span style="color: #2b91af;">IEqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; comparer);</span></pre>
+<p>For example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">DistinctUntilChanged()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source = </span><span style="color: blue;">new int</span><span style="color: black;">[]
+    {
+        0, 0, 0, </span><span style="color: green;">/* Changed. */ </span><span style="color: black;">1, 1, </span><span style="color: green;">/* Changed. */ </span><span style="color: black;">0, 0, </span><span style="color: green;">/* Changed. */ </span><span style="color: black;">2, </span><span style="color: green;">/* Changed. */ </span><span style="color: black;">1, 1
+    };
+    </span><span style="color: black;">source.DistinctUntilChanged().WriteLines(); </span><span style="color: green;">// 0 1 0 2 1
+</span><span style="color: black;">}</span></pre>
+<h2>Mapping</h2>
+<p>SelectMany maps source sequence’s each value to the other sequence:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TOther</span><span style="color: black;">&gt; SelectMany&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TOther</span><span style="color: black;">&gt;
+    (</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TOther</span><span style="color: black;">&gt; other) =&gt; source.SelectMany(value =&gt; other);</span></pre>
+<p>Scan accepts the same parameters as Aggregate. The difference is, Aggregate returns one final accumulation result value, Scan returns a sequence of all accumulation steps’ results. So Scan can implement deferred execution:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Scan&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; func)
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; iterator = source.GetEnumerator())
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(!iterator.MoveNext())
+        {
+            </span><span style="color: blue;">yield break</span><span style="color: black;">;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+        }
+        </span><span style="color: #2b91af;">TSource </span><span style="color: black;">accumulate = iterator.Current;
+        </span><span style="color: blue;">while </span><span style="color: black;">(iterator.MoveNext())
+        {
+            </span><span style="color: blue;">yield return </span><span style="color: black;">accumulate = func(accumulate, iterator.Current);<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+        }
+    }
+}
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">&gt; Scan&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">TAccumulate </span><span style="color: black;">seed, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">&gt; func) =&gt;
+        source.Select(value =&gt; seed = func(seed, value));</span></pre>
+<p>For example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Scan()
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">finalProduct = Int32Source().Aggregate((product, int32) =&gt; product * int32).WriteLine();
+    </span><span style="color: green;">// ((((-1 * 1) * 2) * 3) * -4) =&gt; 24.
+
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; allProducts = Int32Source().Scan((product, int32) =&gt; product * int32).WriteLines();
+    </span><span style="color: green;">// ((((-1 * 1) * 2) * 3) * -4) =&gt; { -1, -2, -6, 24 }.
+</span><span style="color: black;">}</span></pre>
+<p>Expand maps source values with the selector, then maps the result values with the selector, and so on.</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Expand&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; selector);</span></pre>
+<p>In the following example, selector maps each value to a singleton sequence:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ExpandSingle()
+{
+    </span><span style="color: #2b91af;">Enumerable
+        </span><span style="color: black;">.Range(0, 5)
+        .Expand(int32 =&gt; </span><span style="color: #2b91af;">EnumerableEx</span><span style="color: black;">.Return(int32 * int32))
+        .Take(25)
+        .WriteLines();
+    </span><span style="color: green;">// 0 1 2 3 4, map each int32 to { int32 * int32 } =&gt;
+    // 0 1 4 9 16, map each int32 to { int32 * int32 }: =&gt;
+    // 0 1 16 81 256, map each int32 to { int32 * int32 } =&gt;
+    // 0 1 256 6561 65536, map each int32 to { int32 * int32 } =&gt;
+    // 0 1 65536 43046721 4294967296, ...
+</span><span style="color: black;">}</span></pre>
+<p>The mapping goes on forever and results a infinite sequence. If selector maps each value to a sequence with more than one values, then the result sequences grows rapidly:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ExpandMuliple()
+{
+    </span><span style="color: #2b91af;">Enumerable
+        </span><span style="color: black;">.Range(0, 5)
+        .Expand(int32 =&gt; </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Repeat(int32, 2))
+        .Take(75)
+        .WriteLines();
+    </span><span style="color: green;">// 0 1 2 3 4 =&gt; map each int32 to { int32, int32 }:
+    // 0 0 1 1 2 2 3 3 4 4 =&gt; map each int32 to { int32, int32 }:
+    // 0 0 0 0 1 1 1 1 2 2 2 2 3 3 3 3 4 4 4 4 =&gt; map each int32 to { int32, int32 }:
+    // 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 3 3 3 3 3 3 3 3 4 4 4 4 4 4 4 4 =&gt; ...
+</span><span style="color: black;">}</span></pre>
+<p>If selector maps each value to empty sequence, the expanding ends after all source values are iterated:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ExpandNone()
+{
+    </span><span style="color: #2b91af;">Enumerable
+        </span><span style="color: black;">.Range(0, 5)
+        .Expand(int32 =&gt; </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Empty&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;())
+        .Take(100)
+        .WriteLines();
+    </span><span style="color: green;">// 0 1 2 3 4 =&gt; map each int32 to { }.
+</span><span style="color: black;">}</span></pre>
+<h2>Concatenation</h2>
+<p>2 more overloads of Concat is provided to concatenate any number of sequences:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Concat&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; sources) =&gt; sources.SelectMany(source =&gt; source);
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Concat&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">params </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;[] sources) =&gt; sources.Concat();</span></pre>
+<p>By concatenating the sequences one after another, Concat flattens a hierarchical 2-level-sequence into a flat 1-level-sequence, which is the same as SelectMany.</p>
+<p>StartWith prepend the specified values to the source sequence:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; StartWith&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: blue;">params </span><span style="color: #2b91af;">TSource</span><span style="color: black;">[] values) =&gt; values.Concat(source);</span></pre>
+<h2>Set</h2>
+<p>A overload of Distinct is provided to accept a key selector function:</p>
+<pre class="code"><span style="color: blue;"><span style="color: blue;">public </span>static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Distinct&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector, </span><span style="color: #2b91af;">IEqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; comparer = </span><span style="color: blue;">null</span><span style="color: black;">)
+{
+    </span><span style="color: #2b91af;">HashSet</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; hashSet = </span><span style="color: blue;">new </span><span style="color: #2b91af;">HashSet</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(comparer);
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(hashSet.Add(keySelector(value)))
+        {
+            </span><span style="color: blue;">yield return </span><span style="color: black;">value;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+        }
+    }
+}</span></pre>
+<h2>Partitioning</h2>
+<p>Skip/Take skips/takes the specified number values at the beginning of the source sequence. In contrast, SkipLast/TakeLast skips/takes the specified number of values at the end of the source sequence:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; SkipLast&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: blue;">int </span><span style="color: black;">count);
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; TakeLast&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: blue;">int </span><span style="color: black;">count);</span></pre>
+<p>For example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">SkipLastTakeLast()
+{
+    </span><span style="color: blue;">int</span><span style="color: black;">[] skipFirst2 = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5).Skip(2).ToArray(); </span><span style="color: green;">// 2 3 4.
+    </span><span style="color: blue;">int</span><span style="color: black;">[] skipLast2 = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5).SkipLast(2).ToArray(); </span><span style="color: green;">// 0 1 2.
+    </span><span style="color: blue;">int</span><span style="color: black;">[] takeFirst2 = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5).Take(2).ToArray(); </span><span style="color: green;">// 0 1.
+    </span><span style="color: blue;">int</span><span style="color: black;">[] takeLast2 = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5).TakeLast(2).ToArray(); </span><span style="color: green;">// 3 4.
+</span><span style="color: black;">}</span></pre>
+<p>The implementation of SkipLast/TakeLast is very interesting. As already discussed, Take implements lazy evaluation. However, TakeLast has to pull all values to know which are the tail values of the source sequence. So TakeLast implements eager evaluation, and uses a queue to store the tail values:</p>
+<pre class="code"><span style="color: blue;"><span style="color: blue;">public </span>static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; TakeLast&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: blue;">int </span><span style="color: black;">count)
+{
+    </span><span style="color: blue;">if </span><span style="color: black;">(count &lt; 0)
+    {
+        </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(count));
+    }
+
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; TakeLastGGenerator()
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(count &lt;= 0)
+        {
+            </span><span style="color: blue;">yield break</span><span style="color: black;">;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+        }
+        </span><span style="color: #2b91af;">Queue</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; lastValues = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Queue</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(count);
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+        {
+            </span><span style="color: blue;">if </span><span style="color: black;">(lastValues.Count &gt;= count)
+            {
+                lastValues.Dequeue();
+            }
+
+            lastValues.Enqueue(value);
+        } </span><span style="color: green;">// Eager evaluation.
+        </span><span style="color: blue;">while </span><span style="color: black;">(lastValues.Count &gt; 0)
+        {
+            </span><span style="color: blue;">yield return </span><span style="color: black;">lastValues.Dequeue();<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+        }
+    }
+    </span><span style="color: blue;">return </span><span style="color: black;">TakeLastGGenerator();
+}</span></pre>
+<p>Once TakeLast query is executed, all values are evaluated, and the last values are stored in a Queue&lt;T&gt; buffer.</p>
+<p>SkipLast also uses a queue to buffer the tail values:</p>
+<pre class="code"><span style="color: blue;"><span style="color: blue;">public </span>static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; SkipLast&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: blue;">int </span><span style="color: black;">count)
+{
+    </span><span style="color: blue;">if </span><span style="color: black;">(count &lt; 0)
+    {
+        </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(count));
+    }
+
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; SkipLastGenerator()
+    {
+        </span><span style="color: #2b91af;">Queue</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; lastValues = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Queue</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;();
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+        {
+            lastValues.Enqueue(value);
+            </span><span style="color: blue;">if </span><span style="color: black;">(lastValues.Count &gt; count) </span><span style="color: green;">// Can be lazy, eager, or between.
+            </span><span style="color: black;">{
+                </span><span style="color: blue;">yield return </span><span style="color: black;">lastValues.Dequeue();<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+            }
+        }
+    }
+    </span><span style="color: blue;">return </span><span style="color: black;">SkipLastGenerator();
+}</span></pre>
+<p>It uses count as the max length of the buffer. When SkipLast starts to execute, it evaluate values to fill the buffer. When the buffer is full, each new value is enqueued to the buffer, and the head value of the buffer is dequeued and yielded. So at the end of query execution, the values left in the queue are the last values to skip. If count is equal to or greater than the source sequence’s value count, when trying to pull the first value from the returned generator, all values are pulled from the source sequence and buffered in the queue, and nothing is yielded to the caller, which is eager evaluation similar to IgnoreElements. If count is 0, SkipLast becomes lazy evaluation, it does not skip anything, just simply yield each source value to caller just like Hide. So SkipLast’s laziness/eagerness depends on the ratio of count to skip and count of source sequence.</p>
+<h2>Conversion</h2>
+<p>Hide has the same signature as AsEnumerable. As previously demonstrated, AsEnumerable simply returns the source sequence itself to caller. Hide returns a new generator to hide the source sequence from the caller:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Hide&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source)
+{
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+    {
+        </span><span style="color: blue;">yield return </span><span style="color: black;">value;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+    }
+}</span></pre>
+<p>Here are the difference:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Hide()
+{
+    </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source = </span><span style="color: blue;">new </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;() { 1, 2 };
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; readWrite = source.AsEnumerable();
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(source, readWrite).WriteLine(); </span><span style="color: green;">// True
+    </span><span style="color: black;">((</span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;)readWrite).Reverse(); </span><span style="color: green;">// List&lt;T&gt;.Reverse.
+    </span><span style="color: black;">((</span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;)readWrite).Add(3); </span><span style="color: green;">// List&lt;T&gt;.Add.
+
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; readOnly = source.Hide();</span><span style="color: green;">
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(source, readOnly).WriteLine(); </span><span style="color: green;">// False
+</span><span style="color: black;">}</span></pre>
+<h2>Buffering</h2>
+<p>Buffer segments the source sequence into smaller lists:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; Buffer&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: blue;">int </span><span style="color: black;">count, </span><span style="color: blue;">int </span><span style="color: black;">skip);</span></pre>
+<p>Here count is the length of each smaller list, and skip is the index to start the next list. For example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Buffer()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; buffers1 = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5).Buffer(2, 1);
+    </span><span style="color: green;">// {
+    //    { 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 4 }, { 4 }
+    // }
+
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; buffers2 = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5).Buffer(2, 2); </span><span style="color: green;">// Equivalent to Buffer(2).
+    // {
+    //    { 0, 1 }, { 2, 3 }, { 4 }
+    // }
+
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; buffers3 = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5).Buffer(2, 3);
+    </span><span style="color: green;">// {
+    //    { 0, 1 }, { 3, 4 }
+    // }
+</span><span style="color: black;">}</span></pre>
+<p>Buffer implements eager evaluation. it creates all the smaller lists when the first list is pulled.</p>
+<p>The other overload without skip uses count as skip:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; Buffer&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: blue;">int </span><span style="color: black;">count);</span></pre>
+<p>In above example, calling Buffer(2, 2) is equivalent to Buffer(2).</p>
+<p>Share buffers the values of a sequence and share them with several iterators:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IBuffer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Share&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source);</span></pre>
+<p>The returned System.Linq.IBuffer&lt;T&gt; is just IEnumerable&lt;T&gt; plus IDisposable:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Linq
+{
+</span><span style="color: green;">    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IBuffer</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">, </span><span style="color: #2b91af;">IDisposable </span><span style="color: black;">{ }
+}</span></pre>
+<p>By default, an IEnumerable&lt;T&gt; sequence’s multiple iterators are independent from each other. When these iterators are called, callers pull independent values from each iterator. In contrast, shared iterator works as if they are the same single iterator:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Share()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; sequence = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5);
+    </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; independentIteratorA = sequence.GetEnumerator();
+    </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; independentIteratorB = sequence.GetEnumerator();          </span><span style="color: green;">// A|B|C
+    </span><span style="color: black;">independentIteratorA.MoveNext(); independentIteratorA.Current.WriteLine(); </span><span style="color: green;">// 0| |
+    </span><span style="color: black;">independentIteratorB.MoveNext(); independentIteratorB.Current.WriteLine(); </span><span style="color: green;">//  |0|
+    </span><span style="color: black;">independentIteratorA.MoveNext(); independentIteratorA.Current.WriteLine(); </span><span style="color: green;">// 1| |
+    </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; independentIteratorC = sequence.GetEnumerator();          </span><span style="color: green;">//  | |
+    </span><span style="color: black;">independentIteratorC.MoveNext(); independentIteratorC.Current.WriteLine(); </span><span style="color: green;">//  | |0
+    </span><span style="color: black;">independentIteratorA.MoveNext(); independentIteratorA.Current.WriteLine(); </span><span style="color: green;">// 2| |
+    </span><span style="color: black;">independentIteratorB.MoveNext(); independentIteratorB.Current.WriteLine(); </span><span style="color: green;">//  |1|
+    </span><span style="color: black;">independentIteratorA.MoveNext(); independentIteratorA.Current.WriteLine(); </span><span style="color: green;">// 3| |
+    // ...
+
+    </span><span style="color: #2b91af;">IBuffer</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; share = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5).Share();
+    </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; sharedIterator1 = share.GetEnumerator();
+    </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; sharedIterator2 = share.GetEnumerator();        </span><span style="color: green;">// A|B|C
+    </span><span style="color: black;">sharedIterator1.MoveNext(); sharedIterator1.Current.WriteLine(); </span><span style="color: green;">// 0| |
+    </span><span style="color: black;">sharedIterator2.MoveNext(); sharedIterator2.Current.WriteLine(); </span><span style="color: green;">//  |1|
+    </span><span style="color: black;">sharedIterator1.MoveNext(); sharedIterator1.Current.WriteLine(); </span><span style="color: green;">// 2| |
+    </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; sharedIterator3 = share.GetEnumerator();        </span><span style="color: green;">//  | |
+    </span><span style="color: black;">sharedIterator3.MoveNext(); sharedIterator3.Current.WriteLine(); </span><span style="color: green;">//  | |3
+
+    </span><span style="color: black;">share.Dispose();
+    sharedIterator1.MoveNext(); </span><span style="color: green;">// ObjectDisposedException.
+    </span><span style="color: black;">sharedIterator2.MoveNext(); </span><span style="color: green;">// ObjectDisposedException.
+    </span><span style="color: black;">sharedIterator3.MoveNext(); </span><span style="color: green;">// ObjectDisposedException.
+</span><span style="color: black;">}</span></pre>
+<p>When pulling values with multiple independent iterators, each value can be pulled multiple times. When pulling values with multiple shared iterators, each value can only be pulled once. And IBuffer&lt;T&gt;.Dispose terminates the sharing. After calling Dispose, all shared iterators’ MoveNext throws ObjectDisposedException.</p>
+<p>The other overload accepts a selector function:</p>
+<pre class="code"><span style="color: blue;"><span style="color: blue;">public </span>static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Share&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; selector) =&gt;
+        Create(() =&gt; selector(source.Share()).GetEnumerator());</span></pre>
+<p>For example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ConcatShared()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source1 = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5);
+    source1.Concat(source1).WriteLines(); </span><span style="color: green;">// 0 1 2 3 4 0 1 2 3 4
+
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IBuffer</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source2 = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5).Share())
+    {
+        source2.Concat(source2).WriteLines(); </span><span style="color: green;">// 0 1 2 3 4
+    </span><span style="color: black;">}
+    </span><span style="color: green;">// Equivalent to:
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source3 = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5);
+    source3.Share(source =&gt; source.Concat(source)).WriteLines(); </span><span style="color: green;">// 0 1 2 3 4
+</span><span style="color: black;">}</span></pre>
+<p>The above 2 kinds of Share usage are equivalent. As already discussed, Concat can be desugared as:</p>
+<pre class="code"><span style="color: blue;"><span style="color: blue;">public </span>static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Concat&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; first, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; second)
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; iterator1 = first.GetEnumerator())
+    {
+        </span><span style="color: blue;">while </span><span style="color: black;">(iterator1.MoveNext())
+        {
+            </span><span style="color: blue;">yield return </span><span style="color: black;">iterator1.Current;
+        }
+    }
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; iterator2 = second.GetEnumerator())
+    {
+        </span><span style="color: blue;">while </span><span style="color: black;">(iterator2.MoveNext())
+        {
+            </span><span style="color: blue;">yield return </span><span style="color: black;">iterator2.Current;
+        }
+    }
+}</span></pre>
+<p>So that the above 3 Concat calls can be virtually viewed as:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">DesugaredConcatShared()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source1 = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5);
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; Concat1() </span><span style="color: green;">// source1.Concat(source1)
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; independentIterator1 = source1.GetEnumerator())
+        {
+            </span><span style="color: blue;">while </span><span style="color: black;">(independentIterator1.MoveNext())
+            {
+                </span><span style="color: blue;">yield return </span><span style="color: black;">independentIterator1.Current; </span><span style="color: green;">// yield return 0 1 2 3 4.
+            </span><span style="color: black;">}
+        }
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; independentIterator2 = source1.GetEnumerator())
+        {
+            </span><span style="color: blue;">while </span><span style="color: black;">(independentIterator2.MoveNext())
+            {
+                </span><span style="color: blue;">yield return </span><span style="color: black;">independentIterator2.Current; </span><span style="color: green;">// yield return 0 1 2 3 4.
+            </span><span style="color: black;">}
+        }
+    }
+    Concat1().WriteLines();
+
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IBuffer</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source2 = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5).Share())
+    {
+        </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; Concat2() </span><span style="color: green;">// source2.Concat(source2)
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; sharedIterator1 = source2.GetEnumerator())
+            {
+                </span><span style="color: blue;">while </span><span style="color: black;">(sharedIterator1.MoveNext())
+                {
+                    </span><span style="color: blue;">yield return </span><span style="color: black;">sharedIterator1.Current; </span><span style="color: green;">// yield return 0 1 2 3 4.
+                </span><span style="color: black;">}
+            }
+            </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; sharedIterator2 = source2.GetEnumerator())
+            {
+                </span><span style="color: blue;">while </span><span style="color: black;">(sharedIterator2.MoveNext())
+                {
+                    </span><span style="color: blue;">yield return </span><span style="color: black;">sharedIterator2.Current; </span><span style="color: green;">// yield return nothing.
+                </span><span style="color: black;">}
+            }
+        }
+        Concat2().WriteLines();
+    }
+
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source3 = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5);
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; Concat3() </span><span style="color: green;">// source3.Share(source =&gt; source.Concat(source))
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IBuffer</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source = source3.Share())
+        {
+            </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; sharedIterator1 = source.GetEnumerator())
+            {
+                </span><span style="color: blue;">while </span><span style="color: black;">(sharedIterator1.MoveNext())
+                {
+                    </span><span style="color: blue;">yield return </span><span style="color: black;">sharedIterator1.Current; </span><span style="color: green;">// yield return 0 1 2 3 4.
+                </span><span style="color: black;">}
+            }
+            </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; sharedIterator2 = source.GetEnumerator())
+            {
+                </span><span style="color: blue;">while </span><span style="color: black;">(sharedIterator2.MoveNext())
+                {
+                    </span><span style="color: blue;">yield return </span><span style="color: black;">sharedIterator2.Current; </span><span style="color: green;">// yield return nothing.
+                </span><span style="color: black;">}
+            }
+        }
+    }
+    Concat3().WriteLines();
+}</span></pre>
+<p>When Concat is executed, if values are pulled from 2 independent iterators, both iterators yields all source values; if values are pulled from 2 shared iterators. only the first iterator yields all source values, and the second iterator yields nothing. Another example is Zip:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ZipShared()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source1 = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5);
+    source1.Zip(source1, </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">.Create).WriteLines(); </span><span style="color: green;">// (0, 0) (1, 1) (2, 2) (3, 3) (4, 4)
+
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IBuffer</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source2 = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5).Share())
+    {
+        source2.Zip(source2, </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">.Create).WriteLines(); </span><span style="color: green;">// (0, 1) (2, 3)
+    </span><span style="color: black;">}
+    </span><span style="color: green;">// Equivalent to:
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source3 = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5);
+    source3.Share(source =&gt; source.Zip(source, </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">.Create)).WriteLines(); </span><span style="color: green;">// (0, 1) (2, 3).
+</span><span style="color: black;">}</span></pre>
+<p>Similarly, the above 3 Zip calls can be virtually viewed as:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">DesugaredZipShared()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source1 = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5);
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;(</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">)&gt; Zip1()
+    {
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; independentIterator1 = source1.GetEnumerator())
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; independentIterator2 = source1.GetEnumerator())
+        {
+            </span><span style="color: blue;">while </span><span style="color: black;">(independentIterator1.MoveNext() &amp;&amp; independentIterator2.MoveNext())
+            {
+                </span><span style="color: blue;">yield return </span><span style="color: black;">(independentIterator1.Current, independentIterator2.Current);
+                </span><span style="color: green;">// yield return (0, 0) (1, 1) (2, 2) (3, 3) (4, 4).
+            </span><span style="color: black;">}
+        }
+    }
+    Zip1().WriteLines();
+
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IBuffer</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source2 = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5).Share())
+    {
+        </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;(</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">)&gt; Zip2()
+        {
+            </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; sharedIterator1 = source2.GetEnumerator())
+            </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; sharedIterator2 = source2.GetEnumerator())
+            {
+                </span><span style="color: blue;">while </span><span style="color: black;">(sharedIterator1.MoveNext() &amp;&amp; sharedIterator2.MoveNext())
+                {
+                    </span><span style="color: blue;">yield return </span><span style="color: black;">(sharedIterator1.Current, sharedIterator2.Current);
+                    </span><span style="color: green;">// yield return (0, 1) (2, 3).
+                </span><span style="color: black;">}
+            }
+        }
+        Zip2().WriteLines();
+    }
+
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source3 = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5);
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;(</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">)&gt; Zip3()
+    {
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IBuffer</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source = source3.Share())
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; sharedIterator1 = source.GetEnumerator())
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; sharedIterator2 = source.GetEnumerator())
+        {
+            </span><span style="color: blue;">while </span><span style="color: black;">(sharedIterator1.MoveNext() &amp;&amp; sharedIterator2.MoveNext())
+            {
+                </span><span style="color: blue;">yield return </span><span style="color: black;">(sharedIterator1.Current, sharedIterator2.Current);
+                </span><span style="color: green;">// yield return (0, 1) (2, 3).
+            </span><span style="color: black;">}
+        }
+    }
+    Zip3().WriteLines();
+}</span></pre>
+<p>Publish has the same signatures as Share:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IBuffer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Publish&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source);
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Publish&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; selector);</span></pre>
+<p>It also buffers the values in a different way, so each iterator yields all remainder values:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Publish()
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IBuffer</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; publish = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5).Publish())
+    {
+        </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; remainderIteratorA = publish.GetEnumerator();
+        </span><span style="color: green;">// remainderIteratorA: 0 1 2 3 4.                                         A|B|C
+        </span><span style="color: black;">remainderIteratorA.MoveNext(); remainderIteratorA.Current.WriteLine(); </span><span style="color: green;">// 0| |
+        </span><span style="color: black;">remainderIteratorA.MoveNext(); remainderIteratorA.Current.WriteLine(); </span><span style="color: green;">// 1| |
+        </span><span style="color: black;">remainderIteratorA.MoveNext(); remainderIteratorA.Current.WriteLine(); </span><span style="color: green;">// 2| |
+        </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; remainderIteratorB = publish.GetEnumerator();         </span><span style="color: green;">//  | |
+        // remainderIteratorB: 3 4.                                                | |
+        </span><span style="color: black;">remainderIteratorB.MoveNext(); remainderIteratorB.Current.WriteLine(); </span><span style="color: green;">//  |3|
+        </span><span style="color: black;">remainderIteratorA.MoveNext(); remainderIteratorA.Current.WriteLine(); </span><span style="color: green;">// 3| |
+        </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; remainderIteratorC = publish.GetEnumerator();         </span><span style="color: green;">//  | |
+        // remainderIteratorC: 4.                                                  | |
+        </span><span style="color: black;">remainderIteratorB.MoveNext(); remainderIteratorB.Current.WriteLine(); </span><span style="color: green;">//  |4|
+        </span><span style="color: black;">remainderIteratorA.MoveNext(); remainderIteratorA.Current.WriteLine(); </span><span style="color: green;">// 4| |
+        </span><span style="color: black;">remainderIteratorC.MoveNext(); remainderIteratorC.Current.WriteLine(); </span><span style="color: green;">//  | |4
+    </span><span style="color: black;">}
+}</span></pre>
+<p>Memoize (not Memorize) simply buffers all values:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IBuffer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Memoize&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source);
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Memoize&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; selector);</span></pre>
+<p>The term <a href="https://en.wikipedia.org/wiki/Memoization" target="_blank">momoize/memoization</a> means buffering the function call result, so that when the same call happens again, the buffered result can be returned. Its multiple iterators work like independent, but each value is only pulled once and is buffered for reuse:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Memoize()
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IBuffer</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; memoize = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5).Memoize())
+    {
+        </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; bufferIteratorA = memoize.GetEnumerator();
+        </span><span style="color: green;">// bufferIteratorA: 0 1 2 3 4.                                      A|B|C
+        </span><span style="color: black;">bufferIteratorA.MoveNext(); bufferIteratorA.Current.WriteLine(); </span><span style="color: green;">// 0| |
+        </span><span style="color: black;">bufferIteratorA.MoveNext(); bufferIteratorA.Current.WriteLine(); </span><span style="color: green;">// 1| |
+        </span><span style="color: black;">bufferIteratorA.MoveNext(); bufferIteratorA.Current.WriteLine(); </span><span style="color: green;">// 2| |
+        </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; bufferIteratorB = memoize.GetEnumerator();      </span><span style="color: green;">//  | |
+        // bufferIteratorB: 0 1 2 3 4.                                       | |
+        </span><span style="color: black;">bufferIteratorB.MoveNext(); bufferIteratorB.Current.WriteLine(); </span><span style="color: green;">//  |0|
+        </span><span style="color: black;">bufferIteratorA.MoveNext(); bufferIteratorA.Current.WriteLine(); </span><span style="color: green;">// 3| |
+        </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; bufferIteratorC = memoize.GetEnumerator();      </span><span style="color: green;">//  | |
+        // bufferIteratorC: 0 1 2 3 4.                                       | |
+        </span><span style="color: black;">bufferIteratorB.MoveNext(); bufferIteratorB.Current.WriteLine(); </span><span style="color: green;">//  |1|
+        </span><span style="color: black;">bufferIteratorA.MoveNext(); bufferIteratorA.Current.WriteLine(); </span><span style="color: green;">// 4| |
+        </span><span style="color: black;">bufferIteratorC.MoveNext(); bufferIteratorC.Current.WriteLine(); </span><span style="color: green;">//  | |0
+        </span><span style="color: black;">bufferIteratorC.MoveNext(); bufferIteratorC.Current.WriteLine(); </span><span style="color: green;">//  | |1
+        </span><span style="color: black;">bufferIteratorB.MoveNext(); bufferIteratorB.Current.WriteLine(); </span><span style="color: green;">//  |2|
+        // ...
+    </span><span style="color: black;">}
+}</span></pre>
+<p>There 2 more overloads accept a readerCount to specify how many times can the buffered values be reused:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IBuffer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Memoize&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: blue;">int </span><span style="color: black;">readerCount);
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Memoize&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: blue;">int </span><span style="color: black;">readerCount, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; selector);</span></pre>
+<p>When exceeding the readerCount, an InvalidOperationException is thrown: Element no longer available in the buffer.</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">MemoizeWithReaderCount()
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IBuffer</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source1 = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5).Memoize(2))
+    {
+        </span><span style="color: blue;">int</span><span style="color: black;">[] reader1 = source1.ToArray(); </span><span style="color: green;">// First full iteration.
+        </span><span style="color: blue;">int</span><span style="color: black;">[] reader2 = source1.ToArray(); </span><span style="color: green;">// Second full iteration.
+        </span><span style="color: blue;">int</span><span style="color: black;">[] reader3 = source1.ToArray(); </span><span style="color: green;">// Third full iteration: InvalidOperationException.
+    </span><span style="color: black;">}
+
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source2 = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5);
+    source2
+        .Memoize(
+            readerCount: 2,
+            selector: source =&gt; source </span><span style="color: green;">// First full iteration.
+                </span><span style="color: black;">.Concat(source) </span><span style="color: green;">// Second full iteration.
+                </span><span style="color: black;">.Concat(source)) </span><span style="color: green;">// Third full iteration: InvalidOperationException.
+        </span><span style="color: black;">.WriteLines();
+}</span></pre>
+<h2>Exception</h2>
+<p>The exception query methods address some exception related scenarios for IEnumerable&lt;T&gt;. Throw query just throws the specified exception when executed:</p>
+<pre class="code"><span style="color: blue;"><span style="color: blue;">public </span>static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Throw&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Exception </span><span style="color: black;">exception)
+{</span><span style="color: black;">
+    </span><span style="color: blue;">throw </span><span style="color: black;">exception;</span><span style="color: black;">
+    </span><span style="color: blue;">yield break</span><span style="color: black;">;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span></span><span style="color: black;">
+}</span></pre>
+<p>The yield break statement at the end is required for deferred execution. Without the yield break statement, the specified exception is thrown immediately when Throw is called. With the yield break statement, a generator is returned when Throw is called, and the specified exception is thrown when trying to pull value from the returned generator for the first time. For example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Throw()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; @throw = </span><span style="color: #2b91af;">EnumerableEx</span><span style="color: black;">.Throw&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(</span><span style="color: blue;">new </span><span style="color: #2b91af;">OperationCanceledException</span><span style="color: black;">());
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; query = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5).Concat(@throw); </span><span style="color: green;">// Define query.
+    </span><span style="color: blue;">try
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">query) </span><span style="color: green;">// Execute query.
+        </span><span style="color: black;">{
+            value.WriteLine();
+        }
+    }
+    </span><span style="color: blue;">catch </span><span style="color: black;">(</span><span style="color: #2b91af;">OperationCanceledException </span><span style="color: black;">exception)
+    {
+        exception.WriteLine();
+    }
+    </span><span style="color: green;">// 0 1 2 3 4 System.OperationCanceledException: The operation was canceled.
+</span><span style="color: black;">}</span></pre>
+<p>Catch accepts a source sequence and an exception handler function. When the query is executed, it pulls and yields each value from source sequence. If there is no exception of the specified type thrown during the evaluation, the handler is not called. If any exception of the specified type is thrown, it calls the exception handler with the exception. The handler returns a sequence, whose values are then pulled and yielded. So Catch’s concept is:</p>
+<pre class="code"><span style="color: green;">// Cannot be compiled.
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; CatchWithYield&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TException</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TException</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; handler)
+    </span><span style="color: blue;">where </span><span style="color: #2b91af;">TException </span><span style="color: black;">: </span><span style="color: #2b91af;">Exception
+</span><span style="color: black;">{
+    </span><span style="color: blue;">try
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+        {
+            </span><span style="color: blue;">yield return </span><span style="color: black;">value;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+        }
+    }
+    </span><span style="color: blue;">catch </span><span style="color: black;">(</span><span style="color: #2b91af;">TException </span><span style="color: black;">exception)
+    {
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">handler(exception) ?? Empty&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;())
+        {
+            </span><span style="color: blue;">yield return </span><span style="color: black;">value;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+        }
+    }
+}</span></pre>
+<p>However, yield return statement inside try-catch statement is not supported by C# compiler. Compiling the above code results error CS1626: Cannot yield a value in the body of a try block with a catch clause. The code can be compiled by replacing yield return statement with IYielder&lt;T&gt;.Return call:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; CatchWithYield&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TException</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TException</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; handler)
+    </span><span style="color: blue;">where </span><span style="color: #2b91af;">TException </span><span style="color: black;">: </span><span style="color: #2b91af;">Exception </span><span style="color: black;">=&gt; Create&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">async </span><span style="color: black;">yield =&gt;
+{
+    </span><span style="color: blue;">try
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+        {
+            </span><span style="color: blue;">await </span><span style="color: black;">yield.Return(value); </span><span style="color: green;">// yield return value;
+        </span><span style="color: black;">}
+    }
+    </span><span style="color: blue;">catch </span><span style="color: black;">(</span><span style="color: #2b91af;">TException </span><span style="color: black;">exception)
+    {
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">handler(exception) ?? Empty&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;())
+        {
+            </span><span style="color: blue;">await </span><span style="color: black;">yield.Return(value); </span><span style="color: green;">// yield return value;
+        </span><span style="color: black;">}
+    }
+});</span></pre>
+<p>However, this version does not work at runtime. So, the solution is to desugar the foreach loop to a while loop for iterator. Then the try-catch statement can go inside the loop, and only contains iterator’s MoveNext and Current calls, so that yield return statement can go outside the try-catch statement.</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Catch&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TException</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TException</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; handler)
+    </span><span style="color: blue;">where </span><span style="color: #2b91af;">TException </span><span style="color: black;">: </span><span style="color: #2b91af;">Exception
+</span><span style="color: black;">{
+    </span><span style="color: #2b91af;">TException </span><span style="color: black;">firstException = </span><span style="color: blue;">null</span><span style="color: black;">;
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; iterator = source.GetEnumerator())
+    {
+        </span><span style="color: blue;">while </span><span style="color: black;">(</span><span style="color: blue;">true</span><span style="color: black;">)
+        {
+            </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value;
+            </span><span style="color: blue;">try </span><span style="color: green;">// Only MoveNext and Current are inside try-catch.
+            </span><span style="color: black;">{
+                </span><span style="color: blue;">if </span><span style="color: black;">(iterator.MoveNext())
+                {
+                    value = iterator.Current;
+                }
+                </span><span style="color: blue;">else
+                </span><span style="color: black;">{
+                    </span><span style="color: blue;">break</span><span style="color: black;">; </span><span style="color: green;">// Stops while loop at the end of iteration.
+                </span><span style="color: black;">}
+            }
+            </span><span style="color: blue;">catch </span><span style="color: black;">(</span><span style="color: #2b91af;">TException </span><span style="color: black;">exception)
+            {
+                firstException = exception;
+                </span><span style="color: blue;">break</span><span style="color: black;">; </span><span style="color: green;">// Stops while loop if TException is thrown.
+            </span><span style="color: black;">}
+            </span><span style="color: blue;">yield return </span><span style="color: black;">value; </span><span style="color: green;">// Deferred execution, outside try-catch.
+        </span><span style="color: black;">}
+    }
+    </span><span style="color: blue;">if </span><span style="color: black;">(firstException != </span><span style="color: blue;">null</span><span style="color: black;">)
+    {
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">handler(firstException) ?? Empty&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;())
+        {
+            </span><span style="color: blue;">yield return </span><span style="color: black;">value;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+        }
+    }
+}</span></pre>
+<p>And here is a simple example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CatchWithHandler()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; @throw = </span><span style="color: #2b91af;">EnumerableEx</span><span style="color: black;">.Throw&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;(</span><span style="color: blue;">new </span><span style="color: #2b91af;">OperationCanceledException</span><span style="color: black;">());
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; @catch = @throw.Catch&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: #2b91af;">OperationCanceledException</span><span style="color: black;">&gt;(
+        exception =&gt; </span><span style="color: #2b91af;">EnumerableEx</span><span style="color: black;">.Return(</span><span style="color: #a31515;">$"Handled </span><span style="color: black;">{exception.GetType().Name}</span><span style="color: #a31515;">: </span><span style="color: black;">{exception.Message}</span><span style="color: #a31515;">"</span><span style="color: black;">));
+    </span><span style="color: black;">@catch.WriteLines(); </span><span style="color: green;">// Handled OperationCanceledException: The operation was canceled.
+</span><span style="color: black;">}</span></pre>
+<p>The other Catch overloads accepts multiple sequences, and return a single sequence. The idea is, when executed, it tries to pull and yield values of the first sequence. if there is no exception, it stops execution; If any exception is thrown, it tries to pull and yield the values of the next sequence, and so on;&nbsp; After stopping the evaluation, it checks if there is any exception from the evaluation of the last sequence. If yes, it re-throws that exception. The concept is:</p>
+<pre class="code"><span style="color: green;">// Cannot be compiled.
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; CatchWithYield&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; sources)
+{
+    </span><span style="color: #2b91af;">Exception </span><span style="color: black;">lastException = </span><span style="color: blue;">null</span><span style="color: black;">;
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source </span><span style="color: blue;">in </span><span style="color: black;">sources)
+    {
+        lastException = </span><span style="color: blue;">null</span><span style="color: black;">;
+        </span><span style="color: blue;">try
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+            {
+                </span><span style="color: blue;">yield return </span><span style="color: black;">value;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+            }
+            </span><span style="color: blue;">break</span><span style="color: black;">; </span><span style="color: green;">// Stops if no exception from current sequence.
+        </span><span style="color: black;">}
+        </span><span style="color: blue;">catch </span><span style="color: black;">(</span><span style="color: #2b91af;">Exception </span><span style="color: black;">exception)
+        {
+            lastException = exception;
+            </span><span style="color: green;">// Continue with next sequence if there is exception.
+        </span><span style="color: black;">}
+    }
+    </span><span style="color: blue;">if </span><span style="color: black;">(lastException != </span><span style="color: blue;">null</span><span style="color: black;">)
+    {
+        </span><span style="color: blue;">throw </span><span style="color: black;">lastException;
+    }
+}</span></pre>
+<p>Again, yield in above code can be replaced with IYielder&lt;T&gt; to compile, but that does not work at runtime. So above desugared while-try-catch-yield pattern can be used:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Catch&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; sources)
+{
+    </span><span style="color: #2b91af;">Exception </span><span style="color: black;">lastException = </span><span style="color: blue;">null</span><span style="color: black;">;
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source </span><span style="color: blue;">in </span><span style="color: black;">sources)
+    {
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; iterator = source.GetEnumerator())
+        {
+            </span><span style="color: blue;">while </span><span style="color: black;">(</span><span style="color: blue;">true</span><span style="color: black;">)
+            {
+                lastException = </span><span style="color: blue;">null</span><span style="color: black;">;
+                </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value;
+                </span><span style="color: blue;">try </span><span style="color: green;">// Only MoveNext and Current are inside try-catch.
+                </span><span style="color: black;">{
+                    </span><span style="color: blue;">if </span><span style="color: black;">(iterator.MoveNext())
+                    {
+                        value = iterator.Current;
+                    }
+                    </span><span style="color: blue;">else
+                    </span><span style="color: black;">{
+                        </span><span style="color: blue;">break</span><span style="color: black;">; </span><span style="color: green;">// Stops while loop at the end of iteration.
+                    </span><span style="color: black;">}
+                }
+                </span><span style="color: blue;">catch </span><span style="color: black;">(</span><span style="color: #2b91af;">Exception </span><span style="color: black;">exception)
+                {
+                    lastException = exception;
+                    </span><span style="color: blue;">break</span><span style="color: black;">; </span><span style="color: green;">// Stops while loop if TException is thrown.
+                </span><span style="color: black;">}
+                </span><span style="color: blue;">yield return </span><span style="color: black;">value;<span style="color: black;"> </span><span style="color: green;">// Deferred execution, outside try-catch.</span>
+            }
+        }
+        </span><span style="color: blue;">if </span><span style="color: black;">(lastException == </span><span style="color: blue;">null</span><span style="color: black;">)
+        {
+            </span><span style="color: blue;">break</span><span style="color: black;">; </span><span style="color: green;">// If no exception, stops pulling the next source; otherwise, continue.
+        </span><span style="color: black;">}
+    }
+    </span><span style="color: blue;">if </span><span style="color: black;">(lastException != </span><span style="color: blue;">null</span><span style="color: black;">)
+    {
+        </span><span style="color: blue;">throw </span><span style="color: black;">lastException;
+    }
+}
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Catch&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">params </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;[] sources) =&gt; sources.Catch();
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Catch&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;
+    (</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; first, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; second) =&gt;
+        </span><span style="color: blue;">new </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;[] { first, second }.Catch();</span></pre>
+<p>For example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Catch()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; scanWithException = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Repeat(0, 5).Scan((a, b) =&gt; a / b); </span><span style="color: green;">// Divide by 0.
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; range = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5);
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; castWithException = </span><span style="color: blue;">new object</span><span style="color: black;">[] { 5, </span><span style="color: #a31515;">"a" </span><span style="color: black;">}.Cast&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;();
+
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; source1 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;[]
+    {
+        scanWithException, </span><span style="color: green;">// Executed, with DivideByZeroException.
+        </span><span style="color: black;">range, </span><span style="color: green;">// Executed, without exception.
+        </span><span style="color: black;">castWithException </span><span style="color: green;">// Not executed.
+    </span><span style="color: black;">};
+    source1.Catch().WriteLines(); </span><span style="color: green;">// 0 1 2 3 4
+
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; source2 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;[]
+    {
+        scanWithException,  </span><span style="color: green;">// Executed, with DivideByZeroException.
+        </span><span style="color: black;">castWithException </span><span style="color: green;">// Executed, with InvalidCastException.
+    </span><span style="color: black;">};
+    </span><span style="color: blue;">try
+    </span><span style="color: black;">{
+        source2.Catch().WriteLines(); </span><span style="color: green;">// 5
+    </span><span style="color: black;">}
+    </span><span style="color: blue;">catch </span><span style="color: black;">(</span><span style="color: #2b91af;">InvalidCastException </span><span style="color: black;">exception)
+    {
+        exception.WriteLine(); </span><span style="color: green;">// System.InvalidCastException: Specified cast is not valid.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>Besides Throw and Catch, there is also Finally query method. Finally is very intuitive:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Finally&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Action </span><span style="color: black;">finalAction)
+{
+    </span><span style="color: blue;">try
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+        {
+            </span><span style="color: blue;">yield return </span><span style="color: black;">value;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+        }
+    }
+    </span><span style="color: blue;">finally
+    </span><span style="color: black;">{
+        finalAction();
+    }
+}</span></pre>
+<p>OnErrorResumeNext is the same as Concat above, but it ignores any exception when evaluating values from each sequence. The idea is:</p>
+<pre class="code"><span style="color: green;">// Cannot be compiled.
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; OnErrorResumeNextWithYield&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; sources)
+{
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source </span><span style="color: blue;">in </span><span style="color: black;">sources)
+    {
+        </span><span style="color: blue;">try
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+            {
+                </span><span style="color: blue;">yield return </span><span style="color: black;">value;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+            }
+        }
+        </span><span style="color: blue;">catch </span><span style="color: black;">{ }
+    }
+}</span></pre>
+<p>Once again, this can be implemented with the desugared while-try-catch-yield pattern:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; OnErrorResumeNext&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; sources)
+{
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source </span><span style="color: blue;">in </span><span style="color: black;">sources)
+    {
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; iterator = source.GetEnumerator())
+        {
+            </span><span style="color: blue;">while </span><span style="color: black;">(</span><span style="color: blue;">true</span><span style="color: black;">)
+            {
+                </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value = </span><span style="color: blue;">default</span><span style="color: black;">;
+                </span><span style="color: blue;">try
+                </span><span style="color: black;">{
+                    </span><span style="color: blue;">if </span><span style="color: black;">(!iterator.MoveNext())
+                    {
+                        </span><span style="color: blue;">break</span><span style="color: black;">;
+                    }
+                    value = iterator.Current;
+                }
+                </span><span style="color: blue;">catch
+                </span><span style="color: black;">{
+                    </span><span style="color: blue;">break</span><span style="color: black;">;
+                }
+                </span><span style="color: blue;">yield return </span><span style="color: black;">value;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+            }
+        }
+    }
+}
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; OnErrorResumeNext&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">params </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;[] sources) =&gt; sources.OnErrorResumeNext();
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; OnErrorResumeNext&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; first, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; second) =&gt;
+        </span><span style="color: blue;">new </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;[] { first, second }.OnErrorResumeNext();</span></pre>
+<p>Retry query tries to yield the source values. If there is an exception thrown, it retries to yield the values again from the beginning of the source sequence:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Retry&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: blue;">int</span><span style="color: black;">? retryCount = </span><span style="color: blue;">null</span><span style="color: black;">) =&gt;
+        Return(source).Repeat(retryCount).Catch();</span></pre>
+<p>If retryCount is not provided, it retries forever.</p>
+<h2>Imperative</h2>
+<p>The imperative query methods just wrap the imperative control flows, and return a sequence for fluent LINQ query. If represents the if-else statement:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; If&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">bool</span><span style="color: black;">&gt; condition, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; thenSource, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; elseSource = </span><span style="color: blue;">null</span><span style="color: black;">) =&gt;
+        Defer(() =&gt; condition() ? thenSource : elseSource ?? </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Empty&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;());</span></pre>
+<p>Case represents the switch-case statement. It accepts a selector function as the key factory, and a dictionary of key-sequence pairs, where each key represents a case label of the switch statement. When Case query is executed, the selector function is called to return a key. If the dictionary contains the key returned by selector, then the matching sequence is returned; otherwise, a default sequence is returned:</p>
+<pre class="code"><span style="color: blue;"><span style="color: blue;">public </span>static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Case&lt;</span><span style="color: #2b91af;">TValue</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TValue</span><span style="color: black;">&gt; selector,
+    </span><span style="color: #2b91af;">IDictionary</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TValue</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; sources,
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; defaultSource = </span><span style="color: blue;">null</span><span style="color: black;">) =&gt;
+        Defer(() =&gt; sources.TryGetValue(selector(), </span><span style="color: blue;">out </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; result)
+            ? result
+            : (defaultSource ?? </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Empty&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;()));</span></pre>
+<p>Using represents the using statement:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Using&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResource</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResource</span><span style="color: black;">&gt; resourceFactory, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResource</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; enumerableFactory)
+    </span><span style="color: blue;">where </span><span style="color: #2b91af;">TResource </span><span style="color: black;">: </span><span style="color: #2b91af;">IDisposable
+</span><span style="color: black;">{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">TResource </span><span style="color: black;">resource = resourceFactory())
+    {
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">enumerableFactory(resource))
+        {
+            </span><span style="color: blue;">yield return </span><span style="color: black;">value;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+        }
+    }
+}</span></pre>
+<p>While represents the while loop:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; While&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">bool</span><span style="color: black;">&gt; condition, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; source)
+{
+    </span><span style="color: blue;">while </span><span style="color: black;">(condition())
+    {
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TResult </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+        {
+            </span><span style="color: blue;">yield return </span><span style="color: black;">value;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+        }
+    }
+}</span></pre>
+<p>DoWhile represents the do-while loop:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; DoWhile&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">bool</span><span style="color: black;">&gt; condition) =&gt; source.Concat(While(condition, source));</span></pre>
+<p>Generate represents the for loop:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Generate&lt;</span><span style="color: #2b91af;">TState</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">TState </span><span style="color: black;">initialState,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TState</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; condition,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TState</span><span style="color: black;">, </span><span style="color: #2b91af;">TState</span><span style="color: black;">&gt; iterate,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TState</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector)
+{
+    </span><span style="color: blue;">for </span><span style="color: black;">(</span><span style="color: #2b91af;">TState </span><span style="color: black;">state = initialState; condition(state); state = iterate(state))
+    {
+        </span><span style="color: blue;">yield return </span><span style="color: black;">resultSelector(state);<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+    }
+}</span></pre>
+<p>Surprisingly, For is exactly the same as SelectMany:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; For&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; resultSelector) =&gt;
+        source.SelectMany(resultSelector);</span></pre>
+<p>Not sure why Generate and For are named in this way.</p>
+<h2>Iteration</h2>
+<p>Do does not transform the data in any way. It simply pull source values just like Hide. It also accepts 3 callback functions, onNext, onError, and onCompleted. When each source value is pulled, onNext is called with the value. When exception is thrown for pulling source value, onError is called with the exception. After all source values are pulled successfully without exception, onCompleted is called. Do can be implemented with the desugared while-try-catch-yield pattern:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Do&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; onNext</span><span style="color: black;">, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Exception</span><span style="color: black;">&gt; onError = </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: #2b91af;">Action </span><span style="color: black;">onCompleted = </span><span style="color: blue;">null</span><span style="color: black;">)
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; iterator = source.GetEnumerator())
+    {
+        </span><span style="color: blue;">while </span><span style="color: black;">(</span><span style="color: blue;">true</span><span style="color: black;">)
+        {
+            </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value;
+            </span><span style="color: blue;">try
+            </span><span style="color: black;">{
+                </span><span style="color: blue;">if </span><span style="color: black;">(!iterator.MoveNext())
+                {
+                    </span><span style="color: blue;">break</span><span style="color: black;">;
+                }
+                value = iterator.Current;
+            }
+            </span><span style="color: blue;">catch </span><span style="color: black;">(</span><span style="color: #2b91af;">Exception </span><span style="color: black;">exception)
+            {
+                onError?.Invoke(exception);
+                </span><span style="color: blue;">throw</span><span style="color: black;">;
+            }
+            onNext(value);
+            </span><span style="color: blue;">yield return </span><span style="color: black;">value;<span style="color: black;"> </span><span style="color: green;">// Deferred execution, outside try-catch.</span>
+        }
+        onCompleted?.Invoke();
+    }
+}</span></pre>
+<p>Do is very useful for logging and tracing LINQ queries, for example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Do()
+{
+    </span><span style="color: #2b91af;">Enumerable
+        </span><span style="color: black;">.Range(-5, 10).Do(
+            onNext: value =&gt; </span><span style="color: #a31515;">$"</span><span style="color: black;">{</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range)} </span><span style="color: #a31515;">yields </span><span style="color: black;">{value}</span><span style="color: #a31515;">."</span><span style="color: black;">.WriteLine(),
+            onCompleted: () =&gt; </span><span style="color: #a31515;">$"</span><span style="color: black;">{</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range)} </span><span style="color: #a31515;">query completes."</span><span style="color: black;">.WriteLine())
+        .Where(value =&gt; value &gt; 0).Do(
+            onNext: value =&gt; </span><span style="color: #a31515;">$"</span><span style="color: black;">{</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Where)} </span><span style="color: #a31515;">yields </span><span style="color: black;">{value}</span><span style="color: #a31515;">."</span><span style="color: black;">.WriteLine(),
+            onCompleted: () =&gt; </span><span style="color: #a31515;">$"</span><span style="color: black;">{</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Where)} </span><span style="color: #a31515;">query completes."</span><span style="color: black;">.WriteLine())
+        .TakeLast(2).Do(
+            onNext: value =&gt; </span><span style="color: #a31515;">$"</span><span style="color: black;">{</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">EnumerableEx</span><span style="color: black;">.TakeLast)} </span><span style="color: #a31515;">yields </span><span style="color: black;">{value}</span><span style="color: #a31515;">."</span><span style="color: black;">.WriteLine(),
+            onCompleted: () =&gt; </span><span style="color: #a31515;">$"</span><span style="color: black;">{</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">EnumerableEx</span><span style="color: black;">.TakeLast)} </span><span style="color: #a31515;">query completes."</span><span style="color: black;">.WriteLine())
+        .WriteLines(value =&gt; </span><span style="color: #a31515;">$"Query yields result </span><span style="color: black;">{value}</span><span style="color: #a31515;">."</span><span style="color: black;">);
+    </span><span style="color: green;">// Range yields -5.
+    // Range yields -4.
+    // Range yields -3.
+    // Range yields -2.
+    // Range yields -1.
+    // Range yields 0.
+    // Range yields 1.
+    // Where yields 1.
+    // Range yields 2.
+    // Where yields 2.
+    // Range yields 3.
+    // Where yields 3.
+    // Range yields 4.
+    // Where yields 4.
+    // Range query completes.
+    // Where query completes.
+    // TakeLast yields 3.
+    // Query yields result 3.
+    // TakeLast yields 4.
+    // Query yields result 4.
+    // TakeLast query completes.
+</span><span style="color: black;">}</span></pre>
+<p>Since System.IObserver&lt;T&gt; is the composition of above onNext, onError, onCompleted functions:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IObserver</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+    {
+        </span><span style="color: blue;">void </span><span style="color: black;">OnCompleted();
+
+        </span><span style="color: blue;">void </span><span style="color: black;">OnError(</span><span style="color: #2b91af;">Exception </span><span style="color: black;">error);
+
+        </span><span style="color: blue;">void </span><span style="color: black;">OnNext(</span><span style="color: #2b91af;">T </span><span style="color: black;">value);
+    }
+}</span></pre>
+<p>Do also has a overload accepting an observer:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Do&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">IObserver</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; observer) =&gt;
+    Do(source, observer.OnNext, observer.OnError, observer.OnCompleted);</span></pre>
+<h1>Value queries</h1>
+<h2>Aggregation</h2>
+<p>The additional overloads of Max/Min accept a comparer function, and return the first maximum/minimum value:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">TSource </span><span style="color: black;">Max&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; comparer);
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">TSource </span><span style="color: black;">Min&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; comparer);</span></pre>
+<p>As fore mentioned, to use the standard Max/Min with a source sequence, exception is thrown if the source type does not implement IComparable or IComparable&lt;T&gt;, which is a problem when the source type cannot be modified:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">MaxMinGeneric()
+{
+    </span><span style="color: #2b91af;">Character </span><span style="color: black;">maxCharacter = Characters().Max().WriteLine();</span><span style="color: green;">
+    </span><span style="color: #2b91af;">Character </span><span style="color: black;">minCharacter = Characters().Min().WriteLine();</span><span style="color: green;">
+</span><span style="color: black;">}</span></pre>
+<p>The overloads with comparer does not have such requirement:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">MaxMin()
+{
+    </span><span style="color: #2b91af;">Character </span><span style="color: black;">maxCharacter = Characters()
+        .Max(</span><span style="color: #2b91af;">Comparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Character</span><span style="color: black;">&gt;.Create((character1, character2) =&gt;
+            </span><span style="color: blue;">string</span><span style="color: black;">.Compare(character1.Name, character2.Name, </span><span style="color: #2b91af;">StringComparison</span><span style="color: black;">.OrdinalIgnoreCase)));
+    </span><span style="color: #2b91af;">Character </span><span style="color: black;">minCharacter = Characters()
+        .Max(</span><span style="color: #2b91af;">Comparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Character</span><span style="color: black;">&gt;.Create((character1, character2) =&gt;
+            </span><span style="color: blue;">string</span><span style="color: black;">.Compare(character1.Name, character2.Name, </span><span style="color: #2b91af;">StringComparison</span><span style="color: black;">.OrdinalIgnoreCase)));
+}</span></pre>
+<p>MaxBy/MinBy accept key selector and key comparer functions, they return a list of all maximum/minimum values:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; MaxBy&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; MaxBy&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector, </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; comparer);
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; MinBy&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; MinBy&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector, </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; comparer);</span></pre>
+<p>For example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">MaxByMinBy()
+{
+    </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Character</span><span style="color: black;">&gt; maxCharacters = Characters()
+        .MaxBy(character =&gt; character.Name, </span><span style="color: #2b91af;">StringComparer</span><span style="color: black;">.OrdinalIgnoreCase);
+    </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Character</span><span style="color: black;">&gt; minCharacters = Characters()
+        .MinBy(character =&gt; character.Name, </span><span style="color: #2b91af;">StringComparer</span><span style="color: black;">.OrdinalIgnoreCase);
+}</span></pre>
+<p>The previous example of finding the maximum types in .NET core library becomes easy with MaxBy:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">MaxBy()
+{
+    CoreLibrary.GetExportedTypes()
+        .Select(type =&gt; (Type: type, MemberCount: type.GetDeclaredMembers().Length))
+        .MaxBy(typeAndMemberCount =&gt; typeAndMemberCount.MemberCount)
+        .WriteLines(max =&gt; </span><span style="color: #a31515;">$"</span><span style="color: black;">{max.Type.FullName}</span><span style="color: #a31515;">:</span><span style="color: black;">{max.MemberCount}</span><span style="color: #a31515;">"</span><span style="color: black;">); </span><span style="color: green;">// System.Convert:311
+</span><span style="color: black;">}</span></pre>
+<h2>Quantifiers</h2>
+<p>There is a IsEmpty query method for convenience. It is just the opposite of Any:</p>
+<pre class="code"><span style="color: blue;">public static bool </span><span style="color: black;">IsEmpty&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source) =&gt; !source.Any();</span></pre>
+<h1>Void queries</h1>
+<h2>Iteration</h2>
+<p>ForEach represents the foreach loop, with a non-indexed overload and a indexed overload, which can be fluently used at the end of the query:</p>
+<pre class="code"><span style="color: blue;">public static void </span><span style="color: black;">ForEach&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; onNext)
+{
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+    {
+        onNext(value);
+    }
+}
+
+</span><span style="color: blue;">public static void </span><span style="color: black;">ForEach&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; onNext)
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">index = 0;
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+    {
+        onNext(value, index);
+        index = </span><span style="color: blue;">checked</span><span style="color: black;">(index + 1);</span><span style="color: green;">
+    </span><span style="color: black;">}
+}</span></pre>
+<p>There was an issue with the indexed ForEach – the index increment was not checked. The issue was uncovered when writing this book and has been fixed.</p>
+
+
+</div>
+</body>
+</html>

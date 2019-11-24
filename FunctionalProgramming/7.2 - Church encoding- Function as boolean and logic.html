@@ -1,0 +1,246 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+<h1>Lambda Calculus via C# (2) Church Encoding: Boolean and Logic</h1>
+
+<p>Lambda calculus is a formal system for function definition and function application, so in lambda calculus, the only primitive is anonymous function. Anonymous function is actually very powerful. With an approach called Church encoding. data and operation can be modeled by higher-order anonymous functions and their application. Church encoding is named after <a href="http://en.wikipedia.org/wiki/Alonzo_Church">Alonzo Church</a>, who first discovered this approach. This part discusses Church Boolean - modeling Boolean values and logic operators with functions.</p>
+<h1>Church Boolean</h1>
+<p>Boolean values True and False can be both represented by anonymous function with 2 parameters. True function simply output the first parameter, and False function output the second parameter:</p>
+<pre class="code">True := λtf.t
+False := λtf.f</pre>
+<p>As fore mentioned, λtf.E is just the abbreviation of λt.λf.E, so these definitions actually are:</p>
+<pre class="code">True := λt.λf.t
+False := λt.λf.f</pre>
+<p>In this tutorial, for consistency and intuition, function definition with multiple variables is always represented in the latter curried form. In C#, they can be viewed as t =&gt; f =&gt; t and t =&gt; f =&gt; f, which are curried from (t, f) =&gt; t and (t, f) =&gt; f. Here t and f can be of any type, so leave their types as dynamic for convenience. In C#, at compile time dynamic is viewed as object and also supports any operation; at runtime if the operation is actually not supported, an exception is thrown. So, the function type of t =&gt; f =&gt; t and t =&gt; f =&gt; f is dynamic –&gt; dynamic –&gt; dynamic, which is represented as Func&lt;dynamic, Func&lt;dynamic, dynamic&gt;&gt; in C#. For convenience, an alias Boolean can be defined for such function type:</p>
+<pre class="code"><span style="color: green;">// Curried from (dynamic, dynamic) -&gt; dynamic.
+// Boolean is the alias of dynamic -&gt; dynamic -&gt; dynamic.
+</span><span style="color: blue;">public delegate </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt; </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">(</span><span style="color: blue;">dynamic </span><span style="color: black;">@true);</span></pre>
+<p>So that True and False can be defined with lambda expression:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ChurchBoolean
+</span><span style="color: black;">{</span><span style="color: green;">
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Boolean
+        </span><span style="color: black;">True = @true =&gt; @false =&gt; @true;
+</span><span style="color: green;">
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Boolean
+        </span><span style="color: black;">False = @true =&gt; @false =&gt; @false;
+}</span></pre>
+<p>C# does not support defining function directly in the global scope, so True and False are defined as static filed member of a type.&nbsp; In other functional languages like F#, functions can directly defined:</p>
+<pre class="code"><span style="background: #f5f5f5; color: blue;">let </span><span style="background: #f5f5f5; color: black;">True t f = t
+</span><span style="background: #f5f5f5; color: blue;">let </span><span style="background: #f5f5f5; color: black;">False t f = f</span></pre>
+<p>There is no noise and the function currying is default. Actually this F# code is compiled to CIL code similar to above C# structure (static member of a type).</p>
+<h1>Logical operators</h1>
+<p>After defining Boolean values True and False with functions, now the Boolean logics can be represented by functions too. And can be defined by the following function:</p>
+<pre class="code">And := λa.λb.a b False</pre>
+<p>Applying function True with Boolean a and b:</p>
+<ul>
+<li>When a is True, the application is beta reduced to True b False, which applies True function with b and False, and the first argument b is returned. In C#, this can be viewed that true &amp;&amp; b is the same as b.&nbsp;</li>
+<li>When a is False, the application is beta reduced to False b False, which applies False function with b and False, and the second argument False is returned. In C#, this can be viewed as false &amp;&amp; b is always false.</li>
+</ul>
+<pre class="code">  <span style="color: black;">And True b
+≡ (λa.λb.a b False) True b
+≡ (λb.True b False) b
+≡ True b False
+≡ b
+
+  And False b
+≡ (λa.λb.a b False) False b
+≡ (λb.False b False) b
+≡ False b False
+≡ False</span></pre>
+<p>In C#, And can be viewed as a =&gt; b =&gt; a(b)(False), it is of curried function type Boolean –&gt; Boolean -&gt; Boolean:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ChurchBoolean
+</span><span style="color: black;">{</span><span style="color: green;">
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">, </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">&gt;&gt;
+        And = a =&gt; b =&gt; a(b)(False);
+}</span></pre>
+<p>This demonstrates that the Boolean alias improves the readability. Without this alias, the type of And becomes (dynamic –&gt; dynamic –&gt; dynamic) –&gt; (dynamic –&gt; dynamic –&gt; dynamic) –&gt; (dynamic –&gt; dynamic –&gt; dynamic), which is Func&lt;Func&lt;dynamic, Func&lt;dynamic, dynamic&gt;&gt;, Func&lt;Func&lt;dynamic, Func&lt;dynamic, dynamic&gt;&gt;, Func&lt;dynamic, Func&lt;dynamic, dynamic&gt;&gt;&gt;&gt; in C#.</p>
+<p>This also demonstrates that dynamic type simplifies type conversion. If Boolean is defined as object –&gt; object -&gt; object:</p>
+<pre class="code"><span style="color: blue;">public delegate </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">object</span><span style="color: black;">, </span><span style="color: blue;">object</span><span style="color: black;">&gt; </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">(</span><span style="color: blue;">object </span><span style="color: black;">@true);
+
+</span><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ChurchBoolean
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">, </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">&gt;&gt;
+        And = a =&gt; b =&gt; (</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">)a(b)(False);
+}</span></pre>
+<p>And must return Boolean, but a(b)(False) returns object, so a type conversion is required. Here a is either True or False, according to the definition of True and False, a(b)(False) returns either b or False. Since b and False are both of type Boolean, so here it is safe to convert a(b)(False) to Boolean. In contrast, when Boolean is defined as dynamic –&gt; dynamic -&gt; dynamic, a(b)(False) returns dynamic, which is viewed as supporting any operation at compile time, including implicitly conversion to Boolean, so the explicit type conversion is not required. At run time, a(b)(False) always return Boolean, and converting Boolean to Boolean always succeeds, so And works smoothly without any exception.</p>
+<p>In the above lambda function and C# function, a function name False is referenced. Again, function is anonymous by default in lambda calculus. This tutorial uses function name only for for readability. By substituting function name, And can be defined as:</p>
+<pre class="code"><span style="color: black;">And := λa.λb.a b (λt.λf.f)</span></pre>
+<p>And the C# implementation becomes:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">, </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">&gt;&gt;
+    And = a =&gt; b =&gt; </span><span style="color: black;">a(b)(</span><span style="color: blue;">new </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">(@true =&gt; @false =&gt; @false));</span></pre>
+<p>The function body is longer and less readable. Also, a is of type dynamic –&gt; dynamic -&gt; dynamic, the second argument of a is expected to be object. When function reference False is given, False is a Boolean delegate instance, apparently it is an object and works there,&nbsp; However, when an inline C# lambda expression is given. C# compiler cannot infer the the type of this lambda expression – it could be anonymous function, or expression tree, and the type information of @true and @false cannot be inferred either. So here the constructor syntax is used to indicate this inline lambda expression is a function of type dynamic –&gt; dynamic -&gt; dynamic.</p>
+<p>Again, C# does not support defining custom operators for functions, so a &amp;&amp; operator cannot be defined for Boolean type. However, extension method can be defined for Boolean type, also And can be implemented as:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">BooleanExtensions
+</span><span style="color: black;">{</span><span style="color: green;">
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">And(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">a, </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">b) =&gt; </span><span style="color: #2b91af;">ChurchBoolean</span><span style="color: black;">.And(a)(b);
+}</span></pre>
+<p>Now And can be used fluently like an infix operator:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CallAnd()
+{
+    </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">result1 = True.And(True);
+
+    </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">x = True;
+    </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">y = False;
+    </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">result2 = x.And(y);
+}</span></pre>
+<p>Once again, the function name And is only for readability, without refereeing to the function name., the function application (And x y) has to be written as (λa.λb.a b (λt.λf.f)) x y, and in C#, calling And anonymously works but is also less readable:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CallAnonymousAnd()
+{
+    </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">result1 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">, </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">&gt;&gt;(a =&gt; b =&gt; (</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">)a(b)(False))(True)(True);
+
+    </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">x = True;
+    </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">y = False;
+    </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">result2 = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">, </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">&gt;&gt;(a =&gt; b =&gt; (</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">)a(b)(False))(x)(y);
+}</span></pre>
+<p>Or is defined as:</p>
+<pre class="code">Or :=&nbsp; λa.λb.a True b</pre>
+<p>When a is True, True True b returns the first argument True; When a is False, False True b returns the second argument b. In C#, this can be viewed as true || b is always true, and false || b is the same as b.</p>
+<pre class="code">  <span style="color: black;">Or True b
+≡ (λa.λb.a True b) True b
+≡ (λb.True True b) b
+≡ True True b
+≡ True
+
+  Or False b
+≡ (λa.λb.a True b) False b
+≡ (λb.False True b) b
+≡ False True b
+≡ b</span></pre>
+<p>Not is defined as:</p>
+<pre class="code">Not := λa.a False True</pre>
+<p>When a is True, True False True returns the first argument False; when a is False, False False True returns the second argument True:</p>
+<pre class="code">  <span style="color: black;">Not True
+≡ (λa.a False True) True
+≡ True False True
+≡ False
+
+  Not False
+≡ (λa.a False True) False
+≡ False False True
+≡ True</span></pre>
+<p>Xor is defined as:</p>
+<pre class="code">Xor := λa.λb.a (Not b) b</pre>
+<p>When a is True, True (Not b) b returns the first argument Not b; when a is False, True (Not b) b returns the second argument b:</p>
+<pre class="code">  <span style="color: black;">Xor True b
+≡ (λa.λb.a (Not b) b) True b
+≡ (λb.True (Not b) b) b
+≡ True (Not b) b
+≡ Not b
+
+  Xor False b
+≡ (λa.λb.a (Not b) b) True b
+≡ (λb.False (Not b) b) b
+≡ False (Not b) b
+≡ b</span></pre>
+<p>These 3 operators can be simply implemented as:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">, </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">&gt;&gt;
+    Or = a =&gt; b =&gt; </span><span style="color: black;">a(True)(b);
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">, </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">&gt;
+    Not = boolean =&gt; </span><span style="color: black;">boolean(False)(True);
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">, </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">&gt;&gt;
+    Xor = a =&gt; b =&gt; </span><span style="color: black;">a(Not(b))(b);</span></pre>
+<p>Again, they can be wrapped as extension methods too:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">Or(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">a, </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">b) =&gt; </span><span style="color: #2b91af;">ChurchBoolean</span><span style="color: black;">.Or(a)(b);
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">Not(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">a) =&gt; </span><span style="color: #2b91af;">ChurchBoolean</span><span style="color: black;">.Not(a);
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">Xor(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">a, </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">b) =&gt; </span><span style="color: #2b91af;">ChurchBoolean</span><span style="color: black;">.Xor(a)(b);</span></pre>
+<h1>Conversion between Church Boolean and System.Boolean</h1>
+<p>It could be intuitive if the Church Boolean function can be directly compared with .NET bool value. The following methods can be defined to convert between them:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ChurchEncoding
+</span><span style="color: black;">{
+    </span><span style="color: green;">// System.Boolean structure to Boolean function.
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">Church(</span><span style="color: blue;">this bool </span><span style="color: black;">boolean) =&gt; boolean ? True : False;
+
+    </span><span style="color: green;">// Boolean function to System.Boolean structure.
+    </span><span style="color: blue;">public static bool </span><span style="color: black;">Unchurch(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">boolean) =&gt; </span><span style="color: black;">boolean(</span><span style="color: blue;">true</span><span style="color: black;">)(</span><span style="color: blue;">false</span><span style="color: black;">);
+}</span></pre>
+<p>With the help of conversion, the following code demonstrate how to use the logical operators:</p>
+<pre class="code"><span style="color: black;">[</span><span style="color: #2b91af;">TestClass</span><span style="color: black;">]
+</span><span style="color: blue;">public partial class </span><span style="color: #2b91af;">ChurchBooleanTests
+</span><span style="color: black;">{
+    [</span><span style="color: #2b91af;">TestMethod</span><span style="color: black;">]
+    </span><span style="color: blue;">public void </span><span style="color: black;">NotTest()
+    {
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual((!</span><span style="color: blue;">true</span><span style="color: black;">).Church(), True.Not());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual((!</span><span style="color: blue;">false</span><span style="color: black;">).Church(), False.Not());
+    }
+
+    [</span><span style="color: #2b91af;">TestMethod</span><span style="color: black;">]
+    </span><span style="color: blue;">public void </span><span style="color: black;">AndTest()
+    {
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual((</span><span style="color: blue;">true </span><span style="color: black;">&amp;&amp; </span><span style="color: blue;">true</span><span style="color: black;">).Church(), True.And(True));
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual((</span><span style="color: blue;">true </span><span style="color: black;">&amp;&amp; </span><span style="color: blue;">false</span><span style="color: black;">).Church(), True.And(False));
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual((</span><span style="color: blue;">false </span><span style="color: black;">&amp;&amp; </span><span style="color: blue;">true</span><span style="color: black;">).Church(), False.And(True));
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual((</span><span style="color: blue;">false </span><span style="color: black;">&amp;&amp; </span><span style="color: blue;">false</span><span style="color: black;">).Church(), False.And(False));
+    }
+
+    [</span><span style="color: #2b91af;">TestMethod</span><span style="color: black;">]
+    </span><span style="color: blue;">public void </span><span style="color: black;">OrTest()
+    {
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual((</span><span style="color: blue;">true </span><span style="color: black;">|| </span><span style="color: blue;">true</span><span style="color: black;">).Church(), True.Or(True));
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual((</span><span style="color: blue;">true </span><span style="color: black;">|| </span><span style="color: blue;">false</span><span style="color: black;">).Church(), True.Or(False));
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual((</span><span style="color: blue;">false </span><span style="color: black;">|| </span><span style="color: blue;">true</span><span style="color: black;">).Church(), False.Or(True));
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual((</span><span style="color: blue;">false </span><span style="color: black;">|| </span><span style="color: blue;">false</span><span style="color: black;">).Church(), False.Or(False));
+    }
+
+    [</span><span style="color: #2b91af;">TestMethod</span><span style="color: black;">]
+    </span><span style="color: blue;">public void </span><span style="color: black;">XorTest()
+    {
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual((</span><span style="color: blue;">true </span><span style="color: black;">^ </span><span style="color: blue;">true</span><span style="color: black;">).Church(), True.Xor(True));
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual((</span><span style="color: blue;">true </span><span style="color: black;">^ </span><span style="color: blue;">false</span><span style="color: black;">).Church(), True.Xor(False));
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual((</span><span style="color: blue;">false </span><span style="color: black;">^ </span><span style="color: blue;">true</span><span style="color: black;">).Church(), False.Xor(True));
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual((</span><span style="color: blue;">false </span><span style="color: black;">^ </span><span style="color: blue;">false</span><span style="color: black;">).Church(), False.Xor(False));
+    }
+}</span></pre>
+<h1>If</h1>
+<p>The if logic is already built in Church Booleans. Church Booleans is a function that can be applied with 2 argument. If this Church Boolean function is True, the first argument is returned, else the second argument is returned. So naturedly, the following is the If function, which is just a wrapper of Church Boolean function application:</p>
+<pre class="code"><span style="color: black;">If := λb.λt.λf.b t f</span></pre>
+<p>The first argument b is a Church Boolean. when b is True, If returns second argument t. When b is False, If returns third argument f. In C#:</p>
+<pre class="code"><span style="color: green;">// EagerIf = condition =&gt; then =&gt; @else =&gt; condition(then)(@else)
+</span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;&gt;&gt;
+    EagerIf = condition =&gt; then =&gt; @else =&gt;
+        condition    </span><span style="color: green;">// if (condition)
+            </span><span style="color: black;">(then)   </span><span style="color: green;">// then { ... }
+            </span><span style="color: black;">(@else); </span><span style="color: green;">// else { ... }</span></pre>
+<p>There is one issue with this C# implementation. As fore mentioned, C#’s reduction strategy is applicative order, when C# function is called, arguments are evaluated, then function is called:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CallEagerIf(</span><span style="color: #2b91af;">Boolean </span><span style="color: black;">condition, </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">a, </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">b)
+{
+    </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">result = Eager</span><span style="color: black;">If(condition)
+        (a.And(b)) </span><span style="color: green;">// then branch.
+        </span><span style="color: black;">(a.Or(b)); </span><span style="color: green;">// else branch.
+</span><span style="color: black;">}</span></pre>
+<p>In this example, disregarding condition is True or False, the then branch a.And(b) and else branch a.Or(b) are both executed. If would be better if one branch is executed for a certain condition. The solution is to make If’s second and third arguments of type T to a factory of type Unit&lt;T&gt; –&gt; T:</p>
+<pre class="code"><span style="color: green;">// If = condition =&gt; thenFactory =&gt; elseFactory =&gt; condition(thenFactory, elseFactory)(Id)
+</span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Boolean</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Unit</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Unit</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;&gt;&gt;
+    If = condition =&gt; thenFactory =&gt; elseFactory =&gt;
+        condition
+            (thenFactory)
+            (elseFactory)(</span><span style="color: #2b91af;">Functions</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;.Id);</span></pre>
+<p>In lambda calculus this is equivalent to:</p>
+<pre class="code"><span style="color: black;">If := λb.λt.λf.b t f Id</span></pre>
+<p>Now calling If becomes:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CallLazyIf(</span><span style="color: #2b91af;">Boolean </span><span style="color: black;">condition, </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">a, </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">b)
+{
+    </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">result = </span><span style="color: black;">If(condition)
+        (id =&gt; a.And(b)) </span><span style="color: green;">// then.
+        </span><span style="color: black;">(id =&gt; a.Or(b)); </span><span style="color: green;">// else.
+</span><span style="color: black;">}</span></pre>
+<p>When condition is True, only a.And(b) is executed. When condition is False, only a.Or(b) is executed. Now the then and else branches are represented by factory functions id =&gt; a.And(b) and id =&gt; a.Or(b), where the id argument is the Id function. This argument usually is not used by the function body, it can be named as _ to indicate “don’t care”:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CallLazyIf(</span><span style="color: #2b91af;">Boolean </span><span style="color: black;">condition, </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">a, </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">b)
+{
+    </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">result = </span><span style="color: black;">If(condition)
+        (_ =&gt; a.And(b)) </span><span style="color: green;">// then.
+        </span><span style="color: black;">(_ =&gt; a.Or(b)); </span><span style="color: green;">// else.
+</span><span style="color: black;">}</span>
+
+
+</div>
+</body>
+</html>

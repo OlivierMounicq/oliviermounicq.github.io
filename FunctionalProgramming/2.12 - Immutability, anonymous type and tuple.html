@@ -1,0 +1,614 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+
+<h1>C# Functional Programming In-Depth (12) Immutability, Anonymous Type, and Tuple</h1>
+<p>Immutability is an important aspect of functional paradigm. As fore mentioned, imperative/object-oriented programming is usually stateful, and functional programming encourages immutability without state change. In C# programming, there are <a href="https://blogs.msdn.microsoft.com/ericlippert/2007/11/13/immutability-in-c-part-one-kinds-of-immutability/" target="_blank">many kinds of immutability</a>, but they can be categorized into 2 levels: immutability of some value, and immutability of some value’s internal state. Take local variable as example,&nbsp; a local variable can be called immutable, if once it is assigned, there is no way to reassign to it; a local variable can also be called immutable, if once its internal state is initialized, there is no way to modify its state to different state.</p>
+<p>Generally, immutability can make programming easier in many cases, since it gets rid of a major source of bugs. Immutable value and immutable state can also largely simplify concurrent/parallel/multithread programming, because they are thread-safe by nature. The disadvantage of immutability is, apparently, to change an immutable value or immutable state, another new instance must to be created with the mutation, which can cause performance overhead.</p>
+<h1>Immutable value</h1>
+<p>Many functional languages support immutable value. In contrast to variable. Once a value is assigned with something, it cannot be reassigned so that it cannot be changed to anything else. For example, in F#, a value is immutable by default, unless the mutable keyword is specified:</p>
+<pre class="code"><span style="color: blue;">let </span><span style="color: black;">value = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Uri</span><span style="color: black;">(</span><span style="color: #a31515;">"https://weblogs.asp.net/dixin"</span><span style="color: black;">) </span><span style="color: green;">// Immutable value.
+</span><span style="color: black;">value &lt;- </span><span style="color: blue;">null </span><span style="color: green;">// Cannot be compiled. Cannot reassign to value.
+
+</span><span style="color: blue;">let mutable </span><span style="color: black;">variable = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Uri</span><span style="color: black;">(</span><span style="color: #a31515;">"https://weblogs.asp.net/dixin"</span><span style="color: black;">) </span><span style="color: green;">// Mutable variable.
+</span><span style="color: black;">variable &lt;- </span><span style="color: blue;">null </span><span style="color: green;">// Can reassign to variable.</span></pre>
+<p>As a C-like language, C# variable is mutable by default. C# has a few other language features for immutable value.</p>
+<h2>Constant</h2>
+<p>C# has a const keyword to define compile time constant, which cannot be changed at runtime. However, it only works for primitive types, string, and null reference:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Immutability
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Const()
+    {
+        </span><span style="color: blue;">const int </span><span style="color: black;">immutable1 = 1;
+        </span><span style="color: blue;">const string </span><span style="color: black;">immutable2 = </span><span style="color: #a31515;">"https://weblogs.asp.net/dixin"</span><span style="color: black;">;
+        </span><span style="color: blue;">const object </span><span style="color: black;">immutale3 = </span><span style="color: blue;">null</span><span style="color: black;">;
+        </span><span style="color: blue;">const </span><span style="color: black;">Uri immutable4 = </span><span style="color: blue;">null</span><span style="color: black;">;
+        </span><span style="color: blue;">const </span><span style="color: black;">Uri immutable5 = </span><span style="color: blue;">new </span><span style="color: black;">Uri(immutable2); </span><span style="color: green;">// Cannot be compiled.
+    </span><span style="color: black;">}
+}</span></pre>
+<h2>using statement and foreach statement</h2>
+<p>C# also supports immutable value in a few statements, like the fore mentioned using and foreach statements:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ForEach(IEnumerable&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source)
+{
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">immutable </span><span style="color: blue;">in </span><span style="color: black;">source)
+    {
+        </span><span style="color: green;">// Cannot reassign to immutable.
+    </span><span style="color: black;">}
+}
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">Using(Func&lt;IDisposable&gt; disposableFactory)
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(IDisposable immutable = disposableFactory())
+    {
+        </span><span style="color: green;">// Cannot reassign to immutable.
+    </span><span style="color: black;">}
+}</span></pre>
+<h2>this reference for class</h2>
+<p>In class definition, this keyword can be used in instance function members. It refers to the current instance of the class, and it is immutable:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">Device
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal void </span><span style="color: black;">InstanceMethod()
+    {
+        </span><span style="color: green;">// Cannot reassign to this.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>By default, this reference is mutable for structure definition, which is discussed later.</p>
+<h2>Function’s readonly input and readonly output</h2>
+<p>The fore mentioned function parameter passed by readonly reference (in parameter) is immutable in the function, and function result retuned by readonly reference (ref readonly return) is immutable for the function’s caller:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ParameterAndReturn&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(Span&lt;T&gt; span)
+{
+    </span><span style="color: blue;">ref readonly </span><span style="color: black;">T Last(</span><span style="color: blue;">in </span><span style="color: black;">Span&lt;T&gt; immutableInput)
+    {
+        </span><span style="color: green;">// Cannot reassign to immutableInput.
+        </span><span style="color: blue;">int </span><span style="color: black;">length = immutableInput.Length;
+        </span><span style="color: blue;">if </span><span style="color: black;">(length &gt; 0)
+        {
+            </span><span style="color: blue;">return ref </span><span style="color: black;">immutableInput[length - 1];
+        }
+        </span><span style="color: blue;">throw new </span><span style="color: black;">ArgumentException(</span><span style="color: #a31515;">"Span is empty."</span><span style="color: black;">, nameof(immutableInput));
+    }
+
+    <span style="color: black;"></span><span style="color: blue;">ref readonly </span>T immutableOutput = <span style="color: black;"></span><span style="color: blue;">ref </span>Last(</span><span style="color: blue;">in </span><span style="color: black;">span);
+    </span><span style="color: green;">// Cannot reassign to immutableOutput.
+</span><span style="color: black;">}</span></pre>
+<h2>Local variable by readonly reference (ref readonly variable)</h2>
+<p>C# 7.2 introduces readonly reference for local variable. In C#, when defining and initializing a new local variable with some existing local variable, there are 3 cases:</p>
+<ul>
+<li>By copy: directly assign to local variable. If a value type instance is assigned, that value type instance is copied to a new instance; if a reference type instance is assigned, that reference is copied. So when the new local variable is reassigned, the previous local variable is not impacted.</li>
+<li>By reference: assign to local variable with the ref keyword. The new local variable can be virtually viewed as a pointer or alias of the existing local variable. So when the new local variable is reassigned, it is equivalent to reassigning the previous local variable</li>
+<li>By readonly reference: assign to local variable with the ref readonly keywords. The new local variable can be also virtually viewed as a pointer or alias, but in this case the new local variable is immutable, and cannot be reassigned.</li>
+</ul>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ReadOnlyReference()
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">value = 1;
+    </span><span style="color: blue;">int </span><span style="color: black;">copyOfValue = value; </span><span style="color: green;">// Assign by copy.
+    </span><span style="color: black;">copyOfValue = 10; </span><span style="color: green;">// After the assignment, value does not change.
+    </span><span style="color: blue;">ref int </span><span style="color: black;">mutaleRefOfValue = </span><span style="color: blue;">ref </span><span style="color: black;">value; </span><span style="color: green;">// Assign by reference.
+    </span><span style="color: black;">mutaleRefOfValue = 10; </span><span style="color: green;">// After the reassignment, value changes too.
+    </span><span style="color: blue;">ref readonly int </span><span style="color: black;">immutableRefOfValue = </span><span style="color: blue;">ref </span><span style="color: black;">value; </span><span style="color: green;">// Assign by readonly reference.
+    </span><span style="color: black;">immutableRefOfValue = 0; </span><span style="color: green;">// Cannot be compiled. Cannot reassign to immutableRefOfValue.
+
+    </span><span style="color: black;">Uri reference = </span><span style="color: blue;">new </span><span style="color: black;">Uri(</span><span style="color: #a31515;">"https://weblogs.asp.net/dixin"</span><span style="color: black;">);
+    Uri copyOfReference = reference; </span><span style="color: green;">// Assign by copy.
+    </span><span style="color: black;">copyOfReference = </span><span style="color: blue;">new </span><span style="color: black;">Uri(</span><span style="color: #a31515;">"https://flickr.com/dixin"</span><span style="color: black;">); </span><span style="color: green;">// After the assignment, reference does not change.
+    </span><span style="color: blue;">ref </span><span style="color: black;">Uri mutableRefOfReference = </span><span style="color: blue;">ref </span><span style="color: black;">reference; </span><span style="color: green;">// Assign by reference.
+    </span><span style="color: black;">mutableRefOfReference = </span><span style="color: blue;">new </span><span style="color: black;">Uri(</span><span style="color: #a31515;">"https://flickr.com/dixin"</span><span style="color: black;">); </span><span style="color: green;">// After the reassignment, reference changes too.
+    </span><span style="color: blue;">ref readonly </span><span style="color: black;">Uri immutableRefOfReference = </span><span style="color: blue;">ref </span><span style="color: black;">reference; </span><span style="color: green;">// Assign by readonly reference.
+    </span><span style="color: black;">immutableRefOfReference = </span><span style="color: blue;">null</span><span style="color: black;">; </span><span style="color: green;">// Cannot be compiled. Cannot reassign to immutableRefOfReference.
+</span><span style="color: black;">}</span></pre>
+<h2>Immutable value in LINQ query expression</h2>
+<p>In LINQ query expression introduced by C# 3.0, the from, join, let clauses can declare values, and the into query keyword can declare value too. These values are all immutable:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">QueryExpression(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source1, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source2)
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IGrouping</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt; query =
+        </span><span style="color: blue;">from </span><span style="color: black;">immutable1 </span><span style="color: blue;">in </span><span style="color: black;">source1
+        </span><span style="color: green;">// Cannot reassign to immutable1.
+        </span><span style="color: blue;">join </span><span style="color: black;">immutable2 </span><span style="color: blue;">in </span><span style="color: black;">source2 </span><span style="color: blue;">on </span><span style="color: black;">immutable1 </span><span style="color: blue;">equals </span><span style="color: black;">immutable2 </span><span style="color: blue;">into </span><span style="color: black;">immutable3
+        </span><span style="color: green;">// Cannot reassign to immutable2, immutable3.
+        </span><span style="color: blue;">let </span><span style="color: black;">immutable4 = immutable1
+        </span><span style="color: green;">// Cannot reassign to immutable4.
+        </span><span style="color: blue;">group </span><span style="color: black;">immutable4 </span><span style="color: blue;">by </span><span style="color: black;">immutable4 </span><span style="color: blue;">into </span><span style="color: black;">immutable5
+        </span><span style="color: green;">// Cannot reassign to immutable5.
+        </span><span style="color: blue;">select </span><span style="color: black;">immutable5 </span><span style="color: blue;">into </span><span style="color: black;">immutable6
+        </span><span style="color: green;">// Cannot reassign to immutable6.
+        </span><span style="color: blue;">select </span><span style="color: black;">immutable6;
+}</span></pre>
+<p>Query expression is a syntactic sugar of query method calls, which will be discussed in detail&nbsp; in LINQ to Objects chapter.</p>
+<h1>Immutable state (immutable type)</h1>
+<p>Once an instance is constructed from an immutable type, the instance’s internal data cannot be changed. In C#, string (System.String) is an immutable type. Once a string is constructed, there is no API to change that string. For example, string.Remove does not change the string but always return a newly constructed string with specified characters removed. In contrast, string builder (System.Text.StringBuilder) is a mutable type. For example, StringBuilder.Remove actually change the string to remove the specified characters. In the core library, most classes are mutable types, and most structures are immutable types.</p>
+<h2>Type’s constant field</h2>
+<p>When defining type (class or structure), a field with the const modifier is immutable. Again, it only works for primitive types, string, and null reference.</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public struct </span><span style="color: #2b91af;">DateTime </span><span style="color: black;">: IComparable, IComparable&lt;DateTime&gt;, IConvertible, IEquatable&lt;DateTime&gt;, IFormattable, ISerializable
+    {
+        </span><span style="color: blue;">private const int </span><span style="color: black;">DaysPerYear = 365;
+        </span><span style="color: green;">// Compiled to:
+        // .field private static literal int32 DaysPerYear = 365
+
+        </span><span style="color: blue;">private const int </span><span style="color: black;">DaysPer4Years = DaysPerYear * 4 + 1;
+        </span><span style="color: green;">// Compiled to:
+        // .field private static literal int32 DaysPer4Years = 1461
+
+        // Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<h2>Immutable class with readonly instance field</h2>
+<p>When the readonly modifier is used for a field, the field can only be initialized by constructor, and cannot be reassigned later. So an immutable class can be immutable by defining all instance fields as readonly:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">ImmutableDevice
+</span><span style="color: black;">{
+    </span><span style="color: blue;">private readonly string </span><span style="color: black;">name;
+
+    </span><span style="color: blue;">private readonly decimal </span><span style="color: black;">price;
+}</span></pre>
+<p>With the fore mentioned auto property syntactic sugar, the readonly field definition can be automatically generated. The following is an example of mutable data type with read write state, and immutable data type with readonly state stored in readonly instance fields:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">MutableDevice
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal string </span><span style="color: black;">Name { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">internal decimal </span><span style="color: black;">Price { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+}
+
+</span><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">ImmutableDevice
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal </span><span style="color: black;">ImmutableDevice(</span><span style="color: blue;">string </span><span style="color: black;">name, </span><span style="color: blue;">decimal </span><span style="color: black;">price)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.Name = name;
+        </span><span style="color: blue;">this</span><span style="color: black;">.Price = price;
+    }
+
+    </span><span style="color: blue;">internal string </span><span style="color: black;">Name { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">internal decimal </span><span style="color: black;">Price { </span><span style="color: blue;">get</span><span style="color: black;">; }
+}</span></pre>
+<p>Apparently, constructed MutableDevice instance can change its internal state stored by fields, and ImmutableDevice instance cannot:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">State()
+{
+    MutableDevice mutableDevice = </span><span style="color: blue;">new </span><span style="color: black;">MutableDevice() { Name = </span><span style="color: #a31515;">"Microsoft Band 2"</span><span style="color: black;">, Price = 249.99M };
+    </span><span style="color: green;">// Price drops.
+    </span><span style="color: black;">mutableDevice.Price -= 50M;
+
+    ImmutableDevice immutableDevice = </span><span style="color: blue;">new </span><span style="color: black;">ImmutableDevice(name: </span><span style="color: #a31515;">"Surface Book"</span><span style="color: black;">, price: 1349.00M);
+    </span><span style="color: green;">// Price drops.
+    </span><span style="color: black;">immutableDevice = </span><span style="color: blue;">new </span><span style="color: black;">ImmutableDevice(name: immutableDevice.Name, price: immutableDevice.Price - 50M);
+}</span></pre>
+<p>Since the instance of immutable type cannot change state, it gets rid of a major source of bugs, and it is always thread safe. But these benefits come with a price. It is common to update some existing data to different value, for example, have a discount based on the current price:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">MutableDevice
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal void </span><span style="color: black;">Discount() =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.Price = </span><span style="color: blue;">this</span><span style="color: black;">.Price * 0.9M;
+}
+
+</span><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">ImmutableDevice
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal </span><span style="color: black;">ImmutableDevice Discount() =&gt; </span><span style="color: blue;">new </span><span style="color: black;">ImmutableDevice(name: </span><span style="color: blue;">this</span><span style="color: black;">.Name, price: </span><span style="color: blue;">this</span><span style="color: black;">.Price * 0.9M);
+}</span></pre>
+<p>When discounting the the price, MutableDevice.Discount directly changes the state. ImmutableDevice.Discount cannot do this, so it has to construct a new instance with the new state, then return the new instance, which is also immutable. This is a performance overhead.</p>
+<p>Many .NET built-in types are immutable data structures, including most value types (primitive types, System.Nullable&lt;T&gt;, System.DateTime, System.TimeSpan, etc.), and some reference types (string, System.Lazy&lt;T&gt;, System.Linq.Expressions.Expression and its derived types, etc.). Microsoft also provides a NuGet package of immutable collections <a href="https://www.nuget.org/packages/System.Collections.Immutable">System.Collections.Immutable</a>, with immutable array, list, dictionary, etc.</p>
+<h2>Immutable structure (readonly structure)</h2>
+<p>The following structure is defined with the same pattern as above immutable class. The structure looks immutable:</p>
+<pre class="code"><span style="color: blue;">internal partial struct </span><span style="color: #2b91af;">Complex
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal </span><span style="color: black;">Complex(</span><span style="color: blue;">double </span><span style="color: black;">real, </span><span style="color: blue;">double </span><span style="color: black;">imaginary)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.Real = real;
+        </span><span style="color: blue;">this</span><span style="color: black;">.Imaginary = imaginary;
+    }
+
+    </span><span style="color: blue;">internal double </span><span style="color: black;">Real { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">internal double </span><span style="color: black;">Imaginary { </span><span style="color: blue;">get</span><span style="color: black;">; }
+}</span></pre>
+<p>With the auto property syntactic sugar, readonly fields are generated. However, for structure, readonly fields are not enough for immutability. In contrast of class, in structure’s instance function members, this reference is mutable:</p>
+<pre class="code"><span style="color: blue;">internal partial struct </span><span style="color: #2b91af;">Complex
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal </span><span style="color: black;">Complex(Complex value) =&gt; </span><span style="color: blue;">this </span><span style="color: black;">= value; </span><span style="color: green;">// Can reassign to this.
+
+    </span><span style="color: blue;">internal </span><span style="color: black;">Complex Value
+    {
+        </span><span style="color: blue;">get </span><span style="color: black;">=&gt; </span><span style="color: blue;">this</span><span style="color: black;">;
+        </span><span style="color: blue;">set </span><span style="color: black;">=&gt; </span><span style="color: blue;">this </span><span style="color: black;">= value; </span><span style="color: green;">// Can reassign to this.
+    </span><span style="color: black;">}
+
+    </span><span style="color: blue;">internal </span><span style="color: black;">Complex ReplaceBy(Complex value) =&gt; </span><span style="color: blue;">this </span><span style="color: black;">= value; </span><span style="color: green;">// Can reassign to this.
+
+    </span><span style="color: blue;">internal </span><span style="color: black;">Complex Mutate(</span><span style="color: blue;">double </span><span style="color: black;">real, </span><span style="color: blue;">double </span><span style="color: black;">imaginary) =&gt;
+        </span><span style="color: blue;">this </span><span style="color: black;">= </span><span style="color: blue;">new </span><span style="color: black;">Complex(real, imaginary); </span><span style="color: green;">// Can reassign to this.
+</span><span style="color: black;">}</span></pre>
+<p>With mutable this, the above structure still can be mutable:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Structure()
+{
+    Complex complex1 = </span><span style="color: blue;">new </span><span style="color: black;">Complex(1, 1);
+    Complex complex2 = </span><span style="color: blue;">new </span><span style="color: black;">Complex(2, 2);
+    complex1.Real.WriteLine(); </span><span style="color: green;">// 1
+    </span><span style="color: black;">complex1.ReplaceBy(complex2);
+    complex1.Real.WriteLine(); </span><span style="color: green;">// 2
+</span><span style="color: black;">}</span></pre>
+<p>To address this scenario, C# 7.2 enables the readonly modifier for structure definition. To make sure the structure is immutable, It enforces all the instance fields to be readonly, and makes this reference immutable in instance function members except constructor:</p>
+<pre class="code"><span style="color: blue;">internal readonly partial struct </span><span style="color: #2b91af;">ImmutableComplex
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal </span><span style="color: black;">ImmutableComplex(</span><span style="color: blue;">double </span><span style="color: black;">real, </span><span style="color: blue;">double </span><span style="color: black;">imaginary)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.Real = real;
+        </span><span style="color: blue;">this</span><span style="color: black;">.Imaginary = imaginary;
+    }
+
+    </span><span style="color: blue;">internal </span><span style="color: black;">ImmutableComplex(</span><span style="color: blue;">in </span><span style="color: black;">ImmutableComplex value) =&gt;
+        </span><span style="color: blue;">this </span><span style="color: black;">= value; </span><span style="color: green;">// Can reassign to this only in constructor.
+
+    </span><span style="color: blue;">internal double </span><span style="color: black;">Real { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">internal double </span><span style="color: black;">Imaginary { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">internal void </span><span style="color: black;">InstanceMethod()
+    {
+        </span><span style="color: green;">// Cannot reassign to this.
+    </span><span style="color: black;">}
+}</span></pre>
+<h2>Immutable anonymous type</h2>
+<p>C# 3.0 introduces anonymous type to represent immutable data, without providing the type definition at design time:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">AnonymousType()
+{
+    </span><span style="color: blue;">var </span><span style="color: black;">immutableDevice = </span><span style="color: blue;">new </span><span style="color: black;">{ Name = </span><span style="color: #a31515;">"Surface Book"</span><span style="color: black;">, Price = 1349.00M };
+}</span></pre>
+<p>Since the type name is unknown at design time, the above instance is of an anonymous type, and the type name is represented by the var keyword. At compile time, the following immutable data type definition is generated:</p>
+<pre class="code"><span style="color: black;">[</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
+[</span><span style="color: #2b91af;">DebuggerDisplay</span><span style="color: black;">(</span><span style="color: maroon;">@"\{ Name = {Name}, Price = {Price} }"</span><span style="color: black;">, Type = </span><span style="color: #a31515;">"&lt;Anonymous Type&gt;"</span><span style="color: black;">)]
+</span><span style="color: blue;">internal sealed class </span><span style="color: #2b91af;">AnonymousType0</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TName</span><span style="color: black;">, </span><span style="color: #2b91af;">TPrice</span><span style="color: black;">&gt;
+{
+    [</span><span style="color: #2b91af;">DebuggerBrowsable</span><span style="color: black;">(</span><span style="color: #2b91af;">DebuggerBrowsableState</span><span style="color: black;">.Never)]
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">TName </span><span style="color: black;">name;
+
+    [</span><span style="color: #2b91af;">DebuggerBrowsable</span><span style="color: black;">(</span><span style="color: #2b91af;">DebuggerBrowsableState</span><span style="color: black;">.Never)]
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">TPrice </span><span style="color: black;">price;
+
+    [</span><span style="color: #2b91af;">DebuggerHidden</span><span style="color: black;">]
+    </span><span style="color: blue;">public </span><span style="color: black;">AnonymousType0(</span><span style="color: #2b91af;">TName </span><span style="color: black;">name, </span><span style="color: #2b91af;">TPrice </span><span style="color: black;">price)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.name = name;
+        </span><span style="color: blue;">this</span><span style="color: black;">.price = price;
+    }
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">TName </span><span style="color: black;">Name =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.name;
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">TPrice </span><span style="color: black;">Price =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.price;
+
+    [</span><span style="color: #2b91af;">DebuggerHidden</span><span style="color: black;">]
+    </span><span style="color: blue;">public override bool </span><span style="color: black;">Equals(</span><span style="color: blue;">object </span><span style="color: black;">value) =&gt;
+        value </span><span style="color: blue;">is </span><span style="color: #2b91af;">AnonymousType0</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TName</span><span style="color: black;">, </span><span style="color: #2b91af;">TPrice</span><span style="color: black;">&gt; anonymous
+        &amp;&amp; anonymous != </span><span style="color: blue;">null
+        </span><span style="color: black;">&amp;&amp; </span><span style="color: #2b91af;">EqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TName</span><span style="color: black;">&gt;.Default.Equals(</span><span style="color: blue;">this</span><span style="color: black;">.name, anonymous.name)
+        &amp;&amp; </span><span style="color: #2b91af;">EqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TPrice</span><span style="color: black;">&gt;.Default.Equals(</span><span style="color: blue;">this</span><span style="color: black;">.price, anonymous.price);
+
+    </span><span style="color: green;">// Other members.
+</span><span style="color: black;">}</span></pre>
+<p>And the above setting-property-like syntax is compiled to normal constructor call:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledAnonymousType()
+{
+    </span><span style="color: #2b91af;">AnonymousType0</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">decimal</span><span style="color: black;">&gt; immutableDevice = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AnonymousType0</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">decimal</span><span style="color: black;">&gt;(
+        name: </span><span style="color: #a31515;">"Surface Book"</span><span style="color: black;">, price: 1349.00M);
+}</span></pre>
+<p>If there are other different anonymous type used in the code, C# compiler generates more type definitions AnonymousType1, AnonymousType2, etc. Anonymous type are reused by different instantiation if their properties have same number, names, types, and order:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ReuseAnonymousType()
+{
+    </span><span style="color: blue;">var </span><span style="color: black;">device1 = </span><span style="color: blue;">new </span><span style="color: black;">{ Name = </span><span style="color: #a31515;">"Surface Book"</span><span style="color: black;">, Price = 1349.00M };
+    </span><span style="color: blue;">var </span><span style="color: black;">device2 = </span><span style="color: blue;">new </span><span style="color: black;">{ Name = </span><span style="color: #a31515;">"Surface Pro 4"</span><span style="color: black;">, Price = 899.00M };
+    </span><span style="color: blue;">var </span><span style="color: black;">device3 = </span><span style="color: blue;">new </span><span style="color: black;">{ Name = </span><span style="color: #a31515;">"Xbox One S"</span><span style="color: black;">, Price = 399.00 }; </span><span style="color: green;">// Price is of type double.
+    </span><span style="color: blue;">var </span><span style="color: black;">device4 = </span><span style="color: blue;">new </span><span style="color: black;">{ Price = 174.99M, Name = </span><span style="color: #a31515;">"Microsoft Band 2" </span><span style="color: black;">};
+    (device1.GetType() == device2.GetType()).WriteLine(); </span><span style="color: green;">// True
+    </span><span style="color: black;">(device1.GetType() == device3.GetType()).WriteLine(); </span><span style="color: green;">// False
+    </span><span style="color: black;">(device1.GetType() == device4.GetType()).WriteLine(); </span><span style="color: green;">// False
+</span><span style="color: black;">}</span></pre>
+<p>Anonymous type’s property name can be inferred from the identifier used to initialize the property. The following 2 anonymous type instantiation are equivalent:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">PropertyInference(Uri uri, </span><span style="color: blue;">int </span><span style="color: black;">value)
+{
+    </span><span style="color: blue;">var </span><span style="color: black;">anonymous1 = </span><span style="color: blue;">new </span><span style="color: black;">{ value, uri.Host };
+    </span><span style="color: blue;">var </span><span style="color: black;">anonymous2 = </span><span style="color: blue;">new </span><span style="color: black;">{ value = value, Host = uri.Host };
+}</span></pre>
+<p>Anonymous type can also be part of other types, like array, and type parameter for generic type, etc:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">AnonymousTypeParameter()
+{
+    </span><span style="color: blue;">var </span><span style="color: black;">source = </span><span style="color: blue;">new</span><span style="color: black;">[] </span><span style="color: green;">// AnonymousType0&lt;string, decimal&gt;[].
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">new </span><span style="color: black;">{ Name = </span><span style="color: #a31515;">"Surface Book"</span><span style="color: black;">, Price = 1349.00M },
+        </span><span style="color: blue;">new </span><span style="color: black;">{ Name = </span><span style="color: #a31515;">"Surface Pro 4"</span><span style="color: black;">, Price = 899.00M }
+    };
+    </span><span style="color: blue;">var </span><span style="color: black;">query = </span><span style="color: green;">// IEnumerable&lt;AnonymousType0&lt;string, decimal&gt;&gt;.
+        </span><span style="color: black;">source.Where(device =&gt; device.Price &gt; 0);
+}</span></pre>
+<p>Here the source array is inferred to be of AnonymousType0&lt;string, decimal&gt;[] type, because each array value is of type AnonymousType0. Array T[] implements IEnumerable&lt;T&gt; interface, so the source array implements IEnumerable&lt;AnonymousType0&lt;string, decimal&gt;&gt; interface. Its Where extension method accepts a AnonymousType0&lt;string, decimal&gt; –&gt; bool predicate function, and returns IEnumerable&lt;AnonymousType0&lt;string, decimal&gt;&gt;.</p>
+<p>C# compiler utilizes anonymous type for let clause in LINQ query expression. The let clause is compiled to Select query method call with a selector function returning anonymous type. For example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Let(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source)
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">&gt; query =
+        </span><span style="color: blue;">from </span><span style="color: black;">immutable1 </span><span style="color: blue;">in </span><span style="color: black;">source
+        </span><span style="color: blue;">let </span><span style="color: black;">immutable2 = </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(immutable1)
+        </span><span style="color: blue;">select </span><span style="color: black;">immutable1 + immutable2;
+}
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">CompiledLet(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source)
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">&gt; query = source </span><span style="color: green;">// from clause.
+        </span><span style="color: black;">.Select(immutable1 =&gt; </span><span style="color: blue;">new </span><span style="color: black;">{ immutable1, immutable2 = </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(immutable1) }) </span><span style="color: green;">// let clause.
+        </span><span style="color: black;">.Select(anonymous =&gt; anonymous.immutable1 + anonymous.immutable2); </span><span style="color: green;">// select clause.
+</span><span style="color: black;">}</span></pre>
+<p>The full details of query expression compilation is covered in the LINQ to Objects chapter.</p>
+<h3>Local variable type inference</h3>
+<p>Besides local variable of anonymous type, the <a href="https://msdn.microsoft.com/en-us/library/bb383973.aspx">var keyword</a> can be also used to initialize local variable of existing type:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">LocalVariable(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source, </span><span style="color: blue;">string </span><span style="color: black;">path)
+{
+    </span><span style="color: blue;">var </span><span style="color: black;">a = </span><span style="color: blue;">default</span><span style="color: black;">(</span><span style="color: blue;">int</span><span style="color: black;">); </span><span style="color: green;">// int.
+    </span><span style="color: blue;">var </span><span style="color: black;">b = 1M; </span><span style="color: green;">// decimal.
+    </span><span style="color: blue;">var </span><span style="color: black;">c = </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: blue;">void</span><span style="color: black;">); </span><span style="color: green;">// Type.
+    </span><span style="color: blue;">var </span><span style="color: black;">d = </span><span style="color: blue;">from </span><span style="color: black;">int32 </span><span style="color: blue;">in </span><span style="color: black;">source </span><span style="color: blue;">where </span><span style="color: black;">int32 &gt; 0 </span><span style="color: blue;">select </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(int32); </span><span style="color: green;">// IEnumerable&lt;double&gt;.
+    </span><span style="color: blue;">var </span><span style="color: black;">e = </span><span style="color: #2b91af;">File</span><span style="color: black;">.ReadAllLines(path); </span><span style="color: green;">// string[].
+</span><span style="color: black;">}</span></pre>
+<p>This is just a syntactic sugar. The local variable’s type is inferred from the initial value’s type. The compilation of implicit typed local variable has no difference from explicitly typed local variable. When the initial value’s type is ambiguous, the var keyword cannot be directly used:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">LocalVariableWithType(</span><span style="color: black;">)
+{
+    </span><span style="color: blue;">var </span><span style="color: black;">f = (</span><span style="color: #2b91af;">Uri</span><span style="color: black;">)</span><span style="color: blue;">null</span><span style="color: black;">;
+    </span><span style="color: blue;">var </span><span style="color: black;">g = (</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;)(int32 =&gt; int32 + 1);
+    </span><span style="color: blue;">var </span><span style="color: black;">h = (</span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;&gt;)(int32 =&gt; int32 + 1);
+}</span></pre>
+<p>For consistency and readability, this tutorial <a href="http://weblogs.asp.net/dixin/csharp-coding-guidelines-4-types">uses explicit typing when possible, uses implicit typing (var) when needed</a> (for anonymous type).</p>
+<h2>Immutable tuple vs. mutable tuple</h2>
+<p>Tuple is another kind of data structure commonly used in functional programming. It is a finite and ordered list of values, usually immutable in most functional languages. To represent tuple, a series of generic tuple classes with 1 ~ 8 type parameters are provided since .NET Framework 3.5. For example, the following is the definition of Tuple&lt;T1, T2&gt;, which represents a 2-tuple (tuple of 2 values):</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{</span><span style="color: black;">
+    [</span><span style="color: #2b91af;">Serializable</span><span style="color: black;">]
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">Tuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IStructuralEquatable</span><span style="color: black;">, </span><span style="color: #2b91af;">IStructuralComparable</span><span style="color: black;">, </span><span style="color: #2b91af;">IComparable</span><span style="color: black;">, </span><span style="color: #2b91af;">ITuple
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public </span><span style="color: black;">Tuple(</span><span style="color: #2b91af;">T1 </span><span style="color: black;">item1, </span><span style="color: #2b91af;">T2 </span><span style="color: black;">item2)
+        {
+            </span><span style="color: blue;">this</span><span style="color: black;">.Item1 = item1;
+            </span><span style="color: blue;">this</span><span style="color: black;">.Item2 = item2;
+        }
+
+        </span><span style="color: blue;">public </span><span style="color: #2b91af;">T1 </span><span style="color: black;">Item1 { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: blue;">public </span><span style="color: #2b91af;">T2 </span><span style="color: black;">Item2 { </span><span style="color: blue;">get</span><span style="color: black;">; }</span><span style="color: black;">
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>All tuple classes are immutable. The latest C# 7.0 introduces tuple syntax, which work with a series of&nbsp; generic tuple structures with 1 ~ 8 type parameters. For example, 2-tuple is now represented by the following ValueTuple&lt;T1, T2&gt; structure:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{</span><span style="color: black;">
+    [</span><span style="color: #2b91af;">StructLayout</span><span style="color: black;">(</span><span style="color: #2b91af;">LayoutKind</span><span style="color: black;">.Auto)]
+    </span><span style="color: blue;">public struct </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IEquatable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt;&gt;, </span><span style="color: #2b91af;">IStructuralEquatable</span><span style="color: black;">, </span><span style="color: #2b91af;">IStructuralComparable</span><span style="color: black;">, </span><span style="color: #2b91af;">IComparable</span><span style="color: black;">, </span><span style="color: #2b91af;">IComparable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt;&gt;, </span><span style="color: #2b91af;">ITupleInternal
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public </span><span style="color: #2b91af;">T1 </span><span style="color: black;">Item1;
+
+        </span><span style="color: blue;">public </span><span style="color: #2b91af;">T2 </span><span style="color: black;">Item2;
+
+        </span><span style="color: blue;">public </span><span style="color: black;">ValueTuple(</span><span style="color: #2b91af;">T1 </span><span style="color: black;">item1, </span><span style="color: #2b91af;">T2 </span><span style="color: black;">item2)
+        {
+            </span><span style="color: blue;">this</span><span style="color: black;">.Item1 = item1;
+            </span><span style="color: blue;">this</span><span style="color: black;">.Item2 = item2;
+        }
+
+        </span><span style="color: blue;">public override bool </span><span style="color: black;">Equals(</span><span style="color: blue;">object </span><span style="color: black;">obj) =&gt; obj </span><span style="color: blue;">is </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt; tuple &amp;&amp; </span><span style="color: blue;">this</span><span style="color: black;">.Equals(tuple);
+
+        </span><span style="color: blue;">public bool </span><span style="color: black;">Equals(</span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt; other) =&gt;
+            </span><span style="color: #2b91af;">EqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">&gt;.Default.Equals(</span><span style="color: blue;">this</span><span style="color: black;">.Item1, other.Item1)
+            &amp;&amp; </span><span style="color: #2b91af;">EqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt;.Default.Equals(</span><span style="color: blue;">this</span><span style="color: black;">.Item2, other.Item2);
+
+        </span><span style="color: blue;">public int </span><span style="color: black;">CompareTo(</span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">, </span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt; other)
+        {
+            </span><span style="color: blue;">int </span><span style="color: black;">compareItem1 = </span><span style="color: #2b91af;">Comparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T1</span><span style="color: black;">&gt;.Default.Compare(</span><span style="color: blue;">this</span><span style="color: black;">.Item1, other.Item1);
+            </span><span style="color: blue;">return </span><span style="color: black;">compareItem1 != 0 ? compareItem1 : </span><span style="color: #2b91af;">Comparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T2</span><span style="color: black;">&gt;.Default.Compare(</span><span style="color: blue;">this</span><span style="color: black;">.Item2, other.Item2);
+        }
+
+        </span><span style="color: blue;">public override string </span><span style="color: black;">ToString() =&gt; </span><span style="color: #a31515;">$"(</span><span style="color: black;">{</span><span style="color: blue;">this</span><span style="color: black;">.Item1}</span><span style="color: #a31515;">, </span><span style="color: black;">{</span><span style="color: blue;">this</span><span style="color: black;">.Item2}</span><span style="color: #a31515;">)"</span><span style="color: black;">;
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>The value tuple is provided for better performance, since it does not managed heap allocation and garbage collection. However, all value tuple structures become mutable types, where the values are just public fields. To be functional and consistent, this tutorial only uses value tuples, and only use them as immutable types.</p>
+<p>As above tuple definition shows, in contrast of list, tuple’s values can be of different types:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">TupleAndList()
+{
+    </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">decimal</span><span style="color: black;">&gt; tuple = </span><span style="color: blue;">new <span style="color: black;"></span><span style="color: #2b91af;">ValueTuple</span></span><span style="color: #2b91af;"></span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">decimal</span><span style="color: black;">&gt;(</span><span style="color: #a31515;">"Surface Book"</span><span style="color: black;">, 1349M);</span><span style="color: black;">
+    </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; list = </span><span style="color: blue;">new </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;() { </span><span style="color: #a31515;">"Surface Book"</span><span style="color: black;">, </span><span style="color: #a31515;">"1349M" </span><span style="color: black;">};
+}</span></pre>
+<p>Tuple type and anonymous type are conceptually similar to each other, they are both a set of properties returning a list of values. The major difference is, at design time, the tuple type is defined, and anonymous type is not defined yet. Therefore, anonymous type (var) can only be used for local variable with initial value to infer the expected type from, and cannot be used as parameter type, return type, type argument, etc.:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">decimal</span><span style="color: black;">&gt; Method(</span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">decimal</span><span style="color: black;">&gt; values)
+{
+    </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">decimal</span><span style="color: black;">&gt; variable1;
+    </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">decimal</span><span style="color: black;">&gt; variable2 = </span><span style="color: blue;">default</span><span style="color: black;">;
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">decimal</span><span style="color: black;">&gt;&gt; variable3;
+    </span><span style="color: blue;">return </span><span style="color: black;">values;
+}
+</span><span style="color: green;">
+</span><span style="color: blue;">internal static var</span><span style="color: black;"> Method(<span style="color: black;"></span><span style="color: blue;">var</span> values) </span><span style="color: green;">// Cannot be compiled.
+</span><span style="color: black;">{
+    </span><span style="color: blue;">var </span><span style="color: black;">variable1; </span><span style="color: green;">// Cannot be compiled.
+    </span><span style="color: blue;">var </span><span style="color: black;">variable2 = </span><span style="color: blue;">default</span><span style="color: black;">; </span><span style="color: green;">// Cannot be compiled.
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;var&gt; variable3; </span><span style="color: green;">// Cannot be compiled.
+    </span><span style="color: blue;">return </span><span style="color: black;">values;
+}</span></pre>
+<h3>Construction, element and element inference</h3>
+<p>C# 7.0 introduces tuple syntactic sugar, which brings great convenience. The tuple type ValuTuple&lt;T1, T2, T3, …&gt; can be simplified to (T1, T2, T3, …), and the tuple construction new ValueTuple&lt;T1, T2, T3, …&gt;(value1, value2, value3, …) can be simplified to (value1, value2, value3, …):</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">TupleTypeLiteral()
+{
+    (</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">decimal</span><span style="color: black;">) tuple1 = (</span><span style="color: #a31515;">"Surface Pro 4"</span><span style="color: black;">, 899M);
+    </span><span style="color: green;">// Compiled to:
+    // ValueTuple&lt;string, decimal&gt; tuple1 = new ValueTuple&lt;string, decimal&gt;("Surface Pro 4", 899M);
+
+    </span><span style="color: black;">(</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">, (</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">decimal</span><span style="color: black;">)) tuple2 = (1, </span><span style="color: blue;">true</span><span style="color: black;">, (</span><span style="color: #a31515;">"Surface Studio"</span><span style="color: black;">, 2999M));
+    </span><span style="color: green;">// ValueTuple&lt;int, bool, ValueTuple&lt;string, decimal&gt;&gt; tuple2 =
+    //    new ValueTuple&lt;int, bool, new ValueTuple&lt;string, decimal&gt;&gt;(1, true, ("Surface Studio", 2999M))
+</span><span style="color: black;">}</span></pre>
+<p>Apparently, tuple can be function’s parameter/return type, just like other types. When using tuple as the function return type, the tuple syntax virtually enables function to return multiple values:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: black;">(</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">decimal</span><span style="color: black;">) MethodReturnMultipleValues()
+</span><span style="color: green;">// internal static ValueTuple&lt;string, decimal&gt; MethodReturnMultipleValues()
+</span><span style="color: black;">{
+    </span><span style="color: blue;">string </span><span style="color: black;">returnValue1 = </span><span style="color: blue;">default</span><span style="color: black;">;
+    </span><span style="color: blue;">int </span><span style="color: black;">returnValue2 = </span><span style="color: blue;">default</span><span style="color: black;">;
+
+    (</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">decimal</span><span style="color: black;">) Function() =&gt; (returnValue1, returnValue2);
+    </span><span style="color: green;">// ValueTuple&lt;string, decimal&gt; Function() =&gt; new ValueTuple&lt;string, decimal&gt;(returnValue1, returnValue2);
+
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;(</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">decimal</span><span style="color: black;">)&gt; function = () =&gt; (returnValue1, returnValue2);
+    </span><span style="color: green;">// Func&lt;ValueTuple&lt;string, decimal&gt;&gt; function = () =&gt; new ValueTuple&lt;string, decimal&gt;(returnValue1, returnValue2);
+
+    </span><span style="color: blue;">return </span><span style="color: black;">(returnValue1, returnValue2);
+}</span></pre>
+<p>C# 7.0 also introduces element name for tuple, so that each value of the tuple type can be given a property-like name, with the syntax (T1 Name1, T2 Name2, T3 Name3, …), and each value of the tuple instance can be given a name too, with syntax (Name1: value1, Name2, value2, Name3 value3, …). So that the values in the tuple can be accessed with a meaningful name, instead of the actual Item1, Item2, Item3, … field names. This is also a syntactic sugar, at compile time, all element names are all replaced by the underlying fields.</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ElementName()
+{
+    (</span><span style="color: blue;">string </span><span style="color: black;">Name, </span><span style="color: blue;">decimal </span><span style="color: black;">Price) tuple1 = (</span><span style="color: #a31515;">"Surface Pro 4"</span><span style="color: black;">, 899M);
+    tuple1.Name.WriteLine();
+    tuple1.Price.WriteLine();
+    </span><span style="color: green;">// Compiled to:
+    // ValueTuple&lt;string, decimal&gt; tuple1 = new ValueTuple&lt;string, decimal&gt;("Surface Pro 4", 899M);
+    // TraceExtensions.WriteLine(tuple1.Item1);
+    // TraceExtensions.WriteLine(tuple1.Item2)
+
+    </span><span style="color: black;">(</span><span style="color: blue;">string </span><span style="color: black;">Name, </span><span style="color: blue;">decimal </span><span style="color: black;">Price) tuple2 = (ProductNanme: </span><span style="color: #a31515;">"Surface Book"</span><span style="color: black;">, ProductPrice: 1349M);
+    tuple2.Name.WriteLine(); </span><span style="color: green;">// Element names on the right side are ignore.
+
+    </span><span style="color: blue;">var </span><span style="color: black;">tuple3 = (Name: </span><span style="color: #a31515;">"Surface Studio"</span><span style="color: black;">, Price: 2999M);
+    tuple3.Name.WriteLine(); </span><span style="color: green;">// Element names are available through var.
+
+    </span><span style="color: #2b91af;">ValueTuple</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">decimal</span><span style="color: black;">&gt; tuple4 = (Name: </span><span style="color: #a31515;">"Xbox One"</span><span style="color: black;">, Price: 179M);
+    tuple4.Item1.WriteLine(); </span><span style="color: green;">// Element names are not available on ValueTuple&lt;T1, T2&gt;.
+    </span><span style="color: black;">tuple4.Item2.WriteLine();
+
+    (</span><span style="color: blue;">string </span><span style="color: black;">Name, </span><span style="color: blue;">decimal </span><span style="color: black;">Price) Function((</span><span style="color: blue;">string </span><span style="color: black;">Name, </span><span style="color: blue;">decimal </span><span style="color: black;">Price) tuple)
+    {
+        tuple.Name.WriteLine(); </span><span style="color: green;">// Parameter element names are available in function.
+        </span><span style="color: blue;">return </span><span style="color: black;">(tuple.Name, tuple.Price - 10M);
+    };
+    </span><span style="color: blue;">var </span><span style="color: black;">tuple5 = Function((</span><span style="color: #a31515;">"Xbox One S"</span><span style="color: black;">, 299M));
+    tuple5.Name.WriteLine(); </span><span style="color: green;">// Return value element names are available through var.
+    </span><span style="color: black;">tuple5.Price.WriteLine();
+
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;(</span><span style="color: blue;">string </span><span style="color: black;">Name, </span><span style="color: blue;">decimal </span><span style="color: black;">Price), (</span><span style="color: blue;">string </span><span style="color: black;">Name, </span><span style="color: blue;">decimal </span><span style="color: black;">Price)&gt; function = tuple =&gt;
+    {
+        tuple.Name.WriteLine(); </span><span style="color: green;">// Parameter element names are available in function.
+        </span><span style="color: blue;">return </span><span style="color: black;">(tuple.Name, tuple.Price - 100M);
+    };
+    </span><span style="color: blue;">var </span><span style="color: black;">tuple6 = function((</span><span style="color: #a31515;">"HoloLens"</span><span style="color: black;">, 3000M));
+    tuple5.Name.WriteLine(); </span><span style="color: green;">// Return value element names are available through var.
+    </span><span style="color: black;">tuple5.Price.WriteLine();
+}</span></pre>
+<p>Similar to anonymous type’s property inference, C# 7.1 can infer tuple’s element name from the identifier used to initialize the element. The following 2 tuple are equivalent:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ElementInference(Uri uri, </span><span style="color: blue;">int </span><span style="color: black;">value)
+{
+    </span><span style="color: blue;">var </span><span style="color: black;">tuple1 = (value, uri.Host);
+    </span><span style="color: blue;">var </span><span style="color: black;">tuple2 = (value: value, Host: uri.Host);
+}</span></pre>
+<h3>Deconstruction</h3>
+<p>Since C# 7.0, the var keyword can also be used to deconstruct tuple to a list of values. This syntax is very useful when used with functions returning multiple values represented by tuple:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">DeconstructTuple()
+{
+    (</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">decimal</span><span style="color: black;">) GetProductInfo() =&gt; (</span><span style="color: #a31515;">"HoLoLens"</span><span style="color: black;">, 3000M);
+    </span><span style="color: blue;">var </span><span style="color: black;">(name, price) = GetProductInfo();
+    name.WriteLine(); </span><span style="color: green;">// name is string.
+    </span><span style="color: black;">price.WriteLine(); </span><span style="color: green;">// price is decimal.
+</span><span style="color: black;">}</span></pre>
+<p>This deconstruction syntactic sugar can be used with any type, as long as that type has a Deconstruct instance or extension method defined, where the values as the out parameters. Take the fore mentioned Device type as example, It has 3 properties Name, Description, and Price, so its Deconstruct method can be either one of the following 2 forms:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">Device
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal void </span><span style="color: black;">Deconstruct(</span><span style="color: blue;">out string </span><span style="color: black;">name, </span><span style="color: blue;">out string </span><span style="color: black;">description, </span><span style="color: blue;">out decimal </span><span style="color: black;">price)
+    {
+        name = </span><span style="color: blue;">this</span><span style="color: black;">.Name;
+        description = </span><span style="color: blue;">this</span><span style="color: black;">.Description;
+        price = </span><span style="color: blue;">this</span><span style="color: black;">.Price;
+    }
+}
+
+</span><span style="color: blue;">internal static class </span><span style="color: #2b91af;">DeviceExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Deconstruct(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Device </span><span style="color: black;">device, </span><span style="color: blue;">out string </span><span style="color: black;">name, </span><span style="color: blue;">out string </span><span style="color: black;">description, </span><span style="color: blue;">out decimal </span><span style="color: black;">price)
+    {
+        name = device.Name;
+        description = device.Description;
+        price = device.Price;
+    }
+}</span></pre>
+<p>Now the var keyword can destruct Device too, which is just compiled to Destruct method call:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">DeconstructDevice()
+{
+    </span><span style="color: #2b91af;">Device </span><span style="color: black;">GetDevice() =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Device</span><span style="color: black;">() { Name = </span><span style="color: #a31515;">"Surface studio"</span><span style="color: black;">, Description = </span><span style="color: #a31515;">"All-in-one PC."</span><span style="color: black;">, Price = 2999M };
+    </span><span style="color: blue;">var </span><span style="color: black;">(name, description, price) = GetDevice();
+    </span><span style="color: green;">// Compiled to:
+    // string name; string description; decimal price;
+    // surfaceStudio.Deconstruct(out name, out description, out price);
+    </span><span style="color: black;">name.WriteLine(); </span><span style="color: green;">// Surface studio
+    </span><span style="color: black;">description.WriteLine(); </span><span style="color: green;">// All-in-one PC.
+    </span><span style="color: black;">price.WriteLine(); </span><span style="color: green;">// 2999
+</span><span style="color: black;">}</span></pre>
+<h3>Discard</h3>
+<p>In tuple destruction, since the elements are compiled to out variables of the Destruct method, any element can be discarded with underscore just like a out variable:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Discard()
+{
+    Device GetDevice() =&gt; </span><span style="color: blue;">new </span><span style="color: black;">Device() { Name = </span><span style="color: #a31515;">"Surface studio"</span><span style="color: black;">, Description = </span><span style="color: #a31515;">"All-in-one PC."</span><span style="color: black;">, Price = 2999M };
+    var (_, _, price1) = GetDevice();
+    (_, _, </span><span style="color: blue;">decimal </span><span style="color: black;">price2) = GetDevice();
+}</span></pre>
+<h3>Tuple assignment</h3>
+<p>With the tuple syntax, now C# can also support fancy tuple assignment, just like Python and other languages. The following example assigns 2 values to 2 variables with a single line of code, then swap the values of 2 variables with a single line of code:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">TupleAssignment(</span><span style="color: blue;">int </span><span style="color: black;">value1, </span><span style="color: blue;">int </span><span style="color: black;">value2)
+{
+    (value1, value2) = (1, 2);
+    </span><span style="color: green;">// Compiled to:
+    // value1 = 1; value2 = 2;
+
+    </span><span style="color: black;">(value1, value2) = (value2, value1);
+    </span><span style="color: green;">// Compiled to:
+    // int temp1 = value1; int temp2 = value2;
+    // value1 = temp2; value2 = temp1;
+</span><span style="color: black;">}</span></pre>
+<p>It is easy to calculate Fibonacci number with loop and tuple assignment:</p>
+<pre class="code"><span style="color: blue;">internal static int </span><span style="color: black;">Fibonacci(</span><span style="color: blue;">int </span><span style="color: black;">n)
+{
+    (</span><span style="color: blue;">int </span><span style="color: black;">a, </span><span style="color: blue;">int </span><span style="color: black;">b) = (0, 1);
+    </span><span style="color: blue;">for </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">i = 0; i &lt; n; i++)
+    {
+        (a, b) = (b, a + b);
+    }
+    </span><span style="color: blue;">return </span><span style="color: black;">a;
+}</span></pre>
+<p>Besides variables, tuple assignment works for other scenarios too, like type member. The following example assigns 2 values to 2 properties with a single line of code:</p>
+<pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">ImmutableDevice
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal </span><span style="color: black;">ImmutableDevice(</span><span style="color: blue;">string </span><span style="color: black;">name, </span><span style="color: blue;">decimal </span><span style="color: black;">price) =&gt;
+        (</span><span style="color: blue;">this</span><span style="color: black;">.Name, </span><span style="color: blue;">this</span><span style="color: black;">.Price) = (name, price);
+
+    </span><span style="color: blue;">internal string </span><span style="color: black;">Name { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">internal decimal </span><span style="color: black;">Price { </span><span style="color: blue;">get</span><span style="color: black;">; }
+}</span></pre>
+<h1>Immutability vs. readonly</h1>
+<p>&nbsp;</p>
+<h2>Immutable collection vs. readonly collection</h2>
+<p>Microsoft provides immutable collections through the System.Collections.Immutable NuGet Package, including ImmutableArray&lt;T&gt;, ImmutableDictionary&lt;TKey, TValue&gt;, ImmutableHashSet&lt;T&gt;, ImmutableList&lt;T&gt;, ImmutableQueue&lt;T&gt;, ImmutableSet&lt;T&gt;, ImmutableStack&lt;T&gt;, etc. As fore mentioned, trying to changing an immutable collection creates a new immutable collection:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ImmutableCollection()
+{
+    ImmutableList&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; immutableList1 = ImmutableList.Create(1, 2, 3);
+    ImmutableList&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; immutableList2 = immutableList1.Add(4); </span><span style="color: green;">// Create a new collection.
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(immutableList1, immutableList2).WriteLine(); </span><span style="color: green;">// False
+</span><span style="color: black;">}</span></pre>
+<p>.NET/Core also provides readonly collections, like ReadOnlyCollection&lt;T&gt;, ReadOnlyDictionary&lt;TKey, TValue&gt;, etc., which can be confusing. These readonly collections are actually a simple wrapper of mutable collections. They just do not implement and expose methods like Add, Remove, which are used to change the collection. They are neither immutable, nor thread safe.&nbsp; The following example creates an immutable collection and a readonly collection from a mutable source. When the source is changed, the immutable collection apparently is not changed, but the readonly collection is changed:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ReadOnlyCollection()
+{
+    List&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; mutableList = </span><span style="color: blue;">new </span><span style="color: black;">List&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;() { 1, 2, 3 };
+    ImmutableList&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; immutableList = ImmutableList.CreateRange(mutableList);
+    ReadOnlyCollection&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; readOnlyCollection = </span><span style="color: blue;">new </span><span style="color: black;">ReadOnlyCollection&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(mutableList);
+    </span><span style="color: green;">// ReadOnlyCollection&lt;int&gt; wraps a mutable source, just has no methods like Add, Remove, etc.
+
+    </span><span style="color: black;">mutableList.Add(4);
+    immutableList.Count.WriteLine(); </span><span style="color: green;">// 3
+    </span><span style="color: black;">readOnlyCollection.Count.WriteLine(); </span><span style="color: green;">// 4
+</span><span style="color: black;">}</span>
+
+
+</div>
+</body>
+</html>

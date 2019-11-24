@@ -1,0 +1,310 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+
+<h1>C# Functional Programming In-Depth (10) Query Expression</h1>
+
+<p>C# 3.0 introduces query expression, a SQL-like query syntactic sugar for query methods composition.</p>
+<h1>Syntax and compilation</h1>
+<p>The following is the syntax of query expression:</p>
+<pre class="code"><span style="color: #0000ff;">from</span> [<span style="color: #2b91af;">Type</span>] identifier <span style="color: #0000ff;">in</span> source
+[<span style="color: #0000ff;">from</span> [<span style="color: #2b91af;">Type</span>] identifier <span style="color: #0000ff;">in</span> source]
+[<span style="color: #0000ff;">join</span> [<span style="color: #2b91af;">Type</span>] identifier <span style="color: #0000ff;">in</span> source <span style="color: #0000ff;">on</span> expression <span style="color: #0000ff;">equals</span> expression [<span style="color: #0000ff;">into</span> identifier]]
+[<span style="color: #0000ff;">let</span> identifier = expression]
+[<span style="color: #0000ff;">where</span> predicate]
+[<span style="color: #0000ff;">orderby</span> ordering [<span style="color: #0000ff;">ascending </span>| <span style="color: #0000ff;">descending</span>][, ordering [<span style="color: #0000ff;">ascending </span>| <span style="color: #0000ff;">descending</span>], …]]
+<span style="color: #0000ff;">select</span> expression | <span style="color: #0000ff;">group</span> expression <span style="color: #0000ff;">by</span> key [<span style="color: #0000ff;">into</span> identifier]
+[continuation]</pre>
+<p>It introduces new language keywords to C#, which are called query keywords:</p>
+<ul>
+<li>from</li>
+<li>join, on, equals</li>
+<li>let</li>
+<li>where</li>
+<li>orderby, ascending, descending</li>
+<li>select</li>
+<li>group, by</li>
+<li>into</li>
+</ul>
+<p>Query expression is compiled to query method calls at compile time:</p>
+<table width="672" cellspacing="0" cellpadding="2" border="0">
+<tbody>
+<tr>
+<td width="297" valign="top">Query expression</td>
+<td width="373" valign="top">Query method</td>
+</tr>
+<tr>
+<td width="297" valign="top">single from clause with select clause</td>
+<td width="373" valign="top">Select</td>
+</tr>
+<tr>
+<td width="297" valign="top">multiple from clauses with select clause</td>
+<td width="373" valign="top">SelectMany</td>
+</tr>
+<tr>
+<td width="297" valign="top">Type in from/join clauses</td>
+<td width="373" valign="top">Cast</td>
+</tr>
+<tr>
+<td width="297" valign="top">join clause without into</td>
+<td width="373" valign="top">Join</td>
+</tr>
+<tr>
+<td width="297" valign="top">join clause with into</td>
+<td width="373" valign="top">GroupJoin</td>
+</tr>
+<tr>
+<td width="297" valign="top">let clause</td>
+<td width="373" valign="top">Select</td>
+</tr>
+<tr>
+<td width="297" valign="top">where clauses</td>
+<td width="373" valign="top">Where</td>
+</tr>
+<tr>
+<td width="297" valign="top">orderby clause with or without ascending</td>
+<td width="373" valign="top">OrderBy, ThenBy</td>
+</tr>
+<tr>
+<td width="297" valign="top">orderby clause with descending</td>
+<td width="373" valign="top">OrderByDescending, ThenByDescending</td>
+</tr>
+<tr>
+<td width="297" valign="top">group clause</td>
+<td width="373" valign="top">GroupBy</td>
+</tr>
+<tr>
+<td width="297" valign="top">into with continuation</td>
+<td width="373" valign="top">Nested query</td>
+</tr>
+</tbody>
+</table>
+<p>It is already demonstrated how query expression syntax works for LINQ. Actually, this syntax is not specific for LINQ query or IEnumerable&lt;T&gt;/ParallelQuery&lt;T&gt;/IQueryable&lt;T&gt; types, but a <a href="https://www.infoq.com/interviews/LINQ-Erik-Meijer" target="_blank">general C# syntactic sugar</a>. Take select clause (compiled to Select method call) as example, it can work for any type, as long as the compiler can find a Select instance method or extension method for that type. Take int as example, it does not have a Select instance method, so the following extension method can be defined to accept a selector function:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Int32Extensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static </span><span style="color: #2b91af;">TResult </span><span style="color: black;">Select&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: blue;">this int </span><span style="color: black;">int32, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt;
+        selector(int32);
+}</span></pre>
+<p>Now select clause of query expression syntax can be applied to int:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">QueryExpression
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">SelectInt32()
+    {
+        </span><span style="color: blue;">int </span><span style="color: black;">mapped1 = </span><span style="color: blue;">from </span><span style="color: black;">zero </span><span style="color: blue;">in default</span><span style="color: black;">(</span><span style="color: blue;">int</span><span style="color: black;">) </span><span style="color: green;">// 0
+                      </span><span style="color: blue;">select </span><span style="color: black;">zero; </span><span style="color: green;">// 0
+        </span><span style="color: blue;">double </span><span style="color: black;">mapped2 = </span><span style="color: blue;">from </span><span style="color: black;">three </span><span style="color: blue;">in </span><span style="color: black;">1 + 2 </span><span style="color: green;">// 3
+                         </span><span style="color: blue;">select </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(three + 1); </span><span style="color: green;">// 2
+    </span><span style="color: black;">}
+}</span></pre>
+<p>And they are compiled to above Select extension method call:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledSelectInt32()
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">mapped1 = </span><span style="color: #2b91af;">Int32Extensions</span><span style="color: black;">.Select(</span><span style="color: blue;">default</span><span style="color: black;">, zero =&gt; zero); </span><span style="color: green;">// 0
+    </span><span style="color: blue;">double </span><span style="color: black;">mapped2 = </span><span style="color: #2b91af;">Int32Extensions</span><span style="color: black;">.Select(1 + 2, three =&gt; </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(three + 1)); </span><span style="color: green;">// 2
+</span><span style="color: black;">}</span></pre>
+<p>More generally, Select method can be defined for any type:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">ObjectExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static </span><span style="color: #2b91af;">TResult </span><span style="color: black;">Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt;
+        selector(value);
+}</span></pre>
+<p>Now select clause and Select method can be applied to any type:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">SelectGuid()
+{
+    </span><span style="color: blue;">string </span><span style="color: black;">mapped = </span><span style="color: blue;">from </span><span style="color: black;">newGuid </span><span style="color: blue;">in </span><span style="color: #2b91af;">Guid</span><span style="color: black;">.NewGuid()
+                    </span><span style="color: blue;">select </span><span style="color: black;">newGuid.ToString();
+}
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">CompiledSelectGuid()
+{
+    </span><span style="color: blue;">string </span><span style="color: black;">mapped = </span><span style="color: #2b91af;">ObjectExtensions</span><span style="color: black;">.Select(</span><span style="color: #2b91af;">Guid</span><span style="color: black;">.NewGuid(), newGuid =&gt; newGuid.ToString());
+}</span></pre>
+<p>Some tools, like <a href="https://www.jetbrains.com/resharper" target="_blank">Resharper</a>, a powerful <a href="https://visualstudiogallery.msdn.microsoft.com/EA4AC039-1B5C-4D11-804E-9BEDE2E63ECF" target="_blank">extension for Visual Studio</a>, can help converting query expressions to query methods at design time:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/1c28168c455a_2436/image_2.png"><img title="image" style="border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/1c28168c455a_2436/image_thumb.png" width="505" height="81" border="0"></a></p>
+<h1>Query expression pattern</h1>
+<p>To enable all the query keywords for a certain type, a set of query methods are required to be provided. The following interfaces demonstrate the signatures of the required methods for a locally queryable type:</p>
+<pre class="code"><span style="color: blue;">public interface </span><span style="color: #2b91af;">ILocal
+</span><span style="color: black;">{
+    </span><span style="color: #2b91af;">ILocal</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; Cast&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;();
+}
+
+</span><span style="color: blue;">public interface </span><span style="color: #2b91af;">ILocal</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">ILocal
+</span><span style="color: black;">{
+    </span><span style="color: #2b91af;">ILocal</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; Where(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; predicate);
+
+    </span><span style="color: #2b91af;">ILocal</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector);
+
+    </span><span style="color: #2b91af;">ILocal</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; SelectMany&lt;</span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">ILocal</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSelector</span><span style="color: black;">&gt;&gt; selector,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector);
+
+    </span><span style="color: #2b91af;">ILocal</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Join&lt;</span><span style="color: #2b91af;">TInner</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">ILocal</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TInner</span><span style="color: black;">&gt; inner,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; outerKeySelector,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TInner</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; innerKeySelector,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TInner</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector);
+
+    </span><span style="color: #2b91af;">ILocal</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; GroupJoin&lt;</span><span style="color: #2b91af;">TInner</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">ILocal</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TInner</span><span style="color: black;">&gt; inner,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; outerKeySelector,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TInner</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; innerKeySelector,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">ILocal</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TInner</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector);
+
+    </span><span style="color: #2b91af;">IOrderedLocal</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; OrderBy&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+
+    </span><span style="color: #2b91af;">IOrderedLocal</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; OrderByDescending&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+
+    </span><span style="color: #2b91af;">ILocal</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ILocalGroup</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt; GroupBy&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+
+    </span><span style="color: #2b91af;">ILocal</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ILocalGroup</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TElement</span><span style="color: black;">&gt;&gt; GroupBy&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TElement</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TElement</span><span style="color: black;">&gt; elementSelector);
+}
+
+</span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IOrderedLocal</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">ILocal</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: #2b91af;">IOrderedLocal</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; ThenBy&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+
+    </span><span style="color: #2b91af;">IOrderedLocal</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; ThenByDescending&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+}
+
+</span><span style="color: blue;">public interface </span><span style="color: #2b91af;">ILocalGroup</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">ILocal</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: #2b91af;">TKey </span><span style="color: black;">Key { </span><span style="color: blue;">get</span><span style="color: black;">; }
+}</span></pre>
+<p>All above methods return ILocalSource&lt;T&gt;, so these methods or query expression clauses can be easily composed. The above query methods are represented as instance methods. As fore mentioned, extension methods work too. This is called the query expression pattern. Similarly, the following interfaces demonstrate the signatures of the required query methods for a remotely queryable type, which replaces all function parameters with expression tree parameters:</p>
+<pre class="code"><span style="color: blue;">public interface </span><span style="color: #2b91af;">IRemote
+</span><span style="color: black;">{
+    </span><span style="color: #2b91af;">IRemote</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; Cast&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;();
+}
+
+</span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IRemote</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IRemote
+</span><span style="color: black;">{
+    </span><span style="color: #2b91af;">IRemote</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; Where(</span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;&gt; predicate);
+
+    </span><span style="color: #2b91af;">IRemote</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; selector);
+
+    </span><span style="color: #2b91af;">IRemote</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; SelectMany&lt;</span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">IRemote</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSelector</span><span style="color: black;">&gt;&gt;&gt; selector,
+        </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TSelector</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; resultSelector);
+
+    </span><span style="color: #2b91af;">IRemote</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Join&lt;</span><span style="color: #2b91af;">TInner</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">IRemote</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TInner</span><span style="color: black;">&gt; inner,
+        </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;&gt; outerKeySelector,
+        </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TInner</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;&gt; innerKeySelector,
+        </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TInner</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; resultSelector);
+
+    </span><span style="color: #2b91af;">IRemote</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; GroupJoin&lt;</span><span style="color: #2b91af;">TInner</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">IRemote</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TInner</span><span style="color: black;">&gt; inner,
+        </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;&gt; outerKeySelector,
+        </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TInner</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;&gt; innerKeySelector,
+        </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">IRemote</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TInner</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; resultSelector);
+
+    </span><span style="color: #2b91af;">IOrderedRemote</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; OrderBy&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;&gt; keySelector);
+
+    </span><span style="color: #2b91af;">IOrderedRemote</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; OrderByDescending&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;&gt; keySelector);
+
+    </span><span style="color: #2b91af;">IRemote</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IRemoteGroup</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt; GroupBy&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;&gt; keySelector);
+
+    </span><span style="color: #2b91af;">IRemote</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IRemoteGroup</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TElement</span><span style="color: black;">&gt;&gt; GroupBy&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TElement</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;&gt; keySelector, </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TElement</span><span style="color: black;">&gt;&gt; elementSelector);
+}
+
+</span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IOrderedRemote</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IRemote</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: #2b91af;">IOrderedRemote</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; ThenBy&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;&gt; keySelector);
+
+    </span><span style="color: #2b91af;">IOrderedRemote</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; ThenByDescending&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;&gt; keySelector);
+}
+
+</span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IRemoteGroup</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IRemote</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: #2b91af;">TKey </span><span style="color: black;">Key { </span><span style="color: blue;">get</span><span style="color: black;">; }
+}</span></pre>
+<p>The following example demonstrates how the query expression syntax is enabled for ILocal&lt;T&gt; and IRemote&lt;T&gt;:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">LocalQuery(</span><span style="color: #2b91af;">ILocal</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Uri</span><span style="color: black;">&gt; uris)
+{
+    </span><span style="color: #2b91af;">ILocal</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; query =
+        </span><span style="color: blue;">from </span><span style="color: black;">uri </span><span style="color: blue;">in </span><span style="color: black;">uris
+        </span><span style="color: blue;">where </span><span style="color: black;">uri.IsAbsoluteUri </span><span style="color: green;">// ILocal.Where and anonymous method.
+        </span><span style="color: blue;">group </span><span style="color: black;">uri </span><span style="color: blue;">by </span><span style="color: black;">uri.Host </span><span style="color: blue;">into </span><span style="color: black;">hostUris </span><span style="color: green;">// ILocal.GroupBy and anonymous method.
+        </span><span style="color: blue;">orderby </span><span style="color: black;">hostUris.Key </span><span style="color: green;">// ILocal.OrderBy and anonymous method.
+        </span><span style="color: blue;">select </span><span style="color: black;">hostUris.ToString(); </span><span style="color: green;">// ILocal.Select and anonymous method.
+</span><span style="color: black;">}
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">RemoteQuery(</span><span style="color: #2b91af;">IRemote</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Uri</span><span style="color: black;">&gt; uris)
+{
+    </span><span style="color: #2b91af;">IRemote</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; query =
+        </span><span style="color: blue;">from </span><span style="color: black;">uri </span><span style="color: blue;">in </span><span style="color: black;">uris
+        </span><span style="color: blue;">where </span><span style="color: black;">uri.IsAbsoluteUri </span><span style="color: green;">// IRemote.Where and expression tree.
+        </span><span style="color: blue;">group </span><span style="color: black;">uri </span><span style="color: blue;">by </span><span style="color: black;">uri.Host </span><span style="color: blue;">into </span><span style="color: black;">hostUris </span><span style="color: green;">// IRemote.GroupBy and expression tree.
+        </span><span style="color: blue;">orderby </span><span style="color: black;">hostUris.Key </span><span style="color: green;">// IRemote.OrderBy and expression tree.
+        </span><span style="color: blue;">select </span><span style="color: black;">hostUris.ToString(); </span><span style="color: green;">// IRemote.Select and expression tree.
+</span><span style="color: black;">}</span></pre>
+<p>Their syntax looks identical but they are compiled to different query method calls:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledLocalQuery(</span><span style="color: #2b91af;">ILocal</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Uri</span><span style="color: black;">&gt; uris)
+{
+    </span><span style="color: #2b91af;">ILocal</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; query = uris
+        .Where(uri =&gt; uri.IsAbsoluteUri) </span><span style="color: green;">// ILocal.Where and anonymous method.
+        </span><span style="color: black;">.GroupBy(uri =&gt; uri.Host) </span><span style="color: green;">// ILocal.GroupBy and anonymous method.
+        </span><span style="color: black;">.OrderBy(hostUris =&gt; hostUris.Key) </span><span style="color: green;">// ILocal.OrderBy and anonymous method.
+        </span><span style="color: black;">.Select(hostUris =&gt; hostUris.ToString()); </span><span style="color: green;">// ILocal.Select and anonymous method.
+</span><span style="color: black;">}
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">CompiledRemoteQuery(</span><span style="color: #2b91af;">IRemote</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Uri</span><span style="color: black;">&gt; uris)
+{
+    </span><span style="color: #2b91af;">IRemote</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; query = uris
+        .Where(uri =&gt; uri.IsAbsoluteUri) </span><span style="color: green;">// IRemote.Where and expression tree.
+        </span><span style="color: black;">.GroupBy(uri =&gt; uri.Host) </span><span style="color: green;">// IRemote.GroupBy and expression tree.
+        </span><span style="color: black;">.OrderBy(hostUris =&gt; hostUris.Key) </span><span style="color: green;">// IRemote.OrderBy and expression tree.
+        </span><span style="color: black;">.Select(hostUris =&gt; hostUris.ToString()); </span><span style="color: green;">// IRemote.Select and expression tree.
+</span><span style="color: black;">}</span></pre>
+<p>.NET provides 3 sets of built-in query methods:</p>
+<ul>
+<li>IEnumerable&lt;T&gt; represents local sequential data source and query, its query expression pattern is implemented by extension methods provided by System.Linq.Enumerable</li>
+<li>ParallelQuery&lt;T&gt; represents local parallel data source and query, its query expression pattern is implemented by extension methods provided by System.Linq.ParallelEnumerable</li>
+<li>IQueryable&lt;T&gt; represents remote data source and query, its query expression pattern is implemented by extension methods provided by System.Linq.Queryable</li>
+</ul>
+<p>So query expression works for these 3 kinds of LINQ. The details of query expression usage and compilation is covered by the LINQ to Objects chapter.</p>
+<h1>Query expression vs. query method</h1>
+<p>Query expression is compiled to query method calls, either syntax can be used to build a LINQ query. However, query expression does not cover all query methods and their overloads. For example, Skip and Take query are not supported by query expression syntax:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Linq
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Enumerable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Skip&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: blue;">int </span><span style="color: black;">count);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Take&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: blue;">int </span><span style="color: black;">count);
+    }
+}</span></pre>
+<p>The following query implement filtering and mapping queries with query expression, but Skip and Take have to be called as query methods, so it is in a hybrid syntax:</p>
+<pre class="code"><span style="color: blue;">public static void </span><span style="color: black;">QueryExpressionAndMethod(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; products)
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;<span style="color: black;"></span><span style="color: blue;">string</span></span><span style="color: black;">&gt; query =
+        (</span><span style="color: blue;">from </span><span style="color: black;">product </span><span style="color: blue;">in </span><span style="color: black;">products
+         </span><span style="color: blue;">where </span><span style="color: black;">product.ListPrice &gt; 0
+         </span><span style="color: blue;">select </span><span style="color: black;">product.Name)
+        .Skip(20)
+        .Take(10);
+}</span></pre>
+<p>Another example is, Where query method for IEnumerable&lt;T&gt; has 2 overloads:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Linq
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Enumerable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Where&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; predicate);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Where&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; predicate);
+    }
+}</span></pre>
+<p>The first Where overload is supported by query expression where clause, the second overload is not.</p>
+<p>All query expression syntax and all query methods will be discussed in detail in later chapters. Query expression is also a tool to build general functional workflow, which will also be discussed in the Category Theory chapter.</p>
+
+
+</div>
+</body>
+</html>

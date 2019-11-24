@@ -1,0 +1,311 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+
+<h1>LINQ to Objects (4) Deferred Execution, Lazy Evaluation and Eager Evaluation</h1>
+
+<p>As fore mentioned, when a generator method (method contains yield statement and returns IEnumerable&lt;T&gt;) is compiled to a pure function, which constructs a generator and return it to caller. So at runtime, when a generator method is called, the values in output sequence is not pulled or evaluated. This is called deferred execution.</p>
+<h1>Deferred execution vs. immediate execution</h1>
+<p>To demonstrate how the deferred execution work, take the Select query method as example, with tracing of the control flow:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">DeferredExecution
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; SelectGenerator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector)
+    {
+        </span><span style="color: #a31515;">"Select query starts."</span><span style="color: black;">.WriteLine();
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+        {
+            </span><span style="color: #a31515;">$"Select query is calling selector with </span><span style="color: black;">{value}</span><span style="color: #a31515;">."</span><span style="color: black;">.WriteLine();
+            </span><span style="color: #2b91af;">TResult </span><span style="color: black;">result = selector(value);
+            </span><span style="color: #a31515;">$"Select query is yielding </span><span style="color: black;">{result}</span><span style="color: #a31515;">."</span><span style="color: black;">.WriteLine();
+            </span><span style="color: blue;">yield return </span><span style="color: black;">result;
+        }
+        </span><span style="color: #a31515;">"Select query ends."</span><span style="color: black;">.WriteLine();
+    }
+}</span></pre>
+<p>The foreach loop can be desugared:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; DesugaredSelectGenerator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector)
+{
+    </span><span style="color: #a31515;">"Select query starts."</span><span style="color: black;">.WriteLine();
+    </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; sourceIterator = </span><span style="color: blue;">null</span><span style="color: black;">; </span><span style="color: green;">// start.
+    </span><span style="color: blue;">try
+    </span><span style="color: black;">{
+        sourceIterator = source.GetEnumerator(); </span><span style="color: green;">// start.
+        </span><span style="color: blue;">while </span><span style="color: black;">(sourceIterator.MoveNext()) </span><span style="color: green;">// moveNext.
+        </span><span style="color: black;">{
+            </span><span style="color: #a31515;">$"Select query is calling selector with </span><span style="color: black;">{sourceIterator.Current}</span><span style="color: #a31515;">."</span><span style="color: black;">.WriteLine(); </span><span style="color: green;">// getCurrent.
+            </span><span style="color: #2b91af;">TResult </span><span style="color: black;">result = selector(sourceIterator.Current); </span><span style="color: green;">// getCurrent.
+            </span><span style="color: #a31515;">$"Select query is yielding </span><span style="color: black;">{result}</span><span style="color: #a31515;">."</span><span style="color: black;">.WriteLine(); </span><span style="color: green;">// getCurrent.
+            </span><span style="color: blue;">yield return </span><span style="color: black;">result; </span><span style="color: green;">// getCurrent.
+        </span><span style="color: black;">}
+    }
+    </span><span style="color: blue;">finally
+    </span><span style="color: black;">{
+        sourceIterator?.Dispose(); </span><span style="color: green;">// dispose.
+    </span><span style="color: black;">}
+    </span><span style="color: #a31515;">"Select query ends."</span><span style="color: black;">.WriteLine(); </span><span style="color: green;">// end.
+</span><span style="color: black;">}</span></pre>
+<p>After compilation, it is equivalent to the following generator creation and return:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; CompiledSelectGenerator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt;
+        </span><span style="color: blue;">new </span><span style="color: #2b91af;">Generator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt;(
+            data: </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: green;">// IEnumerator&lt;TSource&gt; sourceIterator = null;
+            </span><span style="color: black;">iteratorFactory: sourceIterator =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Iterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+                start: () =&gt;
+                {
+                    </span><span style="color: #a31515;">"Select query starts."</span><span style="color: black;">.WriteLine();
+                    sourceIterator = source.GetEnumerator();
+                },
+                moveNext: () =&gt; sourceIterator.MoveNext(),
+                getCurrent: () =&gt;
+                {
+                    </span><span style="color: #a31515;">$"Select query is calling selector with </span><span style="color: black;">{sourceIterator.Current}</span><span style="color: #a31515;">."</span><span style="color: black;">.WriteLine();
+                    </span><span style="color: #2b91af;">TResult </span><span style="color: black;">result = selector(sourceIterator.Current);
+                    </span><span style="color: #a31515;">$"Select query is yielding </span><span style="color: black;">{result}</span><span style="color: #a31515;">."</span><span style="color: black;">.WriteLine();
+                    </span><span style="color: blue;">return </span><span style="color: black;">result;
+                },
+                dispose: () =&gt; sourceIterator?.Dispose(),
+                end: () =&gt; </span><span style="color: #a31515;">"Select query ends."</span><span style="color: black;">.WriteLine()));</span></pre>
+<p>This also demonstrates how the tracing is triggered. The returned generator represents the output sequence and wraps the the data and algorithm of query. When SelectGenerator is called, the output sequence is returned to caller, the query logic is not executed, and the values in the output sequence are not evaluated.</p>
+<p>In contrast, the following query is implemented with traditional collection instead of generator:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; SelectList&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector)
+{
+    </span><span style="color: #a31515;">"Select query starts."</span><span style="color: black;">.WriteLine();
+    </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSequence = </span><span style="color: blue;">new </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;();
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+    {
+        </span><span style="color: #a31515;">$"Select query is calling selector with </span><span style="color: black;">{value}</span><span style="color: #a31515;">."</span><span style="color: black;">.WriteLine();
+        </span><span style="color: #2b91af;">TResult </span><span style="color: black;">result = selector(value);
+        </span><span style="color: #a31515;">$"Select query is storing </span><span style="color: black;">{result}</span><span style="color: #a31515;">."</span><span style="color: black;">.WriteLine();
+        resultSequence.Add(result);
+    }
+
+    </span><span style="color: #a31515;">"Select query ends."</span><span style="color: black;">.WriteLine();
+    </span><span style="color: blue;">return </span><span style="color: black;">resultSequence;
+}</span></pre>
+<p>The output sequence is represented by a list with known values. So when the output sequence is returned to caller, the query algorithm of mapping is already executed, and the values in the output sequence are evaluated. This is immediate execution. Calling these 2 methods shows the difference at runtime:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ForEachSelect()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; deferredQuery = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(1, 5)<span style="color: black;">
+</span>        .SelectGenerator(int32 =&gt; </span><span style="color: blue;">new string</span><span style="color: black;">(</span><span style="color: #a31515;">'*'</span><span style="color: black;">, int32));
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">string </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">deferredQuery) </span><span style="color: green;">// Execute query.
+    </span><span style="color: black;">{
+        </span><span style="color: green;">// Select query starts.
+        // Select query is calling selector with 1.
+        // Select query is yielding *.
+        // Select query is calling selector with 2.
+        // Select query is yielding **.
+        // Select query is calling selector with 3.
+        // Select query is yielding ***.
+        // Select query is calling selector with 4.
+        // Select query is yielding ****.
+        // Select query is calling selector with 5.
+        // Select query is yielding *****.
+        // Select query ends.
+    </span><span style="color: black;">}
+
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; immediateQuery = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(1, 5)<span style="color: black;">
+</span>        .SelectList(int32 =&gt; </span><span style="color: blue;">new string</span><span style="color: black;">(</span><span style="color: #a31515;">'*'</span><span style="color: black;">, int32)); </span><span style="color: green;">// Execute query.
+    // Select query starts.
+    // Select query is calling selector with 1.
+    // Select query is storing *.
+    // Select query is calling selector with 2.
+    // Select query is storing **.
+    // Select query is calling selector with 3.
+    // Select query is storing ***.
+    // Select query is calling selector with 4.
+    // Select query is storing ****.
+    // Select query is calling selector with 5.
+    // Select query is storing *****.
+    // Select query ends.
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">string </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">immediateQuery) { }
+}</span></pre>
+<p>When SelectorGenerator is called, its query logic of mapping is not executed, and its result values are not available yet. Later when trying to pull result values from the returned sequence, the query logic of mapping is executed, and each result value is evaluated sequentially. When SelectList is called, its query logic of mapping is executed, and its result values are evaluated and stored in the returned sequence, which is a list. Since any method with yield statement is compiled to construct and return a generator, any method with yield statement implements deferred execution.</p>
+<p>In LINQ to Objects, the query methods returning IEnumerable&lt;T&gt; sequence all implement deferred execution. Apparently, the other query methods returning a collection (like ToArray, ToList, etc.) or a single value (like Single, First, etc.) must implement immediate execution to start result value evaluation&nbsp; All the query methods implementation will be discussed later in this chapter.</p>
+<h2>Cold sequence vs. hot sequence</h2>
+<p>In above examples, one function returns a generator, which is a sequence wraps data and iteration algorithms instead of evaluated values. This kind of sequence is called cold sequence. The other method returns a collection, which is is a sequence wraps values already evaluated from data and iteration algorithms. This kind of sequence is called hot sequence. For example:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">&gt; AbsAndSqrtGenerator(</span><span style="color: blue;">double </span><span style="color: black;">@double)
+{
+    </span><span style="color: blue;">yield return </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Abs(@double);
+    </span><span style="color: blue;">yield return </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(@double);
+}
+
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">&gt; AbsAndSqrtArray(</span><span style="color: blue;">double </span><span style="color: black;">@double) =&gt; </span><span style="color: blue;">new double</span><span style="color: black;">[]
+{
+    </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Abs(@double),
+    </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(@double)
+};
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">Sequences(</span><span style="color: blue;">double </span><span style="color: black;">@double)
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">&gt; cold = AbsAndSqrtGenerator(@double); </span><span style="color: green;">// Deferred execution.
+    // Math.Abs and Math.Sqrt are not executed.
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">double </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">cold) { }
+    </span><span style="color: green;">// Math.Abs and Math.Sqrt are executed.
+
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">&gt; hot = AbsAndSqrtArray(@double); </span><span style="color: green;">// Immediate execution.
+    // Math.Abs and Math.Sqrt are executed.
+</span><span style="color: black;">}</span></pre>
+<p>In .NET, the convention is that all sequences returned by query methods (like Select, Where, etc.) are cold.</p>
+<h1>Lazy evaluation vs. eager evaluation</h1>
+<p>There are 2 types of deferred execution. Take Select as example, the query execution is deferred until values are pulled from the result sequence. When trying to pull the first result value, the query executes until the first result value is evaluated, at this moment the rest result values remain not evaluated. When trying to pull the second result value, the query executes until the second result value is evaluated, and at this moment the rest result values remain not evaluated, and so on. If the pulling stops in the middle, the rest result values remain not evaluated. This behavior is called lazy evaluation. Besides above Select query, Where query is also an example of lazy evaluation:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; WhereGenerator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; predicate)
+{
+    </span><span style="color: #a31515;">"Where query starts."</span><span style="color: black;">.WriteLine();
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+    {
+        </span><span style="color: #a31515;">$"Where query is calling predicate with </span><span style="color: black;">{value}</span><span style="color: #a31515;">."</span><span style="color: black;">.WriteLine();
+        </span><span style="color: blue;">if </span><span style="color: black;">(predicate(value))
+        {
+            </span><span style="color: #a31515;">$"Where query is yielding </span><span style="color: black;">{value}</span><span style="color: #a31515;">."</span><span style="color: black;">.WriteLine();
+            </span><span style="color: blue;">yield return </span><span style="color: black;">value;
+        }
+    }
+    </span><span style="color: #a31515;">"Where query ends."</span><span style="color: black;">.WriteLine();
+}</span></pre>
+<p>Its compilation is equivalent to:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; CompiledWhereGenerator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; predicate) =&gt;
+        </span><span style="color: blue;">new </span><span style="color: #2b91af;">Generator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt;(
+            data: </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: green;">// IEnumerator&lt;TSource&gt; sourceIterator = null;
+            </span><span style="color: black;">iteratorFactory: sourceIterator =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Iterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+                start: () =&gt;
+                {
+                    </span><span style="color: #a31515;">"Where query starts."</span><span style="color: black;">.WriteLine();
+                    sourceIterator = source.GetEnumerator();
+                },
+                moveNext: () =&gt;
+                {
+                    </span><span style="color: blue;">while </span><span style="color: black;">(sourceIterator.MoveNext())
+                    {
+                        </span><span style="color: #a31515;">$"Where query is calling predicate with </span><span style="color: black;">{sourceIterator.Current}</span><span style="color: #a31515;">."</span><span style="color: black;">.WriteLine();
+                        </span><span style="color: blue;">if </span><span style="color: black;">(predicate(sourceIterator.Current))
+                        {
+                            </span><span style="color: blue;">return true</span><span style="color: black;">;
+                        }
+                    }
+                    </span><span style="color: blue;">return false</span><span style="color: black;">;
+                },
+                getCurrent: () =&gt;
+                {
+                    </span><span style="color: #a31515;">$"Where query is yielding </span><span style="color: black;">{sourceIterator.Current}</span><span style="color: #a31515;">."</span><span style="color: black;">.WriteLine();
+                    </span><span style="color: blue;">return </span><span style="color: black;">sourceIterator.Current;
+                },
+                dispose: () =&gt; sourceIterator?.Dispose(),
+                end: () =&gt; </span><span style="color: #a31515;">"Where query ends."</span><span style="color: black;">.WriteLine()));</span></pre>
+<p>The following example pulls values from the composition of Where and Select queries, to demonstrate how the lazy evaluation works for each result value:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ForEachWhereAndSelect()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; deferredQuery = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(1, 5)
+        .WhereGenerator(int32 =&gt; int32 &gt; 2) </span><span style="color: green;">// Deferred execution.
+        </span><span style="color: black;">.SelectGenerator(int32 =&gt; </span><span style="color: blue;">new string</span><span style="color: black;">(</span><span style="color: #a31515;">'*'</span><span style="color: black;">, int32)); </span><span style="color: green;">// Deferred execution.
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">string </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">deferredQuery)
+    {
+        </span><span style="color: green;">// Select query starts.
+        // Where query starts.
+        // Where query is calling predicate with 1.
+        // Where query is calling predicate with 2.
+        // Where query is calling predicate with 3.
+        // Where query is yielding 3.
+        // Select query is calling selector with 3.
+        // Select query is yielding ***.
+        // Where query is calling predicate with 4.
+        // Where query is yielding 4.
+        // Select query is calling selector with 4.
+        // Select query is yielding ****.
+        // Where query is calling predicate with 5.
+        // Where query is yielding 5.
+        // Select query is calling selector with 5.
+        // Select query is yielding *****.
+        // Where query ends.
+        // Select query ends.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>The final query is a generator created by Select query, when foreach loop pulls the first result value, the Select query starts execution and pulls the first value from its source sequence, which is another generator created by Where query. So Where query starts execution too. Where query pulls values from its source sequence, until its first result value 3 is yielded. Therefore, Select pulls the first value 3, and yields its first result value ***. Then, the pulling and evaluation continues. The foreach loop pulls the next result value from generator created by Select, which pulls the next result value from generator created by Where, and the generator created by Where yields its next result value 4 to the generator created by Select, which yields its next value **** to the foreach loop. This goes on, and when there is no result value to pull, the query execution ends.</p>
+<p>The opposition of lazy evaluation, is eager evaluation, where trying to pull a result value for the first time causes all result values evaluated. For example, Reverse query implements deferred execution. When its result sequence is pulled for the first time, it stars execution. It has to evaluate all the result values, in order to know what is the last source value, and yield it as its first result value. The following code demonstrates how Reserve is implemented::</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; ReverseGenerator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source)
+{
+    </span><span style="color: #a31515;">"Reverse query starts."</span><span style="color: black;">.WriteLine();
+    </span><span style="color: #2b91af;">TSource</span><span style="color: black;">[] values = source.ToArray();
+    </span><span style="color: #a31515;">$"Reverse query evaluated all </span><span style="color: black;">{values.Length} </span><span style="color: #a31515;">value(s) in source sequence."</span><span style="color: black;">.WriteLine();
+    </span><span style="color: blue;">for </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">index = values.Length - 1; index &gt;= 0; index--)
+    {
+        </span><span style="color: #a31515;">$"Reverse query is yielding index </span><span style="color: black;">{index} </span><span style="color: #a31515;">of input sequence."</span><span style="color: black;">.WriteLine();
+        </span><span style="color: blue;">yield return </span><span style="color: black;">values[index];
+    }
+    </span><span style="color: #a31515;">"Reverse query ends."</span><span style="color: black;">.WriteLine();
+}</span></pre>
+<p>Its compilation is equivalent to:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; CompiledReverseGenerator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source) =&gt;
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">Generator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, (</span><span style="color: #2b91af;">TSource</span><span style="color: black;">[] Values, </span><span style="color: blue;">int </span><span style="color: black;">Index)&gt;(
+        data: </span><span style="color: blue;">default</span><span style="color: black;">, </span><span style="color: green;">// (TSource[] Values, int Index) data = default;
+        </span><span style="color: black;">iteratorFactory: data =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Iterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+            start: () =&gt;
+            {
+                </span><span style="color: #a31515;">"Reverse query starts."</span><span style="color: black;">.WriteLine();
+                </span><span style="color: #2b91af;">TSource</span><span style="color: black;">[] values = source.ToArray();
+                </span><span style="color: #a31515;">$"Reverse query evaluated all </span><span style="color: black;">{values.Length} </span><span style="color: #a31515;">value(s) in input sequence."</span><span style="color: black;">.WriteLine();
+                data = (values, values.Length);
+            },
+            moveNext: () =&gt;
+            {
+                data = (data.Values, data.Index - 1);
+                </span><span style="color: blue;">return </span><span style="color: black;">data.Index &gt;= 0;
+            },
+            getCurrent: () =&gt;
+            {
+                </span><span style="color: #a31515;">$"Reverse query is yielding index </span><span style="color: black;">{data.Index} </span><span style="color: #a31515;">of input sequence."</span><span style="color: black;">.WriteLine();
+                </span><span style="color: blue;">return </span><span style="color: black;">data.Values[data.Index];
+            },
+            end: () =&gt; </span><span style="color: #a31515;">"Reverse query ends."</span><span style="color: black;">.WriteLine()));</span></pre>
+<p>The following example pulls values from the composition of Select and Reverse queries:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ForEachSelectAndReverse()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; deferredQuery = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(1, 5)
+        .SelectGenerator(int32 =&gt; </span><span style="color: blue;">new string</span><span style="color: black;">(</span><span style="color: #a31515;">'*'</span><span style="color: black;">, int32)) </span><span style="color: green;">// Deferred execution.
+        </span><span style="color: black;">.ReverseGenerator(); </span><span style="color: green;">// Deferred execution.
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; reverseIterator = deferredQuery.GetEnumerator())
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(reverseIterator.MoveNext()) </span><span style="color: green;">// Eager evaluation.
+        </span><span style="color: black;">{
+            </span><span style="color: green;">// Reverse query starts.
+            // Select query starts.
+            // Select query is calling selector with 1.
+            // Select query is yielding *.
+            // Select query is calling selector with 2.
+            // Select query is yielding **.
+            // Select query is calling selector with 3.
+            // Select query is yielding ***.
+            // Select query is calling selector with 4.
+            // Select query is yielding ****.
+            // Select query is calling selector with 5.
+            // Select query is yielding *****.
+            // Select query ends.
+            // Reverse query evaluated all 5 value(s) in source sequence.
+            // Reverse query is yielding index 4 of source sequence.
+            </span><span style="color: black;">reverseIterator.Current.WriteLine();</span><span style="color: green;">
+            </span><span style="color: blue;">while </span><span style="color: black;">(reverseIterator.MoveNext())
+            {
+                </span><span style="color: green;">// Reverse query is yielding index 3 of source sequence.
+                // Reverse query is yielding index 2 of source sequence.
+                // Reverse query is yielding index 1 of source sequence.
+                // Reverse query is yielding index 0 of source sequence.
+                </span><span style="color: black;">reverseIterator.Current.WriteLine();</span><span style="color: green;">
+            </span><span style="color: black;">} </span><span style="color: green;">// Reverse query ends.
+        </span><span style="color: black;">}
+    }
+}</span></pre>
+<p>The final query is a generator created by Reverse query, when foreach loop pulls the first result value, the Reverse query starts execution and pulls the all values from its source sequence, which is a generator created by Select query. So Select query starts execution too.&nbsp; Therefore, all its result values are yielded to the generator created by Reverse, which then yield its first result (its last source value). Then, the pulling continues. The foreach loop pulls the next result value from generator created by Reverse, which directly yields its next result value (its second last source value). This goes on, and when there is no result value to pull, the query execution ends.</p>
+
+
+</div>
+</body>
+</html>

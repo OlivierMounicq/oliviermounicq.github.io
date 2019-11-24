@@ -1,0 +1,468 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+<h1>Lambda Calculus via C# (3) Numeral, Arithmetic and Predicate</h1>
+
+<p>Anonymous functions can also model numerals and their arithmetic. In Church encoding, a natural number n is represented by a function that calls a given function for n times. This representation is called Church Numeral.</p>
+<h1>Church numerals</h1>
+<p>Church numerals are defined as:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">0 := λfx.x                  ≡ λf.λx.x
+1 := λfx.f x                ≡ λf.λx.f x
+2 := λfx.f (f x)            ≡ λf.λx.f (f x)
+3 := λfx.f (f (f x))        ≡ λf.λx.f (f (f x))
+...
+n := λfx.f (f ... (f x)...) ≡ λf.λx.f (f .u.. (f x)...)</span></pre>
+<p>So a Church numeral n is a <a href="https://weblogs.asp.net/dixin/understanding-csharp-covariance-and-contravariance-5-higher-order-functions">higher order function</a>, it accepts a function f and an argument x. When n is applied, it repeatedly applies f for n times by starting with x, and returns the result. If n is 0, f is not applied (in another word, f is applied 0 times), and x is directly returned.</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">0 f x ≡ x
+1 f x ≡ f x
+2 f x ≡ f (f x)
+3 f x ≡ f (f (f x))
+...
+n f x ≡ f (f (... (f x)...))</span></pre>
+<p>According to the definition of function composition:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">f (f x) ≡ (f ∘ f) x</span></pre>
+<p>This definition is equivalent to compose f for n time:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">0 := λfx.x                  ≡ λf.λx.x                   ≡ λf.λx.f<sup>0</sup> x
+1 := λfx.f x                ≡ λf.λx.f x                 ≡ λf.λx.f<sup>1</sup> x
+2 := λfx.f (f x)            ≡ λf.λx.(f ∘ f) x           ≡ λf.λx.f<sup>2</sup> x
+3 := λfx.f (f (f x))        ≡ λf.λx.(f ∘ f ∘ f) x       ≡ λf.λx.f<sup>3</sup> x
+...
+n := λfx.f (f ... (f x)...) ≡ λf.λx.(f ∘ f ∘ ... ∘ f) x ≡ λf.λx.f<sup>n</sup> x</span></pre>
+<p>The partial application with f is the composition of f, so Church numeral n can be simply read as – do something n times:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">0 f ≡ f<sup>0</sup>
+1 f ≡ f<sup>1</sup>
+2 f ≡ f<sup>2</sup>
+3 f ≡ f<sup>3</sup>
+...
+n f ≡ f<sup>n</sup></span></pre>
+<p>In C#, x can be anything, so leave its type as dynamic. f can be viewed as a function accept a value x and returns something, and f can also accept its returned value again, so f is of type dynamic -&gt; dynamic. And n’ return type is the same as f’s return type, so n returns dynamic too. As a result, n can be virtually viewed as curried function type (dynamic -&gt; dynamic) –&gt; dynamic -&gt; dynamic, which in C# is represented by Func&lt;Func&lt;dynamic, dynamic&gt;, Func&lt;dynamic, dynamic&gt;&gt;. Similar to the C# implementation of Church Boolean, a alias Numeral can be defined:</p>
+<pre class="code"><span style="color: green;">// Curried from (dynamic -&gt; dynamic, dynamic) -&gt; dynamic.
+// Numeral is the alias of (dynamic -&gt; dynamic) -&gt; dynamic -&gt; dynamic.
+</span><span style="color: blue;">public delegate </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt; </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt; f);</span></pre>
+<p>Based on the definition:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ChurchNumeral</span><span style="color: black;">
+{</span><span style="color: green;">
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Numeral
+        </span><span style="color: black;">Zero = f =&gt; x =&gt; x;
+</span><span style="color: green;">
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Numeral
+        </span><span style="color: black;">One = f =&gt; x =&gt; f(x);
+</span><span style="color: green;">
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Numeral
+        </span><span style="color: black;">Two = f =&gt; x =&gt; f(f(x));
+</span><span style="color: green;">
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Numeral
+        </span><span style="color: black;">Three = f =&gt; x =&gt; f(f(f(x)));
+
+    </span><span style="color: green;">// ...
+</span><span style="color: black;">}</span></pre>
+<p>Also since n f ≡ f<sup>n</sup>, n can be also implemented with composition of f:</p>
+<pre class="code"><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Numeral
+    </span><span style="color: black;">OneWithComposition = f =&gt; f;
+
+</span><span style="color: green;">// Two = f =&gt; f o f
+</span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Numeral
+    </span><span style="color: black;">TwoWithComposition = f =&gt; f.o(f);
+
+</span><span style="color: green;">// Three = f =&gt; f o f o f
+</span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Numeral
+    </span><span style="color: black;">ThreeWithComposition = f =&gt; f.o(f).o(f);
+
+</span><span style="color: green;">// ...</span></pre>
+<p>Here the o operator is the forward composition extension method defined previously. Actually, instead of defining each number individually, Church numeral can be defined recursively by increase or decrease.</p>
+<h1>Increase and decrease</h1>
+<p>By observing the definition and code, there are some patterns when the Church numeral increases from 0 to 3. In the definitions of Church numerals:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">0 := λf.λx.x
+1 := λf.λx.f (<span style="text-decoration: underline;">x)</span>
+2 := λf.λx.f (<span style="text-decoration: underline;">f x</span>)
+3 := λf.λx.f (<span style="text-decoration: underline;">f (f x)</span>)
+...</span></pre>
+<p>The expressions in the parenthesis can be reduced from the following function applications expressions:</p>
+<pre class="code"><span style="color: black;">0 f x ≡ <span style="text-decoration: underline;">x</span>
+1 f x ≡ <span style="text-decoration: underline;">f x</span>
+2 f x ≡ <span style="text-decoration: underline;">f (f x)</span>
+...</span></pre>
+<p>With substitution, Church numerals’ definition become:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">0 := λf.λx.x
+1 := λf.λx.f (0 f x)
+2 := λf.λx.f (1 f x)
+3 := λf.λx.f (2 f x)
+...</span></pre>
+<p>This shows how the the Church numerals increases. Generally, given a Church numeral n, the next numeral n + 1 is λf.λx.f (n f x). So:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">Increase := λn.λf.λx.f (n f x)</span></pre>
+<p>In C#, this is:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;
+    Increase = n =&gt; f =&gt; x =&gt; f(n(f)(x));</span></pre>
+<p>In the other way, Church numeral n is to compose f for n times:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">n f ≡ f<sup>n</sup></span></pre>
+<p>So increasing n means to compose f for one more time:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">Increase := λn.λf.f ∘ f<sup>n</sup> ≡ λn.λf.f ∘ (n f)</span></pre>
+<p>And in C#:</p>
+<pre class="code"><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;
+    IncreaseWithComposition = n =&gt; f =&gt; f.o(n(f));</span></pre>
+<p>To decrease a Church numeral n, when n is 0, the result is defined as 0, when n is positive, the result is n – 1. The Decrease function is more complex:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">Decrease := λn.λf.λx.n (λg.λh.h (g f)) (λv.x) Id
+</span></pre>
+<p>When n is 0, regarding n f ≡ f<sup>n</sup>, applying Decrease with 0 can be reduced as:</p>
+<pre class="code">  <span style="color: black;">Decrease 0
+≡ λf.λx.0 (λg.λh.h (g f)) (λv.x) Id
+≡ λf.λx.(λg.λh.h (g f))<sup>0</sup> (λv.x) Id
+≡ λf.λx.(λv.x) Id
+≡ λf.λx.x
+≡ λf.λx.f<sup>0</sup> x</span></pre>
+<p>The last expression is the definition of 0.</p>
+<p>When n is positive, regarding function function composition is associative, the expression n (λg.λh.h (g f)) (λu.x) can be reduced first. When n is 1, 2, 3, ...:</p>
+<pre class="code">  <span style="color: black;">1 (λg.λh.h (g f)) (λv.x)
+≡ (λg.λh.h (g f))<sup>1</sup> (λv.x)
+≡ (λg.λh.h (g f)) (λv.x)
+≡ λh.h ((λv.x) f)
+≡ λh.h x
+≡ λh.h (f<sup>0</sup> x)
+
+  2 (λg.λh.h (g f)) (λv.x)
+≡ (λg.λh.h (g f))<sup>2</sup> (λv.x)
+≡ (λg.λh.h (g f)) ∘ (λg.λh.h (g f))<sup>1</sup> (λv.x)
+≡ (λg.λh.h (g f)) (λh.h (f<sup>0</sup> x))
+≡ λh.h (λh.h (f<sup>0</sup> x) f)
+≡ λh.h (f (f<sup>0</sup> x))
+≡ λh.h (f<sup>1</sup> x)
+
+  3 (λg.λh.h (g f)) (λv.x)
+≡ (λg.λh.h (g f))<sup>3</sup> (λv.x)
+≡ (λg.λh.h (g f)) ∘ (λg.λh.h (g f))<sup>2</sup> (λv.x)
+≡ (λg.λh.h (g f)) (λh.h (f<sup>1</sup> x))
+≡ λh.h ((λh.h (f<sup>1</sup> x)) f)
+≡ λh.h (f (f<sup>1</sup> x))
+≡ λh.h (f<sup>2</sup> x)
+
+...</span></pre>
+<p>And generally:</p>
+<pre class="code">  <span style="color: black;">n (λg.λh.h (g f)) (λv.x)
+≡ λh.h (f<sup>n - 1</sup> x)</span></pre>
+<p>So when Decrease is applied with positive n:</p>
+<pre class="code">  <span style="color: black;">Decrease n
+≡ λf.λx.n (λg.λh.h (g f)) (λv.x) Id
+≡ λf.λx.(λh.h (f<sup>n - 1</sup> x)) Id
+≡ λf.λx.Id (f<sup>n - 1</sup> x)
+≡ λf.λx.f<sup>n - 1</sup> x</span></pre>
+<p>The returned result is the definition of n – 1. In the following C# implementation, a lot of noise of type information is involved to implement complex lambda expression:</p>
+<pre class="code"><span style="color: green;">// Decrease = n =&gt; f =&gt; x =&gt; n(g =&gt; h =&gt; h(g(f)))(_ =&gt; x)(Id)
+</span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;
+    Decrease = n =&gt; f =&gt; x =&gt; n(g =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;(h =&gt; h(g(f))))(</span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;(_ =&gt; x))(</span><span style="color: blue;">new </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">, </span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Functions</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">&gt;.Id));</span></pre>
+<p>Here are the actual types of the elements in above lambda expression at runtime:</p>
+<ul>
+<li>g: (dynamic -&gt; dynamic) -&gt; dynamic</li>
+<li>h: dynamic -&gt; dynamic</li>
+<li>g(f): dynamic</li>
+<li>h(g(f)): dynamic</li>
+<li>h =&gt; h(g(f)): (dynamic -&gt; dynamic) -&gt; dynamic</li>
+<li>g =&gt; h =&gt; h(g(f)): ((dynamic -&gt; dynamic) -&gt; dynamic) -&gt; (dynamic -&gt; dynamic) -&gt; dynamic</li>
+<li>n(g =&gt; h =&gt; h(g(f))): ((dynamic -&gt; dynamic) -&gt; dynamic) -&gt; (dynamic -&gt; dynamic) -&gt; dynamic<!--EndFragment--></li>
+<li>_ =&gt; x: (dynamic -&gt; dynamic) -&gt; dynamic</li>
+<li>n(g =&gt; h =&gt; h(g(f)))(_ =&gt; x): (dynamic -&gt; dynamic) -&gt; dynamic</li>
+<li>Id: dynamic -&gt; dynamic</li>
+<li>n(g =&gt; h =&gt; h(g(f)))(_ =&gt; x)(Id): dynamic</li>
+</ul>
+<p>At compile time, function types must be provided for a few elements. When n is applied, C# compiler expects its first argument g =&gt; h =&gt; h(g(f)) to be of type dynamic =&gt; dynamic. So C# compiler infers g to dynamic, but cannot infer the type of h =&gt; h(g(f)), which can be expression tree or anonymous function, so the constructor call syntax is used here to specify it is a function of type (dynamic -&gt; dynamic) -&gt; dynamic. Similarly, C# compiler expects n’s second argument to be dynamic, and C# compiler cannot infer the type of _ =&gt; x, so the constructor syntax is used again for _ =&gt; x. Also, Functions&lt;dynamic&gt;.Id is of Unit&lt;dynamic&gt; type, while at runtime a dynamic -&gt; dynamic function is expected. Unit&lt;dynamic&gt; is alias of function type dynamic –&gt; dynamic, but the conversion does not happen automatically at runtime, so the constructor syntax is used once again to indicate the function type conversion.</p>
+<p>Later after introducing Church pair, a cleaner version of Decrease will be implemented.</p>
+<h1>Arithmetic operators</h1>
+<p>To implement add operation, according to the definition, Church numeral a adding Church numeral b means to apply f for a times, then apply f again for b times:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">Add := λa.λb.λf.λx.b f (a f x)</span></pre>
+<p>With the definition of function composition, Add can be also defined as:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">Add := λa.λb.λf.f<sup>a</sup> ∘ f<sup>b</sup> ≡ λa.λb.λf.(a f) ∘ (b f)</span></pre>
+<p>So in C#:</p>
+<pre class="code"><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;&gt;
+    Add = a =&gt; b =&gt; f =&gt; x =&gt; b(f)(a(f)(x));
+
+</span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;&gt;
+    AddWithComposition = a =&gt; b =&gt; f =&gt; a(f).o(b(f));</span></pre>
+<p>With Increase function, Add can also be defined as increase a for b times:</p>
+<pre class="code"><span style="background: #f5f5f5; color: black;">Add := λa.λb.b Increase a</span></pre>
+<p>In C#, there are some noise of type information again:</p>
+<pre class="code"><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;&gt;
+    AddWithIncrease = a =&gt; b =&gt; </span><span style="color: black;">b(Increase)(a);</span></pre>
+<p>Unfortunately, the above code cannot be compiled, because b is a function of type (dynamic -&gt; dynamic) -&gt; dynamic x -&gt; dynamic. So its first argument f must be a function of type dynamic -&gt; dynamic. Here, Increase is of type Numeral -&gt; Numeral, and b(Increase) cannot be compiled. The solution is to eta convert Increase to a wrapper function λn.Increase n:</p>
+<pre class="code"><span style="color: black;">Add := λa.λb.a (λn.Increase n) b</span></pre>
+<p>So that in C#:</p>
+<pre class="code"><span style="color: green;">// Add = a =&gt; b =&gt; b(Increase)(a)
+// η conversion:
+// Add = a =&gt; b =&gt; b(n =&gt; Increase(n))(a)
+</span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;&gt;
+    AddWithIncrease = a =&gt; b =&gt; b(n =&gt; Increase(n))(a);</span></pre>
+<p>Since a dynamic -&gt; dynamic function is expected and the wrapper function n =&gt; Increase(n), n inferred to be of type dynamic. Increase(n) still returns Numeral, so the wrapper function is of type dynamic -&gt; Numeral. Regarding dynamic is just object, and Numeral derives from object, with support covariance in C#, the wrapper function is implicitly converted to dynamic -&gt; dynamic, so calling b with the wrapper function can be compiled.</p>
+<p>Similarly, Church numeral a subtracting b can be defined as decrease a for b times, a multiplying b can be defined as adding a for b times to 0, and raising a to the power b can be defined as multiplying a for n times with 1:</p>
+<pre class="code"><span style="color: black;">Subtract := λa.λb.b Decrease a
+Multiply := λa.λb.b (Add a) 0
+Power := λa.λb.b (Multiply a) 1</span></pre>
+<p>The C# implementation are in the same pattern:</p>
+<pre class="code"><span style="color: green;">// Subtract = a =&gt; b =&gt; b(Decrease)(a)
+// η conversion:
+// Subtract = a =&gt; b =&gt; b(n =&gt; Decrease(n))(a)
+</span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;&gt;
+    Subtract = a =&gt; b =&gt; b(n =&gt; Decrease(n))(a);
+
+</span><span style="color: green;">// Multiply = a =&gt; b =&gt; b(Add(a))(a)
+// η conversion:
+// Multiply = a =&gt; b =&gt; b(n =&gt; Add(a)(n))(Zero)
+</span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;&gt;
+    Multiply = a =&gt; b =&gt; b(n =&gt; Add(a)(n))(Zero);
+
+</span><span style="color: green;">// Pow = a =&gt; b =&gt; b(Multiply(a))(a)
+// η conversion:
+// Pow = a =&gt; b =&gt; b(n =&gt; Multiply(a)(n))(1)
+</span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;&gt;
+    Pow = a =&gt; b =&gt; b(n =&gt; Multiply(a)(n))(One);</span></pre>
+<p>Similar to Church Boolean operators, the above arithmetic operators can also be wrapped as extension method for convenience:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">NumeralExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">Increase(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">n) =&gt; </span><span style="color: #2b91af;">ChurchNumeral</span><span style="color: black;">.Increase(n);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">Decrease(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">n) =&gt; </span><span style="color: #2b91af;">ChurchNumeral</span><span style="color: black;">.Decrease(n);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">Add(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">a, </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">b) =&gt; </span><span style="color: #2b91af;">ChurchNumeral</span><span style="color: black;">.Add(a)(b);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">Subtract(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">a, </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">b) =&gt; </span><span style="color: #2b91af;">ChurchNumeral</span><span style="color: black;">.Subtract(a)(b);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">Multiply(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">a, </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">b) =&gt; </span><span style="color: #2b91af;">ChurchNumeral</span><span style="color: black;">.Multiply(a)(b);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">Pow(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">mantissa, </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">exponent) =&gt; </span><span style="color: #2b91af;">ChurchNumeral</span><span style="color: black;">.Pow(mantissa)(exponent);
+}</span></pre>
+<h1>Predicate and relational operators</h1>
+<p>Predicate is function returning Church Boolean. For example, the following function predicate whether a Church numeral n is 0:</p>
+<pre class="code"><span style="color: black;">IsZero := λn.n (λx.False) True</span></pre>
+<p>When n is 0, (λx.False) is not applied, and IsZero directly returns True. When n is positive, (λx.False) is applied for n times. (λx.False) always return False, so IsZero returns False. The following are the implementation and extension method:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ChurchPredicate
+</span><span style="color: black;">{</span><span style="color: green;">
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">&gt;
+        IsZero = n =&gt; </span><span style="color: black;">n(_ =&gt; False)(True);
+}
+
+</span><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">NumeralExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">IsZero(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">n) =&gt; </span><span style="color: #2b91af;">ChurchPredicate</span><span style="color: black;">.IsZero(n);
+}</span></pre>
+<p>With IsZero, it is easy to define functions to compare 2 Church numerals a and b. According the to definition of Decrease and Subtract, when a – b is 0, a is either equal to b, or less than b. So IsLessThanOrEqualTo can be defined with IsZero and Subtract:</p>
+<pre class="code"><span style="color: black;">IsLessThanOrEqualTo := λa.λb.IsZero (Subtract a b)</span></pre>
+<p>IsGreaterThanOrEqualTo is similar:</p>
+<pre class="code"><span style="color: black;">IsGreaterThanOrEqualTo := λa.λb.IsZero (Subtract b a)</span></pre>
+<p>Then these 2 functions can define IsEqualTo:</p>
+<pre class="code"><span style="color: black;">IsEqualTo := λa.λb.And (IsLessThanOrEqualTo a b) (IsGreaterThanOrEqualTo a b)</span></pre>
+<p>The opposite of these functions are IsGreaterThan, IsLessThan, IsNotEqual. They can be defined with Not:</p>
+<pre class="code"><span style="color: black;">IsGreaterThan := λa.λb.Not (IsLessThanOrEqualTo a b)
+IsLessThan := λa.λb.Not (IsGreaterThanOrEqualTo a b)
+IsNotEqualTo := λa.λb.Not (IsEqualTo a b)</span></pre>
+<p>The following are the C# implementation of these 6 predicates:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ChurchPredicate
+</span><span style="color: black;">{</span><span style="color: black;">
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">&gt;&gt;
+        IsLessThanOrEqualTo = a =&gt; b =&gt; a.Subtract(b).IsZero();
+</span><span style="color: green;">
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">&gt;&gt;
+        IsGreaterThanOrEqualTo = a =&gt; b =&gt; b.Subtract(a).IsZero();
+</span><span style="color: green;">
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">&gt;&gt;
+        IsEqualTo = a =&gt; b =&gt; IsLessThanOrEqualTo(a)(b).And(IsGreaterThanOrEqualTo(a)(b));
+</span><span style="color: green;">
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">&gt;&gt;
+        IsGreaterThan = a =&gt; b =&gt; IsLessThanOrEqualTo(a)(b).Not();
+</span><span style="color: green;">
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">&gt;&gt;
+        IsLessThan = a =&gt; b =&gt; IsGreaterThanOrEqualTo(a)(b).Not();
+</span><span style="color: green;">
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Boolean</span><span style="color: black;">&gt;&gt;
+        IsNotEqualTo = a =&gt; b =&gt; IsEqualTo(a)(b).Not();
+}
+
+</span><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">NumeralExtensions
+</span><span style="color: black;">{</span><span style="color: black;">
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">IsLessThanOrEqualTo(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">a, </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">b) =&gt; </span><span style="color: #2b91af;">ChurchPredicate</span><span style="color: black;">.IsLessThanOrEqualTo(a)(b);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">IsGreaterThanOrEqualTo(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">a, </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">b) =&gt; </span><span style="color: #2b91af;">ChurchPredicate</span><span style="color: black;">.IsGreaterThanOrEqualTo(a)(b);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">IsEqualTo(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">a, </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">b) =&gt; </span><span style="color: #2b91af;">ChurchPredicate</span><span style="color: black;">.IsEqualTo(a)(b);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">IsGreaterThan(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">a, </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">b) =&gt; </span><span style="color: #2b91af;">ChurchPredicate</span><span style="color: black;">.IsGreaterThan(a)(b);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">IsLessThan(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">a, </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">b) =&gt; </span><span style="color: #2b91af;">ChurchPredicate</span><span style="color: black;">.IsLessThan(a)(b);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Boolean </span><span style="color: black;">IsNotEqualTo(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">a, </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">b) =&gt; </span><span style="color: #2b91af;">ChurchPredicate</span><span style="color: black;">.IsNotEqualTo(a)(b);</span><span style="color: blue;">
+</span><span style="color: black;">}</span></pre>
+<h2>Attempt of recursion</h2>
+<p>The division of natural numbers can be defined with arithmetic and relation operators:</p>
+<pre class="code"><span style="color: black;">a / b := if a &gt;= b then 1 + (a – b) / b else 0</span></pre>
+<p>This is a recursive definition. If defining division in this way lambda calculus, the function name is referred in its own body:</p>
+<pre class="code"><span style="color: black;">DivideBy := λa.λb.If (IsGreaterThanOrEqualTo a b) (λx.Add One (DivideBy (Subtract a b) b)) (λx.Zero)</span></pre>
+<p>As fore mentioned, in lambda calculus, functions are anonymously by default, and names are just for readability. Here the self reference does not work with anonymous function:</p>
+<pre class="code"><span style="color: black;">λa.λb.If (IsGreaterThanOrEqualTo a b) (λx.Add One (? (Subtract a b) b)) (λx.Zero)</span></pre>
+<p>So the above DivideBy function definition is illegal in lambda calculus. The recursion implementation with anonymous function will be discussed later in this chapter.</p>
+<p>In C#, recursion is a basic feature, so the following self reference is supported:</p>
+<pre class="code"><span style="color: blue;">using static </span><span style="color: #2b91af;">ChurchBoolean</span><span style="color: black;">;</span><span style="color: black;">
+
+</span><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ChurchNumeral
+</span><span style="color: black;">{
+    </span><span style="color: green;">// Divide = dividend =&gt; divisor =&gt;
+    //    If(dividend &gt;= divisor)
+    //        (_ =&gt; 1 + DivideBy(dividend - divisor)(divisor))
+    //        (_ =&gt; 0);
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;&gt;
+        DivideBy = dividend =&gt; divisor =&gt;
+            If(dividend.IsGreaterThanOrEqualTo(divisor))
+                (_ =&gt; One.Add(DivideBy(dividend.Subtract(divisor))(divisor)))
+                (_ =&gt; Zero);
+}</span></pre>
+<p>Here using static directive is used so that ChurchBoolean.If function can be called directly. DivideBy is compiled to a field definition and field initialization code in static constructor, and apparently referencing to a field in the constructor is allowed:</p>
+<pre class="code"><span style="color: blue;">using static </span><span style="color: #2b91af;">ChurchBoolean</span><span style="color: black;">;
+</span><span style="color: blue;">using static </span><span style="color: #2b91af;">ChurchNumeral</span><span style="color: black;">;
+
+</span><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">CompiledChurchNumeral
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;&gt; DivideBySelfReference;
+
+    </span><span style="color: blue;">static </span><span style="color: black;">CompiledChurchNumeral()
+    {
+        DivideBySelfReference = dividend =&gt; divisor =&gt;
+            If(dividend.IsGreaterThanOrEqualTo(divisor))
+                (_ =&gt; One.Add(DivideBySelfReference(dividend.Subtract(divisor))(divisor)))
+                (_ =&gt; Zero);
+    }
+}</span></pre>
+<p>The self reference also works for named function:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ChurchNumeral
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt; DivideByMethod(</span><span style="color: #2b91af;">Numeral </span><span style="color: black;">dividend) =&gt; divisor =&gt;
+        If(dividend.IsGreaterThanOrEqualTo(divisor))
+            (_ =&gt; One.Add(DivideByMethod(dividend.Subtract(divisor))(divisor)))
+            (_ =&gt; Zero);
+}</span></pre>
+<p>The only exception is, when this function is a local variable instead of field, then the inline self reference cannot be compiled:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Inline()
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;&gt; divideBy = dividend =&gt; divisor =&gt;
+        If(dividend.IsGreaterThanOrEqualTo(divisor))
+            (_ =&gt; One.Add(divideBy(dividend.Subtract(divisor))(divisor)))
+            (_ =&gt; Zero);
+}</span></pre>
+<p>The reason is, the value of the local variable is compiled before the local variable is compiled. when the anonymous function is compiled, the referenced divideBy function is not defined yet, and C# compiler gives CS0165 error: Use of unassigned local variable 'divideBy'. To resolve this problem, divideBy can be first initialized with default value null. When divideBy is initialized again with the anonymous function, it is already defined, so the lambda expression can be compiled:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Inline()
+
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Numeral</span><span style="color: black;">, </span><span style="color: #2b91af;">Numeral</span><span style="color: black;">&gt;&gt; divideBy = </span><span style="color: blue;">null</span><span style="color: black;">;
+    divideBy = dividend =&gt; divisor =&gt;
+        If(dividend.IsGreaterThanOrEqualTo(divisor))
+            (_ =&gt; One.Add(divideBy(dividend.Subtract(divisor))(divisor)))
+            (_ =&gt; Zero);
+}</span></pre>
+<p>The above division operator DivideBy will be used temporarily. Later after introducing fixed point combinator, the division can be implemented with an anonymous function without self reference at all.</p>
+<h1>Conversion between Church numeral and System.UInt32</h1>
+<p>In .NET, natural number can be represented with unit (System.UInt32). It would be intuitive if Church numeral and uint can be converted to each other. Similar to the conversion between Church Boolean and bool, the following extension methods can be defined:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ChurchEncoding
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">Church(</span><span style="color: blue;">this uint </span><span style="color: black;">n) =&gt; n == 0U ? </span><span style="color: #2b91af;">ChurchNumeral</span><span style="color: black;">.Zero : Church(n - 1U).Increase();
+
+    </span><span style="color: blue;">public static uint </span><span style="color: black;">Unchurch(</span><span style="color: blue;">this </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">n) =&gt; (</span><span style="color: blue;">uint</span><span style="color: black;">)n(x =&gt; (</span><span style="color: blue;">uint</span><span style="color: black;">)x + 1U)(0U);</span><span style="color: black;">
+}</span></pre>
+<p>Converting uint to Church numeral is recursive. When n is 0, Zero is returned directly. When n is positive, n is decreased and converted recursively. The recursion terminates when n is decreased to 0, then Increase is called for n times with Zero, and Church numeral n is calculated. And converting Church numeral n to uint just need to add 1U for n times to 0U.</p>
+<p>The following code demonstrate how the operators and conversions work:</p>
+<pre class="code"><span style="color: black;">[</span><span style="color: #2b91af;">TestClass</span><span style="color: black;">]
+</span><span style="color: blue;">public partial class </span><span style="color: #2b91af;">ChurchNumeralTests
+</span><span style="color: black;">{
+    [</span><span style="color: #2b91af;">TestMethod</span><span style="color: black;">]
+    </span><span style="color: blue;">public void </span><span style="color: black;">IncreaseTest()
+    {
+        </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">numeral = 0U.Church();
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(0U + 1U, (numeral = numeral.Increase()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(1U + 1U, (numeral = numeral.Increase()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(2U + 1U, (numeral = numeral.Increase()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(3U + 1U, (numeral = numeral.Increase()).Unchurch());
+        numeral = 123U.Church();
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(123U + 1U, numeral.Increase().Unchurch());
+    }
+
+    [</span><span style="color: #2b91af;">TestMethod</span><span style="color: black;">]
+    </span><span style="color: blue;">public void </span><span style="color: black;">AddTest()
+    {
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(0U + 0U, 0U.Church().Add(0U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(0U + 1U, 0U.Church().Add(1U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(10U + 0U, 10U.Church().Add(0U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(0U + 10U, 0U.Church().Add(10U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(1U + 1U, 1U.Church().Add(1U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(10U + 1U, 10U.Church().Add(1U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(1U + 10U, 1U.Church().Add(10U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(3U + 5U, 3U.Church().Add(5U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(123U + 345U, 123U.Church().Add(345U.Church()).Unchurch());
+    }
+
+    [</span><span style="color: #2b91af;">TestMethod</span><span style="color: black;">]
+    </span><span style="color: blue;">public void </span><span style="color: black;">DecreaseTest()
+    {
+        </span><span style="color: #2b91af;">Numeral </span><span style="color: black;">numeral = 3U.Church();
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(3U - 1U, (numeral = numeral.Decrease()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(2U - 1U, (numeral = numeral.Decrease()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(1U - 1U, (numeral = numeral.Decrease()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(0U, (numeral = numeral.Decrease()).Unchurch());
+        numeral = 123U.Church();
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(123U - 1U, numeral.Decrease().Unchurch());
+    }
+
+    [</span><span style="color: #2b91af;">TestMethod</span><span style="color: black;">]
+    </span><span style="color: blue;">public void </span><span style="color: black;">SubtractTest()
+    {
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(0U - 0U, 0U.Church().Subtract(0U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(0U, 0U.Church().Subtract(1U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(10U - 0U, 10U.Church().Subtract(0U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(0U, 0U.Church().Subtract(10U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(1U - 1U, 1U.Church().Subtract(1U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(10U - 1U, 10U.Church().Subtract(1U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(0U, 1U.Church().Subtract(10U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(0U, 3U.Church().Subtract(5U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(0U, 123U.Church().Subtract(345U.Church()).Unchurch());
+    }
+
+    [</span><span style="color: #2b91af;">TestMethod</span><span style="color: black;">]
+    </span><span style="color: blue;">public void </span><span style="color: black;">MultiplyTest()
+    {
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(0U*0U, 0U.Church().Multiply(0U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(0U*1U, 0U.Church().Multiply(1U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(10U*0U, 10U.Church().Multiply(0U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(0U*10U, 0U.Church().Multiply(10U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(1U*1U, 1U.Church().Multiply(1U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(10U*1U, 10U.Church().Multiply(1U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(1U*10U, 1U.Church().Multiply(10U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(3U*5U, 3U.Church().Multiply(5U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(12U*23U, 12U.Church().Multiply(23U.Church()).Unchurch());
+    }
+
+    [</span><span style="color: #2b91af;">TestMethod</span><span style="color: black;">]
+    </span><span style="color: blue;">public void </span><span style="color: black;">PowTest()
+    {
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(</span><span style="color: #2b91af;">Math</span><span style="color: black;">.Pow(0U, 1U), 0U.Church().Pow(1U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(</span><span style="color: #2b91af;">Math</span><span style="color: black;">.Pow(10U, 0U), 10U.Church().Pow(0U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(</span><span style="color: #2b91af;">Math</span><span style="color: black;">.Pow(0U, 10U), 0U.Church().Pow(10U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(</span><span style="color: #2b91af;">Math</span><span style="color: black;">.Pow(1U, 1U), 1U.Church().Pow(1U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(</span><span style="color: #2b91af;">Math</span><span style="color: black;">.Pow(10U, 1U), 10U.Church().Pow(1U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(</span><span style="color: #2b91af;">Math</span><span style="color: black;">.Pow(1U, 10U), 1U.Church().Pow(10U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(</span><span style="color: #2b91af;">Math</span><span style="color: black;">.Pow(3U, 5U), 3U.Church().Pow(5U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(</span><span style="color: #2b91af;">Math</span><span style="color: black;">.Pow(5U, 3U), 5U.Church().Pow(3U.Church()).Unchurch());
+    }
+
+    [</span><span style="color: #2b91af;">TestMethod</span><span style="color: black;">]
+    </span><span style="color: blue;">public void </span><span style="color: black;">DivideByRecursionTest()
+    {
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(1U / 1U, 1U.Church().DivideBy(1U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(1U / 2U, 1U.Church().DivideBy(2U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(2U / 2U, 2U.Church().DivideBy(2U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(2U / 1U, 2U.Church().DivideBy(1U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(10U / 3U, 10U.Church().DivideBy(3U.Church()).Unchurch());
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.AreEqual(3U / 10U, 3U.Church().DivideBy(10U.Church()).Unchurch());
+    }
+}</span></pre>
+
+
+
+              </div>
+              </body>
+              </html>

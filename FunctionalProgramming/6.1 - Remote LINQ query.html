@@ -1,0 +1,402 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+
+<h1>Entity Framework/Core and LINQ to Entities (1) Remote Query</h1>
+
+<h1>Entity Framework and Entity Framework Core</h1>
+<p>The previous chapters discussed LINQ to Objects, LINQ to XML (objects), and Parallel LINQ (to Objects). All of these LINQ technologies query local in-memory objects managed by .NET. This chapter discusses a different kind of LINQ technology, LINQ to Entities, which queries relational data managed by databases. LINQ to Entities was provided by Entity Framework (EF), a Microsoft library released since .NET Framework 3.5 Service Pack 1. In 2016, Microsoft also released the cross platform version, Entity Framework Core (EF Core), along with with .NET Core 1.0. EF and EF Core both implement a provider model, so that LINQ to Entitiescan be implemented by different providers to work with different kinds of databases, including SQL Server (on-premise database) and Azure SQL Database (cloud database, aka SQL Azure), <a href="https://www.devart.com/dotconnect/db2/" target="_blank">DB2</a>, <a href="https://dev.mysql.com/doc/connector-net/en/connector-net-entityframework60.html" target="_blank">MySQL</a>, <a href="http://download.oracle.com/oll/obe/EntityFrameworkOBE/EntityFrameworkOBE.htm" target="_blank">Oracle</a>, <a href="https://www.devart.com/dotconnect/postgresql/articles/tutorial_ef.html" target="_blank">PostgreSQL</a>, <a href="https://www.devart.com/dotconnect/sqlite/" target="_blank">SQLLite</a>, etc.</p>
+<p>EF is a library for .NET Framework so it only works on Windows. EF Core is provided for both .NET Framework and .NET Core, so it works cross-platform. This tutorial focuses on cross platform EF Core. It also covers EF, regarding after many years EF has been stabilized, with many rich tools and solutions available. For the scenarios where EF Core and EF work differently, the conditional compilation symbol EF is used to identify EF code.</p>
+<p>EF Core APIs are under Microsoft.EntityFrameworkCore namespace, and EF APIs are under System.Data.Entity namespace. Some APIs share the same name, and some are slightly different:</p>
+<table width="866" cellspacing="0" cellpadding="2" border="0">
+<tbody>
+<tr>
+<td width="426" valign="top">EF Core</td>
+<td width="438" valign="top">EF</td>
+</tr>
+<tr>
+<td width="426" valign="top">Microsoft.EntityFrameworkCore.DbContext</td>
+<td width="438" valign="top">System.Data.Entity.DbContext</td>
+</tr>
+<tr>
+<td width="426" valign="top">Microsoft.EntityFrameworkCore.DbSet&lt;TEntity&gt;</td>
+<td width="438" valign="top">System.Data.Entity.DbSet&lt;TEntity&gt;</td>
+</tr>
+<tr>
+<td width="426" valign="top">Microsoft.EntityFrameworkCore.ModelBuilder</td>
+<td width="438" valign="top">System.Data.Entity.DbModelBuilder</td>
+</tr>
+<tr>
+<td width="426" valign="top">Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade</td>
+<td width="438" valign="top">System.Data.Entity.Database</td>
+</tr>
+<tr>
+<td width="426" valign="top">Microsoft.EntityFrameworkCore.ChangeTracking.ChangeTracker</td>
+<td width="438" valign="top">System.Data.Entity.Infrastructure.DbChangeTracker*</td>
+</tr>
+<tr>
+<td width="426" valign="top">Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry</td>
+<td width="438" valign="top">System.Data.Entity.Infrastructure.DbEntityEntry*</td>
+</tr>
+<tr>
+<td width="426" valign="top">Microsoft.EntityFrameworkCore.ChangeTracking.PropertyEntry</td>
+<td width="438" valign="top">System.Data.Entity.Infrastructure.DbPropertyEntry*</td>
+</tr>
+<tr>
+<td width="426" valign="top">Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction</td>
+<td width="438" valign="top">System.Data.Entity.DbContextTransaction*</td>
+</tr>
+<tr>
+<td width="426" valign="top">Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException</td>
+<td width="438" valign="top">System.Data.Entity.Infrastructure.DbUpdateConcurrencyException</td>
+</tr>
+</tbody>
+</table>
+<p>This tutorial follows the EF Core API names, and assumes the following aliases are defined for EF types marked with *:</p>
+<pre class="code"><span style="color: gray;">#if </span><span style="color: black;">EF
+</span><span style="color: blue;">using </span><span style="color: #2b91af;">ModelBuilder </span><span style="color: black;">= System.Data.Entity.</span><span style="color: #2b91af;">DbModelBuilder</span><span style="color: black;">;
+</span><span style="color: blue;">using </span><span style="color: #2b91af;">DatabaseFacade </span><span style="color: black;">= System.Data.Entity.</span><span style="color: #2b91af;">Database</span><span style="color: black;">;
+</span><span style="color: blue;">using </span><span style="color: #2b91af;">ChangeTracker </span><span style="color: black;">= System.Data.Entity.Infrastructure.</span><span style="color: #2b91af;">DbChangeTracker</span><span style="color: black;">;
+</span><span style="color: blue;">using </span><span style="color: #2b91af;">EntityEntry </span><span style="color: black;">= System.Data.Entity.Infrastructure.</span><span style="color: #2b91af;">DbEntityEntry</span><span style="color: black;">;
+</span><span style="color: blue;">using </span><span style="color: #2b91af;">PropertyEntry </span><span style="color: black;">= System.Data.Entity.Infrastructure.</span><span style="color: #2b91af;">DbPropertyEntry</span><span style="color: black;">;
+</span><span style="color: blue;">using </span><span style="color: #2b91af;">IDbContextTransaction </span><span style="color: black;">= System.Data.Entity.</span><span style="color: #2b91af;">DbContextTransaction</span><span style="color: black;">;
+</span><span style="color: gray;">#endif</span></pre>
+<h1>SQL database</h1>
+<p>To demonstrate LINQ to Entities queries and other database operations, this tutorial uses the classic sample SQL database AdventureWorks provided by Microsoft as the data source, because this sample database has a very intuitive structure, it also works with Azure SQL Database and all SQL Server <a href="http://download.microsoft.com/download/D/7/D/D7D64E12-C8E5-4A8C-A104-C945C188FA99/SQL_Server_2014_Datasheet.pdf" target="_blank">editions</a>. The full sample database provided by Microsoft is relatively large, so a trimmed version is provided for this tutorial in the code samples repo:</p>
+<ul>
+<li>AdventureWorks.bacpac: about 3M, for Azure SQL Database</li>
+<li>AdventureWorks_Data.mdf and AdventureWorks_Log.ldf: about 30M, for SQL Server</li>
+</ul>
+<p>Microsoft SQL database is available in the cloud, and on premise (Windows and Linux). There are many free options to setup, just follow any one of them:</p>
+<ul>
+<li>Azure SQL Database in the cloud</li>
+<ol>
+<li>Sign up <a href="https://azure.com/free" target="_blank">Azure free trial</a> program, or sign up <a href="https://www.visualstudio.com/dev-essentials/" target="_blank">Visual Studio Dev Essentials</a> program, to get free Azure account and free credits.</li>
+<li>Sign in to Azure portal, create a storage account, then create a container, and upload the AdventureWorks.bacpac file into the container.</li>
+<li>In Azure portal, create a SQL Database server, then add local IP address to the server’s firewall settings to enable access.</li>
+<li>In Azure portal, import the uploaded AdventureWorks.bacpac from the storage account to the server, and create a SQL database. There the many pricing tier options for the database creation, where the Basic tier only costs about $5 per months, which is totally covered by the free credit.</li>
+</ol>
+<li>SQL Server on Windows<br><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/e1962de25213_106EC/image_thumb111_2.png"><img title="image_thumb111" style="border: 0px currentcolor; display: inline; background-image: none;" alt="image_thumb111" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/e1962de25213_106EC/image_thumb111_thumb.png" width="845" height="670" border="0"></a></li>
+<ol>
+<li>There are several free options to install SQL Server:</li>
+<ul>
+<li>SQL Server LocalDB: the easiest option, since no configuration is required for setup.</li>
+<li>SQL Server Express Core</li>
+<li>SQL Server Express with Advanced Services</li>
+<li>SQL Server Developer Edition: free after signing up <a href="https://www.visualstudio.com/dev-essentials/" target="_blank">Visual Studio Dev Essentials</a> program</li>
+</ul>
+<li>Install free tools. Microsoft provides rich tools on Windows, any tool of the following works:</li>
+<ul>
+<li><a href="https://msdn.microsoft.com/en-us/library/mt204009.aspx" target="_blank">SQL Server Data Tools</a> for Visual Studio is a free Visual Studio extension enabling SQL database management inside Visual Studio</li>
+<li><a href="https://msdn.microsoft.com/en-us/library/mt238290.aspx" target="_blank">SQL Server Management Tools</a>, which includes <a href="https://en.wikipedia.org/wiki/SQL_Server_Management_Studio" target="_blank">SQL Server Management Studio</a> (a free integration environment to manage SQL Server and SQL database), <a href="https://msdn.microsoft.com/en-us/library/ms181091.aspx" target="_blank">SQL Server Profiler</a> (a free tracing tool), and other tools.</li>
+<li><a href="https://marketplace.visualstudio.com/items?itemName=ms-mssql.mssql" target="_blank">mssql extension</a> for Visual Studio Code</li>
+</ul>
+<li>Use the installed ool to attach AdventureWorks_Data.mdf and AdventureWorks_Log.ldf to SQL Server</li>
+</ol>
+<li>SQL Server on Linux</li>
+<ol>
+<li>Install SQL Server for Linux evaluation edition, which is free and available for Red Hat and Ubuntu</li>
+<li>Install SQL Server Tools for Linux, or <a href="https://marketplace.visualstudio.com/items?itemName=ms-mssql.mssql" target="_blank">mssql extension</a> for Visual Studio Code</li>
+<li>Use the installed tool to attach AdventureWorks_Data.mdf and AdventureWorks_Log.ldf to SQL Server.</li>
+</ol>
+<li>SQL Server Docker image on Linux, Mac, or Windows</li>
+<ol>
+<li>Install Docker, then in preferences, <a href="https://docs.microsoft.com/en-us/sql/linux/sql-server-linux-setup-docker" target="_blank">change the memory</a> to 4GB or more</li>
+<li>Pull the SQL Server Docker image (microsoft/mssql-server-linux or microsoft/mssql-server-windows), and run</li>
+<li>For Linux or Windows, install tools mentioned above; For Mac, install <a href="https://www.npmjs.com/package/sql-cli" target="_blank">sql-cli</a> tool from npm, or <a href="https://marketplace.visualstudio.com/items?itemName=ms-mssql.mssql" target="_blank">mssql extension</a> for Visual Studio Code.</li>
+<li>Use the tool to attach AdventureWorks_Data.mdf and AdventureWorks_Log.ldf to SQL Server.</li>
+</ol>
+</ul>
+<p>When the sample database is ready, save the database connection string. For .NET Core, the connection string can be saved for the application as a JSON file, for example, App.json:</p>
+<pre class="code"><span style="color: black;">{
+  </span><span style="color: #2e75b6;">"ConnectionStrings"</span><span style="color: black;">: {
+    </span><span style="color: #2e75b6;">"AdventureWorks"</span><span style="color: black;">: </span><span style="color: #a31515;">"Server=tcp:dixin.database.windows.net,1433;Initial Catalog=AdventureWorks;Persist Security Info=False;User ID=***;Password=***;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"</span><span style="color: green;">
+  </span><span style="color: black;">}
+}</span></pre>
+<p>For .NET Framework, the connection string can be saved in the application’s App.config file:</p>
+<pre class="code"><span style="color: blue;">&lt;?</span><span style="color: #a31515;">xml </span><span style="color: red;">version</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">1.0</span><span style="color: black;">" </span><span style="color: red;">encoding</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">utf-8</span><span style="color: black;">"</span><span style="color: blue;">?&gt;
+&lt;</span><span style="color: #a31515;">configuration</span><span style="color: blue;">&gt;
+  &lt;</span><span style="color: #a31515;">connectionStrings</span><span style="color: blue;">&gt;</span><span style="color: blue;">
+    &lt;</span><span style="color: #a31515;">add </span><span style="color: red;">name</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">AdventureWorks</span><span style="color: black;">" </span><span style="color: red;">connectionString</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">Server=tcp:dixin.database.windows.net,1433;Initial Catalog=AdventureWorks;Persist Security Info=False;User ID=***;Password=***;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;</span><span style="color: black;">" </span><span style="color: blue;">/&gt;</span><span style="color: blue;">
+  &lt;/</span><span style="color: #a31515;">connectionStrings</span><span style="color: blue;">&gt;</span><span style="color: blue;">
+&lt;/</span><span style="color: #a31515;">configuration</span><span style="color: blue;">&gt;</span></pre>
+<p>Now the connection string can be read by C# code:</p>
+<pre class="code"><span style="color: blue;">internal static class </span><span style="color: #2b91af;">ConnectionStrings
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static string </span><span style="color: black;">AdventureWorks { </span><span style="color: blue;">get</span><span style="color: black;">; } =
+</span><span style="color: gray;">#if </span><span style="color: black;">NETFX
+        </span><span style="color: gray;">ConfigurationManager.ConnectionStrings[nameof(AdventureWorks)].ConnectionString;
+#else
+        </span><span style="color: blue;">new </span><span style="color: #2b91af;">ConfigurationBuilder</span><span style="color: black;">().AddJsonFile(</span><span style="color: #a31515;">"App.json"</span><span style="color: black;">).Build()
+            .GetConnectionString(</span><span style="color: blue;">nameof</span><span style="color: black;">(AdventureWorks));
+</span><span style="color: gray;">#endif</span><span style="color: black;">
+}</span></pre>
+<h1>Remote query vs. local query</h1>
+<p>LINQ to Objects, Parallel LINQ query .NET objects in current .NET application’s local memory, these queries are called local queries. LINQ to XML queries XML data source, which are local .NET objects representing XML structures as well, so LINQ to XML queries are also local queries. As demonstrated at the beginning of this tutorial, LINQ can also query data in other data domains, like tweets in Twitter, rows in database tables, etc. Apparently, these data source are not .NET objects directly available in local memory. These queries are called remote queries.</p>
+<p>Local data sources and local queries are represented by IEnumerable&lt;T&gt;. Remote LINQ data sources, like a table in database, and remote queries, are represented by System.Linq.IQueryable&lt;T&gt;. Similar to ParallelQuery&lt;T&gt; discussed in the Parallel LINQ chapter, IQueryable&lt;T&gt; is another parity with IEnumerable&lt;T&gt;:</p>
+<table width="542" cellspacing="0" cellpadding="2">
+<tbody>
+<tr>
+<td width="290" valign="top">LINQ to (local) Objects</td>
+<td width="250" valign="top">LINQ to (remote) Entities</td>
+</tr>
+<tr>
+<td width="290" valign="top">System.Collections.IEnumerable</td>
+<td width="250" valign="top">System.Linq.IQueryable</td>
+</tr>
+<tr>
+<td width="290" valign="top">System.Collections.Generic.IEnumerable&lt;T&gt;</td>
+<td width="250" valign="top">System.Linq.IQueryable&lt;T&gt;</td>
+</tr>
+<tr>
+<td width="290" valign="top">System.Linq.IOrderedEnumerable&lt;T&gt;</td>
+<td width="250" valign="top">System.Linq.IOrderedQueryable&lt;T&gt;</td>
+</tr>
+<tr>
+<td width="290" valign="top">System.Linq.Enumerable</td>
+<td width="250" valign="top">System.Linq.Queryable</td>
+</tr>
+</tbody>
+</table>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Linq
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IQueryable </span><span style="color: black;">: </span><span style="color: #2b91af;">IEnumerable
+    </span><span style="color: black;">{
+        </span><span style="color: #2b91af;">Expression </span><span style="color: black;">Expression { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: #2b91af;">Type </span><span style="color: black;">ElementType { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: #2b91af;">IQueryProvider </span><span style="color: black;">Provider { </span><span style="color: blue;">get</span><span style="color: black;">; }
+    }
+
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IOrderedQueryable </span><span style="color: black;">: </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable </span><span style="color: black;">{ }
+
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">, </span><span style="color: #2b91af;">IQueryable </span><span style="color: black;">{ }
+
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IOrderedQueryable</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IOrderedQueryable</span><span style="color: black;">, </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable </span><span style="color: black;">{ }
+}</span></pre>
+<p>IEnumerable&lt;T&gt; has many implementations, like T[] array, Microsoft.Collections.Immutable.ImmutableList&lt;T&gt;, etc. EF Core provides IQueryable&lt;T&gt; implementations, including Microsoft.EntityFrameworkCore.DbSet&lt;T&gt;, Microsoft.EntityFrameworkCore.Query.Internal.EntityQueryable&lt;T&gt;, etc. Please see the LINQ to Objects chapter for the detailed list and inheritance hierarchy for types implementing IEnumerable&lt;T&gt;, ParallelQuery&lt;T&gt;, and IQueryable&lt;T&gt;.</p>
+<blockquote>
+<p>EF provides IQueryable&lt;T&gt; implementations including System.Data.Entity.DbSet&lt;T&gt;, System.Data.Entity.Infrastructure.DbQuery&lt;T&gt;, etc.</p>
+</blockquote>
+<p>System.Linq.Queryable static class provides all the query methods for IQueryable&lt;T&gt;, which are parities with Enumerable query methods. For example, the following are the local and remote Where/Select/Concat/Cast methods side by side:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Linq
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Enumerable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Where&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; predicate);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Concat&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; first, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; second);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Cast&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: black;">IEnumerable source);
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Queryable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Where&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;&gt; predicate);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; selector);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Concat&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source1, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source2);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Cast&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IQueryable </span><span style="color: black;">source);
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>For each remote query method, the type of generic source sequence and result sequence is simply replaced by IQueryable&lt;T&gt;, the type of non-generic sequence is replaced by Queryable, and the call back functions are replaced by expression trees representing those functions. Similarly, the following are the ordering methods side by side, where the type of ordered source sequence and result sequence is replaced by IOrderedQueryable&lt;T&gt;:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Linq
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Enumerable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; OrderBy&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; OrderByDescending&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; ThenBy&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; ThenByDescending&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+    }
+
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Queryable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IOrderedQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; OrderBy&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;&gt; keySelector);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IOrderedQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; OrderByDescending&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;&gt; keySelector);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IOrderedQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; ThenBy&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IOrderedQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;&gt; keySelector);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IOrderedQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; ThenByDescending&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IOrderedQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;&gt; keySelector);
+    }
+}</span></pre>
+<p>With this design, fluent method chaining and the LINQ query expressions pattern are implemented for remote LINQ queries.</p>
+<p>Queryable does not provide the following query methods:</p>
+<ul>
+<li>Empty/Range/Repeat: it does not make sense for .NET to locally generate a remote data source or remote query on the fly; the other generation method, DefaultIfEmpty, is available, because DefaultIfEmpty works with an IQueryable&lt;T&gt; source.</li>
+<li>AsEnumerable: it returns IEnumerable&lt;T&gt; representing a local sequence of .NET objects, and this conversion is already provided by Enumerable in LINQ to Objects</li>
+<li>ToArray/ToDictionary/ToList/ToLookup: these methods creates local .NET collections, and these conversions are already provided by local LINQ to Objects.</li>
+<li>Max/Min overloads for .NET primary types: these .NET primitive types belongs to local .NET application, not the remote data domain.</li>
+</ul>
+<p>Queryable also provides an additional query method:</p>
+<ul>
+<li>AsQueryable: unlike AsSequential/AsParallel switching between sequential and parallel query, AsEnumerable/AsQueryable cannot freely switch between local and remote query. This method is discussed later.</li>
+</ul>
+<h1>Function vs. expression tree</h1>
+<p>Enumerable query methods accept functions, and Queryable methods accept expression trees. As discussed in the Functional Programming chapter, functions are executable .NET code, and expression trees are data structures representing abstract syntax tree of functions, which can be translated to other domain-specific language. The Functional Programming chapter also demonstrates compiling an arithmetic expression tree into CIL code at runtime, and executing it dynamically. The same approach can be used to translate arithmetic expression tree to SQL query, and execute it in a remote SQL database. The following example reuses the previously defined BinaryArithmeticExpressionVisitor&lt;T&gt; type:</p>
+<pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">InfixVisitor </span><span style="color: black;">: </span><span style="color: #2b91af;">BinaryArithmeticExpressionVisitor</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">internal override string </span><span style="color: black;">VisitBody(</span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression) =&gt; </span><span style="color: #a31515;">$"SELECT </span><span style="color: black;">{</span><span style="color: blue;">base</span><span style="color: black;">.VisitBody(expression)}</span><span style="color: #a31515;">;"</span><span style="color: black;">;
+
+    </span><span style="color: blue;">protected override string </span><span style="color: black;">VisitAdd(
+        </span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">add, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.VisitBinary(add, </span><span style="color: #a31515;">"+"</span><span style="color: black;">, expression);
+
+    </span><span style="color: blue;">protected override string </span><span style="color: black;">VisitConstant(
+        </span><span style="color: #2b91af;">ConstantExpression </span><span style="color: black;">constant, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression) =&gt; constant.Value.ToString();
+
+    </span><span style="color: blue;">protected override string </span><span style="color: black;">VisitDivide(
+        </span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">divide, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.VisitBinary(divide, </span><span style="color: #a31515;">"/"</span><span style="color: black;">, expression);
+
+    </span><span style="color: blue;">protected override string </span><span style="color: black;">VisitMultiply(
+        </span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">multiply, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.VisitBinary(multiply, </span><span style="color: #a31515;">"*"</span><span style="color: black;">, expression);
+
+    </span><span style="color: blue;">protected override string </span><span style="color: black;">VisitParameter(
+        </span><span style="color: #2b91af;">ParameterExpression </span><span style="color: black;">parameter, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression) =&gt; </span><span style="color: #a31515;">$"@</span><span style="color: black;">{parameter.Name}</span><span style="color: #a31515;">"</span><span style="color: black;">;
+
+    </span><span style="color: blue;">protected override string </span><span style="color: black;">VisitSubtract(
+        </span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">subtract, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.VisitBinary(subtract, </span><span style="color: #a31515;">"-"</span><span style="color: black;">, expression);
+
+    </span><span style="color: blue;">private string </span><span style="color: black;">VisitBinary(
+        </span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">binary, </span><span style="color: blue;">string </span><span style="color: black;">@operator, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression) =&gt;
+            </span><span style="color: #a31515;">$"(</span><span style="color: black;">{</span><span style="color: blue;">this</span><span style="color: black;">.VisitNode(binary.Left, expression)} {@operator} {</span><span style="color: blue;">this</span><span style="color: black;">.VisitNode(binary.Right, expression)}</span><span style="color: #a31515;">)"</span><span style="color: black;">;
+}</span></pre>
+<p>It can traverse an arithmetic expression tree, and compile it to a SQL SELECT statement with infix arithmetic expression:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">ExpressionTree
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Sql()
+    {
+        </span><span style="color: #2b91af;">InfixVisitor </span><span style="color: black;">infixVisitor = </span><span style="color: blue;">new </span><span style="color: #2b91af;">InfixVisitor</span><span style="color: black;">();
+        </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt;&gt; expression1 = (a, b) =&gt; a * a + b * b;
+        </span><span style="color: blue;">string </span><span style="color: black;">infixExpression1 = infixVisitor.VisitBody(expression1);
+        infixExpression1.WriteLine(); </span><span style="color: green;">// SELECT ((@a * @a) + (@b * @b));
+
+        </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt;&gt; expression2 =
+            (a, b, c, d, e) =&gt; a + b - c * d / 2 + e * 3;
+        </span><span style="color: blue;">string </span><span style="color: black;">infixExpression2 = infixVisitor.VisitBody(expression2);
+        infixExpression2.WriteLine(); </span><span style="color: green;">// SELECT (((@a + @b) - ((@c * @d) / 2)) + (@e * 3));
+    </span><span style="color: black;">}
+}</span></pre>
+<p>Here @ is prepended to each parameter name, which is the SQL syntax.</p>
+<p>The following ExecuteScalar method is defined to execute the compiled SQL statement with SQL parameters and SQL database connection string provided, and return a single result value:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">BinaryArithmeticTranslator
+</span><span style="color: black;">{</span><span style="color: black;">
+    </span><span style="color: blue;">internal static double </span><span style="color: black;">ExecuteScalar(
+        </span><span style="color: blue;">string </span><span style="color: black;">connection,
+        </span><span style="color: blue;">string </span><span style="color: black;">command,
+        </span><span style="color: #2b91af;">IDictionary</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt; parameters)
+    {
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">SqlConnection </span><span style="color: black;">sqlConnection = </span><span style="color: blue;">new </span><span style="color: #2b91af;">SqlConnection</span><span style="color: black;">(connection))
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">SqlCommand </span><span style="color: black;">sqlCommand = </span><span style="color: blue;">new </span><span style="color: #2b91af;">SqlCommand</span><span style="color: black;">(command, sqlConnection))
+        {
+            sqlConnection.Open();
+            parameters.ForEach(parameter =&gt; sqlCommand.Parameters.AddWithValue(parameter.Key, parameter.Value));
+            </span><span style="color: blue;">return </span><span style="color: black;">(</span><span style="color: blue;">double</span><span style="color: black;">)sqlCommand.ExecuteScalar();
+        }
+    }
+}</span></pre>
+<p>And the following Sql method is defined wrap the entire work. It accept an arithmetic expression tree, call the above InfixVisitor.VisitBody to compile it to SQL, then emit a dynamic function, which extracts the parameters and calls above ExecuteScalar method to execute the SQL:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">BinaryArithmeticTranslator
+</span><span style="color: black;">{
+    </span><span style="color: blue;">private static readonly </span><span style="color: #2b91af;">InfixVisitor </span><span style="color: black;">InfixVisitor = </span><span style="color: blue;">new </span><span style="color: #2b91af;">InfixVisitor</span><span style="color: black;">();
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">TDelegate </span><span style="color: black;">Sql&lt;</span><span style="color: #2b91af;">TDelegate</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TDelegate</span><span style="color: black;">&gt; expression, </span><span style="color: blue;">string </span><span style="color: black;">connection</span><span style="color: black;">) </span><span style="color: blue;">where </span><span style="color: #2b91af;">TDelegate </span><span style="color: black;">: </span><span style="color: blue;">class
+    </span><span style="color: black;">{
+        </span><span style="color: #2b91af;">DynamicMethod </span><span style="color: black;">dynamicMethod = </span><span style="color: blue;">new </span><span style="color: #2b91af;">DynamicMethod</span><span style="color: black;">(
+            </span><span style="color: blue;">string</span><span style="color: black;">.Empty,
+            expression.ReturnType,
+            expression.Parameters.Select(parameter =&gt; parameter.Type).ToArray(),
+            </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">BinaryArithmeticTranslator</span><span style="color: black;">).Module);
+        EmitIL(dynamicMethod.GetILGenerator(), InfixVisitor.VisitBody(expression), expression, connection);
+        </span><span style="color: blue;">return </span><span style="color: black;">(<span style="color: blue;"></span><span style="color: #2b91af;">TDelegate</span>)(<span style="color: black;"></span><span style="color: blue;">object</span>)dynamicMethod.CreateDelegate(</span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">TDelegate</span><span style="color: black;">))</span><span style="color: black;">;
+    }
+
+    </span><span style="color: blue;">private static void </span><span style="color: black;">EmitIL&lt;</span><span style="color: #2b91af;">TDelegate</span><span style="color: black;">&gt;(<span style="color: black;">
+        </span></span><span style="color: #2b91af;">ILGenerator </span><span style="color: black;">ilGenerator, </span><span style="color: blue;">string </span><span style="color: black;">infixExpression, </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TDelegate</span><span style="color: black;">&gt; expression, </span><span style="color: blue;">string </span><span style="color: black;">connection)
+    {
+        </span><span style="color: green;">// Dictionary&lt;string, double&gt; dictionary = new Dictionary&lt;string, double&gt;();
+        </span><span style="color: black;">ilGenerator.DeclareLocal(</span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">Dictionary</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt;));
+        ilGenerator.Emit(
+            </span><span style="color: #2b91af;">OpCodes</span><span style="color: black;">.Newobj,
+            </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">Dictionary</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt;).GetConstructor(</span><span style="color: #2b91af;">Array</span><span style="color: black;">.Empty&lt;</span><span style="color: #2b91af;">Type</span><span style="color: black;">&gt;()));
+        ilGenerator.Emit(</span><span style="color: #2b91af;">OpCodes</span><span style="color: black;">.Stloc_0);
+
+        </span><span style="color: blue;">for </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">index = 0; index &lt; expression.Parameters.Count; index++)
+        {
+            </span><span style="color: green;">// dictionary.Add($"@{expression.Parameters[i].Name}", args[i]);
+            </span><span style="color: black;">ilGenerator.Emit(</span><span style="color: #2b91af;">OpCodes</span><span style="color: black;">.Ldloc_0); </span><span style="color: green;">// dictionary.
+            </span><span style="color: black;">ilGenerator.Emit(</span><span style="color: #2b91af;">OpCodes</span><span style="color: black;">.Ldstr, </span><span style="color: #a31515;">$"@</span><span style="color: black;">{expression.Parameters[index].Name}</span><span style="color: #a31515;">"</span><span style="color: black;">);
+            ilGenerator.Emit(</span><span style="color: #2b91af;">OpCodes</span><span style="color: black;">.Ldarg_S, index);
+            ilGenerator.Emit(
+                </span><span style="color: #2b91af;">OpCodes</span><span style="color: black;">.Callvirt,
+                </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">Dictionary</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt;).GetMethod(
+                    </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Dictionary</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt;.Add),
+                    </span><span style="color: #2b91af;">BindingFlags</span><span style="color: black;">.Instance | </span><span style="color: #2b91af;">BindingFlags</span><span style="color: black;">.Public | </span><span style="color: #2b91af;">BindingFlags</span><span style="color: black;">.InvokeMethod));
+        }
+
+        </span><span style="color: green;">// BinaryArithmeticTanslator.ExecuteSql(connection, expression, dictionary);
+        </span><span style="color: black;">ilGenerator.Emit(</span><span style="color: #2b91af;">OpCodes</span><span style="color: black;">.Ldstr, connection);
+        ilGenerator.Emit(</span><span style="color: #2b91af;">OpCodes</span><span style="color: black;">.Ldstr, infixExpression);
+        ilGenerator.Emit(</span><span style="color: #2b91af;">OpCodes</span><span style="color: black;">.Ldloc_0);
+        ilGenerator.Emit(
+            </span><span style="color: #2b91af;">OpCodes</span><span style="color: black;">.Call,
+            </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">BinaryArithmeticTranslator</span><span style="color: black;">).GetMethod(
+                </span><span style="color: blue;">nameof</span><span style="color: black;">(ExecuteScalar),
+                </span><span style="color: #2b91af;">BindingFlags</span><span style="color: black;">.Static | </span><span style="color: #2b91af;">BindingFlags</span><span style="color: black;">.NonPublic | </span><span style="color: #2b91af;">BindingFlags</span><span style="color: black;">.InvokeMethod));
+
+        </span><span style="color: green;">// Returns the result of ExecuteSql.
+        </span><span style="color: black;">ilGenerator.Emit(</span><span style="color: #2b91af;">OpCodes</span><span style="color: black;">.Ret);
+    }
+}</span></pre>
+<p>As fore mentioned, .NET built-in Expression&lt;TDelegate&gt;.Compile method compiles expression tree to CIL, and emits a function to execute the CIL locally with current .NET application process. In contrast, here BinaryArithmeticTranslator.Sql compiles the arithmetic expression tree to SQL, and emits a function to execute the SQL in a specified remote SQL database:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ExecuteSql()
+{
+    </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt;&gt; expression1 = (a, b) =&gt; a * a + b * b;
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt; local1 = expression1.Compile();
+    local1(1, 2).WriteLine(); </span><span style="color: green;">// 5
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt; remote1 = expression1.Sql(</span><span style="color: #2b91af;">ConnectionStrings</span><span style="color: black;">.AdventureWorks);
+    remote1(1, 2).WriteLine(); </span><span style="color: green;">// 5
+
+    </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt;&gt; expression2 =
+        (a, b, c, d, e) =&gt; a + b - c * d / 2 + e * 3;
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt; local2 = expression2.Compile();
+    local2(1, 2, 3, 4, 5).WriteLine(); </span><span style="color: green;">// 12
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt; remote2 = expression2.Sql(</span><span style="color: #2b91af;">ConnectionStrings</span><span style="color: black;">.AdventureWorks);
+    remote2(1, 2, 3, 4, 5).WriteLine(); </span><span style="color: green;">// 12
+</span><span style="color: black;">}</span>
+
+
+</div>
+</body>
+</html>

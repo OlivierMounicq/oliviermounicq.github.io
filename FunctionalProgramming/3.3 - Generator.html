@@ -1,0 +1,738 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+
+<h1>LINQ to Objects (3) Generator</h1>
+
+<p>After understanding how to use LINQ to Objects, starting from this part, the implementation of query methods is discussed. Most LINQ to Object query methods are implemented with iteration pattern and generators.</p>
+<h1>Implement iterator pattern</h1>
+<p>The iterator pattern can decouple data can algorithm, where the sequence (also called container of items, or aggregate of elements) encapsulates the data to iterate, and the iterator encapsulates the algorithms of iterating the data, and return each value to the caller. As fore mentioned, iterator is imperative and stateful. The following is a general purpose iterator implemented as an <a href="https://en.wikipedia.org/wiki/Finite-state_machine" target="_blank">finite-state machine</a>:</p>
+<pre class="code"><span style="color: blue;">public enum </span><span style="color: #2b91af;">IteratorState
+</span><span style="color: black;">{
+    Create = -2,
+    Start = 0,
+    MoveNext = 1,
+    End = -1,
+    Error = -3
+}
+
+</span><span style="color: blue;">public class </span><span style="color: #2b91af;">Iterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">Action </span><span style="color: black;">start;
+
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">bool</span><span style="color: black;">&gt; moveNext;
+
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; getCurrent;
+
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">Action </span><span style="color: black;">dispose;
+
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">Action </span><span style="color: black;">end;
+
+    </span><span style="color: blue;">public </span><span style="color: black;">Iterator(
+        </span><span style="color: #2b91af;">Action </span><span style="color: black;">start = </span><span style="color: blue;">null</span><span style="color: black;">,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">bool</span><span style="color: black;">&gt; moveNext = </span><span style="color: blue;">null</span><span style="color: black;">,
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; getCurrent = </span><span style="color: blue;">null</span><span style="color: black;">,
+        </span><span style="color: #2b91af;">Action </span><span style="color: black;">dispose = </span><span style="color: blue;">null</span><span style="color: black;">,
+        </span><span style="color: #2b91af;">Action </span><span style="color: black;">end = </span><span style="color: blue;">null</span><span style="color: black;">)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.start = start;
+        </span><span style="color: blue;">this</span><span style="color: black;">.moveNext = moveNext;
+        </span><span style="color: blue;">this</span><span style="color: black;">.getCurrent = getCurrent;
+        </span><span style="color: blue;">this</span><span style="color: black;">.dispose = dispose;
+        </span><span style="color: blue;">this</span><span style="color: black;">.end = end;
+    }
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">T </span><span style="color: black;">Current { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">private set</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">object </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">.Current =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.Current;
+
+    </span><span style="color: blue;">internal </span><span style="color: #2b91af;">IteratorState </span><span style="color: black;">State { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">private set</span><span style="color: black;">; } = </span><span style="color: #2b91af;">IteratorState</span><span style="color: black;">.Create; </span><span style="color: green;">// IteratorState: Create.
+
+    </span><span style="color: blue;">internal </span><span style="color: #2b91af;">Iterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; Start()
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.State = </span><span style="color: #2b91af;">IteratorState</span><span style="color: black;">.Start;  </span><span style="color: green;">// IteratorState: Create =&gt; Start.
+        </span><span style="color: blue;">return this</span><span style="color: black;">;
+    }
+
+    </span><span style="color: blue;">public bool </span><span style="color: black;">MoveNext()
+    {
+        </span><span style="color: blue;">try
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">switch </span><span style="color: black;">(</span><span style="color: blue;">this</span><span style="color: black;">.State)
+            {
+                </span><span style="color: blue;">case </span><span style="color: #2b91af;">IteratorState</span><span style="color: black;">.Start:
+                    </span><span style="color: blue;">this</span><span style="color: black;">.start?.Invoke();
+                    </span><span style="color: blue;">this</span><span style="color: black;">.State = </span><span style="color: #2b91af;">IteratorState</span><span style="color: black;">.MoveNext; </span><span style="color: green;">// IteratorState: Start =&gt; MoveNext.
+                    </span><span style="color: blue;">goto case </span><span style="color: #2b91af;">IteratorState</span><span style="color: black;">.MoveNext;
+                </span><span style="color: blue;">case </span><span style="color: #2b91af;">IteratorState</span><span style="color: black;">.MoveNext:
+                    </span><span style="color: blue;">if </span><span style="color: black;">(</span><span style="color: blue;">this</span><span style="color: black;">.moveNext?.Invoke() ?? </span><span style="color: blue;">false</span><span style="color: black;">)
+                    {
+                        </span><span style="color: blue;">this</span><span style="color: black;">.Current = </span><span style="color: blue;">this</span><span style="color: black;">.getCurrent != </span><span style="color: blue;">null </span><span style="color: black;">? </span><span style="color: blue;">this</span><span style="color: black;">.getCurrent() : </span><span style="color: blue;">default</span><span style="color: black;">;
+                        </span><span style="color: blue;">return true</span><span style="color: black;">; </span><span style="color: green;">// IteratorState: MoveNext =&gt; MoveNext.
+                    </span><span style="color: black;">}
+                    </span><span style="color: blue;">this</span><span style="color: black;">.State = </span><span style="color: #2b91af;">IteratorState</span><span style="color: black;">.End; </span><span style="color: green;">// IteratorState: MoveNext =&gt; End.
+                    </span><span style="color: blue;">this</span><span style="color: black;">.dispose?.Invoke();
+                    </span><span style="color: blue;">this</span><span style="color: black;">.end?.Invoke();
+                    </span><span style="color: blue;">break</span><span style="color: black;">;
+            }
+            </span><span style="color: blue;">return false</span><span style="color: black;">;
+        }
+        </span><span style="color: blue;">catch</span><span style="color: green;">
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">this</span><span style="color: black;">.State = </span><span style="color: #2b91af;">IteratorState</span><span style="color: black;">.Error;<span style="color: blue;"> </span><span style="color: green;">// IteratorState: Start, MoveNext, End =&gt; Error.</span>
+            </span><span style="color: blue;">this</span><span style="color: black;">.Dispose();
+            </span><span style="color: blue;">throw</span><span style="color: black;">;
+        }
+    }
+</span><span style="color: black;">
+    </span><span style="color: blue;">public void </span><span style="color: black;">Dispose()
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(</span><span style="color: blue;">this</span><span style="color: black;">.State == </span><span style="color: #2b91af;">IteratorState</span><span style="color: black;">.Error || </span><span style="color: blue;">this</span><span style="color: black;">.State == </span><span style="color: #2b91af;">IteratorState</span><span style="color: black;">.MoveNext)
+        {
+            </span><span style="color: blue;">try </span><span style="color: black;">{ }
+            </span><span style="color: blue;">finally
+            </span><span style="color: black;">{
+                </span><span style="color: green;">// Unexecuted finally blocks are executed before the thread is aborted.
+                </span><span style="color: blue;">this</span><span style="color: black;">.State = </span><span style="color: #2b91af;">IteratorState</span><span style="color: black;">.End; </span><span style="color: green;">// IteratorState: Error =&gt; End.
+                </span><span style="color: blue;">this</span><span style="color: black;">.dispose?.Invoke();
+            }
+        }
+    }
+
+    </span><span style="color: blue;">public void </span><span style="color: black;">Reset() =&gt; </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">NotSupportedException</span><span style="color: black;">();
+}</span></pre>
+<p>The following is a general purpose sequence implementation as above iterator’s factory:</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">Sequence</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TData</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">TData </span><span style="color: black;">data;
+
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TData</span><span style="color: black;">, </span><span style="color: #2b91af;">Iterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt; iteratorFactory;
+
+    </span><span style="color: blue;">public </span><span style="color: black;">Sequence(</span><span style="color: #2b91af;">TData </span><span style="color: black;">data, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TData</span><span style="color: black;">, </span><span style="color: #2b91af;">Iterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt; iteratorFactory)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.data = data;
+        </span><span style="color: blue;">this</span><span style="color: black;">.iteratorFactory = iteratorFactory;
+    }
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; GetEnumerator() =&gt;
+        </span><span style="color: blue;">this</span><span style="color: black;">.iteratorFactory(</span><span style="color: blue;">this</span><span style="color: black;">.data).Start(); </span><span style="color: green;">// IteratorState: Create =&gt; Start.
+
+    </span><span style="color: #2b91af;">IEnumerator IEnumerable</span><span style="color: black;">.GetEnumerator() =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.GetEnumerator();
+}</span></pre>
+<p>The above iterator encapsulates traversal algorithm represented by 5 functions: start, moveNext, getCurrent, end, dispose, and manages 5 states:</p>
+<ul>
+<li>Create: if a iterator is constructed on the fly, its initial state is Create.</li>
+<li>Start: if an iterator is created by sequence’s factory method, its state is Start. Later, if its MoveNext is called for the first time, the start function is called to do the initialization work. Then, the state changes to MoveNext</li>
+<li>MoveNext: After its MoveNext method being called for the first time, its state is MoveNext. Each time its MoveNext method is called, the moveNext function is called to return a bool value
+<ul>
+<li>If true is returned, there is a value available, and getCurrent function can be called through its Current property to pull that value; The state remains MoveNext.</li>
+<li>If false, there is no value available to pull from its Current property. The state changes to End, and the dispose function is called to release resources, then end functions is called to do the cleanup work;</li>
+</ul>
+</li>
+<li>End: if its MoveNext method is called and the state is End, false is directly returned to indicate caller that the sequential traversal ended, there is no value available to pull.</li>
+<li>Error: if its MoveNext method throws an exception, the state changes to Error. Then its Dispose method is called to do the cleanup work, and eventually its state is changed to End.</li>
+</ul>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Understanding-LINQ-to-Objects-5-Implemen_13B72/image_4.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Understanding-LINQ-to-Objects-5-Implemen_13B72/image_thumb_1.png" width="801" height="310" border="0"></a></p>
+<p>The above sequence encapsulates the data to generate the values from, and also provides the iterator factory method. When its GetEnumerator method is called, an iterator is created with state changes from Create to Start.</p>
+<h1>Generate sequence and iterator</h1>
+<p>Now the Sequence&lt;T&gt; and Iterator&lt;T&gt; types can be used to create sequence with specific data and specific iteration algorithm. A simple example is to create a singleton sequence with only 1 value:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">IteratorPattern
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; FromValue&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value) =&gt;
+        </span><span style="color: blue;">new </span><span style="color: #2b91af;">Sequence</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;(
+            data: </span><span style="color: blue;">false</span><span style="color: black;">, </span><span style="color: green;">// bool isValueIterated = false;
+            </span><span style="color: black;">iteratorFactory: isValueIterated =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Iterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+                moveNext: () =&gt;
+                    {
+                        </span><span style="color: blue;">while </span><span style="color: black;">(!isValueIterated)
+                        {
+                            isValueIterated = </span><span style="color: blue;">true</span><span style="color: black;">;
+                            </span><span style="color: blue;">return true</span><span style="color: black;">;
+                        }
+                        </span><span style="color: blue;">return false</span><span style="color: black;">;
+                    },
+                getCurrent: () =&gt; value));
+}</span></pre>
+<p>Here a bool flag is used to indicate if the value is already iterated. The iterator’s moveNext function checks that bool flag and updates it, so that the value is made available only once. The created sequence can be consumed by foreach loop:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ForEachFromValue&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value)
+{
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">FromValue(value)) { }
+}</span></pre>
+<p>As fore mentioned, foreach loop is compiled to while loop. The following code demonstrates the underlying imperative control flow of iteration:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledForEachFromValue&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value)
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; iterator = FromValue(value).GetEnumerator())
+    {
+        </span><span style="color: green;">// bool isValueIterated = false;
+        </span><span style="color: blue;">while </span><span style="color: black;">(iterator.MoveNext()) </span><span style="color: green;">// moveNext: while (!isValueIterated)
+        </span><span style="color: black;">{
+            </span><span style="color: green;">// moveNext: isValueIterated = true;
+            </span><span style="color: #2b91af;">TSource </span><span style="color: black;">result = iterator.Current; </span><span style="color: green;">// getCurrent: TSource result = value;
+        </span><span style="color: black;">}
+    }
+
+    </span><span style="color: green;">// Virtual control flow when iterating the returned sequence:
+    // bool isValueIterated = false;
+    // try
+    // {
+    //    while (!isValueIterated)
+    //    {
+    //        isValueIterated = true;
+    //        TSource result = value;
+    //    }
+    // }
+    // finally { }
+</span><span style="color: black;">}</span></pre>
+<p>Another example is to create a sequence by repeating a specified value for specified times, which is the Repeat query method:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Repeat&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value, </span><span style="color: blue;">int </span><span style="color: black;">count) =&gt;
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">Sequence</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;(
+        data: 0, </span><span style="color: green;">// int index = 0;
+        </span><span style="color: black;">iteratorFactory: index =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Iterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+            moveNext: () =&gt; index++ &lt; count,
+            getCurrent: () =&gt; value));</span></pre>
+<p>Similarly, the sequence created by Repeat can be consumed by foreach loop, which can be desugared to while loop:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledForEachRepeat&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value, </span><span style="color: blue;">int </span><span style="color: black;">count)
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; iterator = Repeat(value, count).GetEnumerator())
+    {
+        </span><span style="color: green;">// int index = 0;
+        </span><span style="color: blue;">while </span><span style="color: black;">(iterator.MoveNext()) </span><span style="color: green;">// moveNext: while (index++ &lt; count)
+        </span><span style="color: black;">{
+            </span><span style="color: #2b91af;">TSource </span><span style="color: black;">result = iterator.Current; </span><span style="color: green;">// getCurrent: TSource result = value;
+        </span><span style="color: black;">}
+    }
+
+    </span><span style="color: green;">// Virtual control flow when iterating the returned sequence:
+    // int index = 0;
+    // try
+    // {
+    //    while (index++ &lt; count)
+    //    {
+    //        TSource result = value;
+    //    }
+    // }
+    // finally { }
+</span><span style="color: black;">}</span></pre>
+<p>The following example creates a new sequence from another source sequence, by mapping each value to another result with a selector function, which is the Select query method:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt;
+        </span><span style="color: blue;">new </span><span style="color: #2b91af;">Sequence</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt;(
+            data: </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: green;">// IEnumerator&lt;TSource&gt; sourceIterator = null;
+            </span><span style="color: black;">iteratorFactory: sourceIterator =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Iterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+                start: () =&gt; sourceIterator = source.GetEnumerator(),
+                moveNext: () =&gt; sourceIterator.MoveNext(),
+                getCurrent: () =&gt; selector(sourceIterator.Current),
+                dispose: () =&gt; sourceIterator?.Dispose()));</span></pre>
+<p>Again, the sequence created by Select can be consumed by foreach loop, which can be desugared to while loop:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledForEachSelect&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector)
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; iterator = Select(source, selector).GetEnumerator())
+    {
+        </span><span style="color: green;">// IEnumerator&lt;TSource&gt; sourceIterator = null;
+        // start: sourceIterator = source.GetEnumerator();
+        </span><span style="color: blue;">while </span><span style="color: black;">(iterator.MoveNext()) </span><span style="color: green;">// moveNext: while (sourceIterator.MoveNext())
+        </span><span style="color: black;">{
+            </span><span style="color: #2b91af;">TResult </span><span style="color: black;">result = iterator.Current; </span><span style="color: green;">// getCurrent: TResult result = selector(sourceIterator.Current);
+        </span><span style="color: black;">}
+    } </span><span style="color: green;">// dispose: sourceIterator?.Dispose();
+
+    // Virtual control flow when iterating the returned sequence:
+    // IEnumerator&lt;TSource&gt; sourceIterator = null;
+    // try
+    // {
+    //    sourceIterator = source.GetEnumerator();
+    //    while (sourceIterator.MoveNext())
+    //    {
+    //        TResult result = selector(sourceIterator.Current);
+    //    }
+    // }
+    // finally
+    // {
+    //    sourceIterator?.Dispose();
+    // }
+</span><span style="color: black;">}</span></pre>
+<p>Here iterator’s start function retrieves source sequence’s iterator, and moveNext function use that source iterator to determine whether there is a next value from the source sequence. If yes, getCurrent function calls selector function to map each source value to a result value.</p>
+<p>The last example is to create a sequence by filtering another source sequence with a predicate function, which is the Where query method:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Where&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; predicate) =&gt;
+        </span><span style="color: blue;">new </span><span style="color: #2b91af;">Sequence</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt;(
+            data: </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: green;">// IEnumerator&lt;TSource&gt; sourceIterator = null;
+            </span><span style="color: black;">iteratorFactory: sourceIterator =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Iterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+                start: () =&gt; sourceIterator = source.GetEnumerator(),
+                moveNext: () =&gt;
+                {
+                    </span><span style="color: blue;">while </span><span style="color: black;">(sourceIterator.MoveNext())
+                    {
+                        </span><span style="color: blue;">if </span><span style="color: black;">(predicate(sourceIterator.Current))
+                        {
+                            </span><span style="color: blue;">return true</span><span style="color: black;">;
+                        }
+                    }
+                    </span><span style="color: blue;">return false</span><span style="color: black;">;
+                },
+                getCurrent: () =&gt; sourceIterator.Current,
+                dispose: () =&gt; sourceIterator?.Dispose()));</span></pre>
+<p>Once again, the sequence created by Where can be consumed by foreach loop, which can be desugared to while loop:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledForEachWhere&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; predicate)
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; iterator = Where(source, predicate).GetEnumerator())
+    { </span><span style="color: green;">// IEnumerator&lt;TSource&gt; sourceIterator = null;
+        // start: sourceIterator = source.GetEnumerator();
+        </span><span style="color: blue;">while </span><span style="color: black;">(iterator.MoveNext()) </span><span style="color: green;">// moveNext: while (sourceIterator.MoveNext())
+        </span><span style="color: black;">{ </span><span style="color: green;">// moveNext: if (predicate(sourceIterator.Current))
+            </span><span style="color: #2b91af;">TSource </span><span style="color: black;">result = iterator.Current; </span><span style="color: green;">// getCurrent: TResult result = sourceIterator.Current;
+        </span><span style="color: black;">}
+    } </span><span style="color: green;">// dispose: sourceIterator?.Dispose();
+
+    // Virtual control flow when iterating the returned sequence:
+    // IEnumerator&lt;TSource&gt; sourceIterator = null;
+    // try
+    // {
+    //    sourceIterator = source.GetEnumerator();
+    //    while (sourceIterator.MoveNext())
+    //    {
+    //        if (predicate(sourceIterator.Current))
+    //        {
+    //            TResult result = selector(sourceIterator.Current);
+    //        }
+    //    }
+    // }
+    // finally
+    // {
+    //    sourceIterator?.Dispose();
+    // }
+</span><span style="color: black;">}</span></pre>
+<p>As demonstrated, following the iterator pattern, it is not that straightforward to create sequences and iterators from scratch. To simplify the work, C# provides a yield keyword.</p>
+<h1>Yield statement and generator</h1>
+<p>C# 2.0 introduces the yield keyword to simplify the creation of sequence and iterator. The following example create an sequence equivalent to above FromValue method:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; FromValueGenerator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value)
+{
+    </span><span style="color: green;">// Virtual control flow when iterating the returned sequence:
+    // bool isValueIterated = false;
+    // try
+    // {
+    //    while (!isValueIterated)
+    //    {
+    //        isValueIterated = true;
+    //        TSource result = value;
+    //    }
+    // }
+    // finally { }
+
+    </span><span style="color: blue;">bool </span><span style="color: black;">isValueIterated = </span><span style="color: blue;">false</span><span style="color: black;">;
+    </span><span style="color: blue;">try
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">while </span><span style="color: black;">(!isValueIterated) </span><span style="color: green;">// moveNext.
+        </span><span style="color: black;">{
+            isValueIterated = </span><span style="color: blue;">true</span><span style="color: black;">; </span><span style="color: green;">// moveNext.
+            </span><span style="color: blue;">yield return </span><span style="color: black;">value; </span><span style="color: green;">// getCurrent.
+        </span><span style="color: black;">}
+    }
+    </span><span style="color: blue;">finally </span><span style="color: black;">{ }
+}</span></pre>
+<p>The start, moveNext, getCurrent, end, dispose functions are merged into a natural and intuitive control flow. Similarly, the above Repeat, Select, Where can be implemented with yield following the control flow too:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; RepeatGenerator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value, </span><span style="color: blue;">int </span><span style="color: black;">count)
+{
+    </span><span style="color: green;">// Virtual control flow when iterating the returned sequence:
+    // int index = 0;
+    // try
+    // {
+    //    while (index++ &lt; count)
+    //    {
+    //        TSource result = value;
+    //    }
+    // }
+    // finally { }
+
+    </span><span style="color: blue;">int </span><span style="color: black;">index = 0;
+    </span><span style="color: blue;">try
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">while </span><span style="color: black;">(index++ &lt; count) </span><span style="color: green;">// moveNext.
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">yield return </span><span style="color: black;">value; </span><span style="color: green;">// getCurrent.
+        </span><span style="color: black;">}
+    }
+    </span><span style="color: blue;">finally </span><span style="color: black;">{ }
+}
+
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; SelectGenerator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector)
+{
+    </span><span style="color: green;">// Virtual control flow when iterating the returned sequence:
+    // IEnumerator&lt;TSource&gt; sourceIterator = null;
+    // try
+    // {
+    //    sourceIterator = source.GetEnumerator();
+    //    while (sourceIterator.MoveNext())
+    //    {
+    //        TResult result = selector(sourceIterator.Current);
+    //    }
+    // }
+    // finally
+    // {
+    //    sourceIterator?.Dispose();
+    // }
+
+    </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; sourceIterator = </span><span style="color: blue;">null</span><span style="color: black;">;
+    </span><span style="color: blue;">try
+    </span><span style="color: black;">{
+        sourceIterator = source.GetEnumerator(); </span><span style="color: green;">// start.
+        </span><span style="color: blue;">while </span><span style="color: black;">(sourceIterator.MoveNext()) </span><span style="color: green;">// moveNext.
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">yield return </span><span style="color: black;">selector(sourceIterator.Current); </span><span style="color: green;">// getCurrent.
+        </span><span style="color: black;">}
+    }
+    </span><span style="color: blue;">finally
+    </span><span style="color: black;">{
+        sourceIterator?.Dispose(); </span><span style="color: green;">// dispose.
+    </span><span style="color: black;">}
+}
+
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; WhereGenerator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; predicate)
+{
+    </span><span style="color: green;">// Virtual control flow when iterating the returned sequence:
+    // IEnumerator&lt;TSource&gt; sourceIterator = null;
+    // try
+    // {
+    //    sourceIterator = source.GetEnumerator();
+    //    while (sourceIterator.MoveNext())
+    //    {
+    //        if (predicate(sourceIterator.Current))
+    //        {
+    //            TResult result = selector(sourceIterator.Current);
+    //        }
+    //    }
+    // }
+    // finally
+    // {
+    //    sourceIterator?.Dispose();
+    // }
+
+    </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; sourceIterator = </span><span style="color: blue;">null</span><span style="color: black;">;
+    </span><span style="color: blue;">try
+    </span><span style="color: black;">{
+        sourceIterator = source.GetEnumerator(); </span><span style="color: green;">// start.
+        </span><span style="color: blue;">while </span><span style="color: black;">(sourceIterator.MoveNext()) </span><span style="color: green;">// moveNext.
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">if </span><span style="color: black;">(predicate(sourceIterator.Current)) </span><span style="color: green;">// moveNext.
+            </span><span style="color: black;">{
+                </span><span style="color: blue;">yield return </span><span style="color: black;">sourceIterator.Current; </span><span style="color: green;">// getCurrent.
+            </span><span style="color: black;">}
+        }
+    }
+    </span><span style="color: blue;">finally
+    </span><span style="color: black;">{
+        sourceIterator?.Dispose(); </span><span style="color: green;">// dispose.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>So yield statement simplified the implementation of iterator pattern, it enables describing the algorithm that how the values are iterated (yielded), without explicitly creating a sequence or iterator. Actually, above control flow can be further simplified. In FromValueGenerator, the bool state is unnecessary. All needed is to yield a single value to the caller. So FromValueGenerator is equivalent to:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; FromValueGenerator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value)
+{
+    </span><span style="color: blue;">yield return </span><span style="color: black;">value;
+}</span></pre>
+<p>In RepeatGenerator, the while loop can be replaced by a for loop to improve the readability a little bit:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; RepeatGenerator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value, </span><span style="color: blue;">int </span><span style="color: black;">count)
+{
+    </span><span style="color: blue;">for </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">index = 0; index &lt; count; index++)
+    {
+        </span><span style="color: blue;">yield return </span><span style="color: black;">value;
+    }
+}</span></pre>
+<p>In SelectGenerator and WhereGenerator, the using statement and while loop can be replaced by the foreach syntactic sugar:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; SelectGenerator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector)
+{
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+    {
+        </span><span style="color: blue;">yield return </span><span style="color: black;">selector(value);
+    }
+}
+
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; WhereGenerator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; predicate)
+{
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(predicate(value))
+        {
+            </span><span style="color: blue;">yield return </span><span style="color: black;">value;
+        }
+    }
+}</span></pre>
+<p>The C# compiler actually goes a little further when compiling function with yield syntactic sugar. Such a function with yield statement must return either sequence (represented by IEnumerable or IEnumerable&lt;T&gt;) or iterator (represented by IEnumerator or IEnumerator&lt;T&gt;). When such function returns IEnumerable&lt;T&gt; sequence, the entire function body is compiled to <a href="https://en.wikipedia.org/wiki/Generator_(computer_programming)" target="_blank">generator</a> creation. A generator is both a sequence and a iterator:</p>
+<pre class="code"><span style="color: blue;">public interface </span><span style="color: #2b91af;">IGenerator</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; { }</span></pre>
+<p>With above sequence and iterator definition, a general purpose generator can be implemented easily:</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">Generator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TData</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IGenerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">private readonly int </span><span style="color: black;">initialThreadId = </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.CurrentManagedThreadId;
+
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">TData </span><span style="color: black;">data;
+
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TData</span><span style="color: black;">, </span><span style="color: #2b91af;">Iterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt; iteratorFactory;
+
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">Iterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; initialIterator;
+
+    </span><span style="color: blue;">public </span><span style="color: black;">Generator(</span><span style="color: #2b91af;">TData </span><span style="color: black;">data, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TData</span><span style="color: black;">, </span><span style="color: #2b91af;">Iterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;&gt; iteratorFactory)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.data = data;
+        </span><span style="color: blue;">this</span><span style="color: black;">.iteratorFactory = iteratorFactory;
+        </span><span style="color: blue;">this</span><span style="color: black;">.initialIterator = iteratorFactory(data);
+    }
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; GetEnumerator()
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(</span><span style="color: blue;">this</span><span style="color: black;">.initialThreadId == </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.CurrentManagedThreadId
+            &amp;&amp; </span><span style="color: blue;">this</span><span style="color: black;">.initialIterator.State == </span><span style="color: #2b91af;">IteratorState</span><span style="color: black;">.Create)
+        {
+            </span><span style="color: green;">// When called by the same initial thread and iteration is not started, reuse self with initial iterator.
+            </span><span style="color: blue;">this</span><span style="color: black;">.initialIterator.Start();
+            </span><span style="color: blue;">return this</span><span style="color: black;">;
+        }
+        </span><span style="color: green;">// If the iteration is already started, or the iteration is requested from a different thread, create new generator with new iterator.
+        </span><span style="color: #2b91af;">Generator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TData</span><span style="color: black;">&gt; generator = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Generator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">TData</span><span style="color: black;">&gt;(</span><span style="color: blue;">this</span><span style="color: black;">.data, </span><span style="color: blue;">this</span><span style="color: black;">.iteratorFactory);
+        generator.initialIterator.Start();
+        </span><span style="color: blue;">return </span><span style="color: black;">generator;
+    }
+
+    </span><span style="color: #2b91af;">IEnumerator IEnumerable</span><span style="color: black;">.GetEnumerator() =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.GetEnumerator();
+
+    </span><span style="color: blue;">public void </span><span style="color: black;">Dispose() =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.initialIterator.Dispose();
+
+    </span><span style="color: blue;">public bool </span><span style="color: black;">MoveNext() =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.initialIterator.MoveNext();
+
+    </span><span style="color: blue;">public void </span><span style="color: black;">Reset() =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.initialIterator.Reset();
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">T </span><span style="color: black;">Current =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.initialIterator.Current;
+
+    </span><span style="color: blue;">object </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">.Current =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.Current;
+}</span></pre>
+<p>The above FromValueGenerator, RepeatGenerator, SelectGenerator, WhereGenerator methods return IEnumerable&lt;T&gt; sequence, their compilation are equivalent to the following methods, where sequence creation is replaced by generator creation:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; CompiledFromValueGenerator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value) =&gt;
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">Generator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;(
+        data: </span><span style="color: blue;">false</span><span style="color: black;">, </span><span style="color: green;">// bool isValueIterated = false;
+        </span><span style="color: black;">iteratorFactory: isValueIterated =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Iterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+            moveNext: () =&gt;
+            {
+                </span><span style="color: blue;">while </span><span style="color: black;">(!isValueIterated)
+                {
+                    isValueIterated = </span><span style="color: blue;">true</span><span style="color: black;">;
+                    </span><span style="color: blue;">return true</span><span style="color: black;">;
+                }
+                </span><span style="color: blue;">return false</span><span style="color: black;">;
+            },
+            getCurrent: () =&gt; value));
+
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; CompiledRepeatGenerator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value, </span><span style="color: blue;">int </span><span style="color: black;">count) =&gt;
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">Generator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt;(
+        data: 0, </span><span style="color: green;">// int index = 0;
+        </span><span style="color: black;">iteratorFactory: index =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Iterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+            moveNext: () =&gt; index++ &lt; count,
+            getCurrent: () =&gt; value));
+
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; CompiledSelectGenerator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector) =&gt;
+        </span><span style="color: blue;">new </span><span style="color: #2b91af;">Generator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt;(
+            data: </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: green;">// IEnumerator&lt;TSource&gt; sourceIterator = null;
+            </span><span style="color: black;">iteratorFactory: sourceIterator =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Iterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+                start: () =&gt; sourceIterator = source.GetEnumerator(),
+                moveNext: () =&gt; sourceIterator.MoveNext(),
+                getCurrent: () =&gt; selector(sourceIterator.Current),
+                dispose: () =&gt; sourceIterator?.Dispose()));
+
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; CompiledWhereGenerator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; predicate) =&gt;
+        </span><span style="color: blue;">new </span><span style="color: #2b91af;">Generator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt;(
+            data: </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: green;">// IEnumerator&lt;TSource&gt; sourceIterator = null;
+            </span><span style="color: black;">iteratorFactory: sourceIterator =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Iterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+                start: () =&gt; sourceIterator = source.GetEnumerator(),
+                moveNext: () =&gt;
+                {
+                    </span><span style="color: blue;">while </span><span style="color: black;">(sourceIterator.MoveNext())
+                    {
+                        </span><span style="color: blue;">if </span><span style="color: black;">(predicate(sourceIterator.Current))
+                        {
+                            </span><span style="color: blue;">return true</span><span style="color: black;">;
+                        }
+                    }
+                    </span><span style="color: blue;">return false</span><span style="color: black;">;
+                },
+                getCurrent: () =&gt; sourceIterator.Current,
+                dispose: () =&gt; sourceIterator?.Dispose()));</span></pre>
+<p>These methods can also return IEnumerator&lt;T&gt; iterator instead:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; FromValueIterator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value)
+{
+    </span><span style="color: blue;">yield return </span><span style="color: black;">value;
+}
+
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; RepeatIterator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value, </span><span style="color: blue;">int </span><span style="color: black;">count)
+{
+    </span><span style="color: blue;">for </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">index = 0; index &lt; count; index++)
+    {
+        </span><span style="color: blue;">yield return </span><span style="color: black;">value;
+    }
+}
+
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; SelectIterator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector)
+{
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+    {
+        </span><span style="color: blue;">yield return </span><span style="color: black;">selector(value);
+    }
+}
+
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; WhereIterator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; predicate)
+{
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(predicate(value))
+        {
+            </span><span style="color: blue;">yield return </span><span style="color: black;">value;
+        }
+    }
+}</span></pre>
+<p>Now the above methods are compiled to iterator creation, which are equivalent to:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; CompiledFromValueIterator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value)
+{
+    </span><span style="color: blue;">bool </span><span style="color: black;">isValueIterated = </span><span style="color: blue;">false</span><span style="color: black;">;
+    </span><span style="color: blue;">return new </span><span style="color: #2b91af;">Iterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: black;">
+        moveNext: () =&gt;
+        {
+            </span><span style="color: blue;">while </span><span style="color: black;">(!isValueIterated)
+            {
+                isValueIterated = </span><span style="color: blue;">true</span><span style="color: black;">;
+                </span><span style="color: blue;">return true</span><span style="color: black;">;
+            }
+            </span><span style="color: blue;">return false</span><span style="color: black;">;
+        },
+        getCurrent: () =&gt; value).Start();
+}
+
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; CompiledRepeatIterator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value, </span><span style="color: blue;">int </span><span style="color: black;">count)
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">index = 0;
+    </span><span style="color: blue;">return new </span><span style="color: #2b91af;">Iterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: black;">
+        moveNext: () =&gt; index++ &lt; count,
+        getCurrent: () =&gt; value).Start();
+}
+
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; CompiledSelectIterator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector)
+{
+    </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; sourceIterator = </span><span style="color: blue;">null</span><span style="color: black;">;
+    </span><span style="color: blue;">return new </span><span style="color: #2b91af;">Iterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: black;">
+        start: () =&gt; sourceIterator = source.GetEnumerator(),
+        moveNext: () =&gt; sourceIterator.MoveNext(),
+        getCurrent: () =&gt; selector(sourceIterator.Current),
+        dispose: () =&gt; sourceIterator?.Dispose()).Start();
+}
+
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; CompiledWhereIterator&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; predicate)
+{
+    </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; sourceIterator = </span><span style="color: blue;">null</span><span style="color: black;">;
+    </span><span style="color: blue;">return new </span><span style="color: #2b91af;">Iterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: black;">
+        start: () =&gt; sourceIterator = source.GetEnumerator(),
+        moveNext: () =&gt;
+        {
+            </span><span style="color: blue;">while </span><span style="color: black;">(sourceIterator.MoveNext())
+            {
+                </span><span style="color: blue;">if </span><span style="color: black;">(predicate(sourceIterator.Current))
+                {
+                    </span><span style="color: blue;">return true</span><span style="color: black;">;
+                }
+            }
+            </span><span style="color: blue;">return false</span><span style="color: black;">;
+        },
+        getCurrent: () =&gt; sourceIterator.Current,
+        dispose: () =&gt; sourceIterator?.Dispose()).Start();
+}</span></pre>
+<h1>Iterator and generator in other languages</h1>
+<p>Other languages also have similar design for iterator pattern and generator. The following table compares similar APIs/language features of C#, F#, <a href="https://hackage.haskell.org/package/base-4.8.1.0/docs/Data-Foldable.html" target="_blank">Haskell</a> and <a href="https://msdn.microsoft.com/en-us/library/dn858237.aspx" target="_blank">JavaScript</a> (<a href="http://www.ecma-international.org/ecma-262/6.0/#sec-iteration" target="_blank">ECMAScript 2015, 6th</a>):</p>
+<table width="692" cellspacing="0" cellpadding="0" border="0">
+<tbody>
+<tr>
+<td width="158" valign="top">&nbsp;</td>
+<td width="137" valign="top">C#</td>
+<td width="130" valign="top">F#</td>
+<td width="125" valign="top">Haskell</td>
+<td width="140" valign="top">JavaScript</td>
+</tr>
+<tr>
+<td width="158" valign="top">Sequence/Container</td>
+<td width="137" valign="top">IEnumerable&lt;T&gt;</td>
+<td width="130" valign="top">seq&lt;'T&gt;</td>
+<td width="125" valign="top">Foldable t</td>
+<td width="140" valign="top">Iterable protocol</td>
+</tr>
+<tr>
+<td width="158" valign="top">Get iterator</td>
+<td width="137" valign="top">GetEnumerator</td>
+<td width="130" valign="top">GetEnumerator</td>
+<td width="125" valign="top">&nbsp;</td>
+<td width="140" valign="top">Symbol.iterator</td>
+</tr>
+<tr>
+<td width="158" valign="top">Iterator</td>
+<td width="137" valign="top">IEnumerator&lt;T&gt;</td>
+<td width="130" valign="top">IEnumerator&lt;T&gt;</td>
+<td width="125" valign="top">&nbsp;</td>
+<td width="140" valign="top">iterator protocol</td>
+</tr>
+<tr>
+<td width="158" valign="top">Has next value</td>
+<td width="137" valign="top">MoveNext</td>
+<td width="130" valign="top">MoveNext</td>
+<td width="125" valign="top">&nbsp;</td>
+<td width="140" valign="top">next().done</td>
+</tr>
+<tr>
+<td width="158" valign="top">Get value</td>
+<td width="137" valign="top">Current</td>
+<td width="130" valign="top">Current</td>
+<td width="125" valign="top">&nbsp;</td>
+<td width="140" valign="top">next().value</td>
+</tr>
+<tr>
+<td width="158" valign="top">Iteration</td>
+<td width="137" valign="top">foeach…in</td>
+<td width="130" valign="top">for…in</td>
+<td width="125" valign="top">for_, traverse_, forM_, mapM_</td>
+<td width="140" valign="top">for…of</td>
+</tr>
+<tr>
+<td width="158" valign="top">Generator</td>
+<td width="137" valign="top">yield return</td>
+<td width="130" valign="top">yield</td>
+<td width="125" valign="top">&nbsp;</td>
+<td width="140" valign="top">yield</td>
+</tr>
+<tr>
+<td width="158" valign="top">Merge</td>
+<td width="137" valign="top">&nbsp;</td>
+<td width="130" valign="top">yield!</td>
+<td width="125" valign="top">&nbsp;</td>
+<td width="140" valign="top">yield*</td>
+</tr>
+</tbody>
+</table>
+<p>As fore mentioned, iterator pattern involves an iterator with mutable states, so it is more suitable for OOP languages, like C#. F# is a functional language but impure, so it gets along with mutable states, and has all the facilities for iterator and generator. In contrast, Haskell is a <a href="https://en.wikipedia.org/wiki/Purely_functional" target="_blank">purely functional</a> language, and does not support mutable states. Haskell just has a few APIs that might look similar to C#’s foreach. For example, In <a href="https://hackage.haskell.org/package/base-4.8.1.0/docs/Data-Foldable.html" target="_blank">Data.Foldable module</a>, there are a few iteration functions for Foldable type class:</p>
+<ul>
+<li>Applicative functions for_ and traverse_: map each element of a Foldable to an function, evaluate and ignore the results.</li>
+<li>Monadic functions: forM_ and mapM_: map each element of a Foldable to a monadic function, evaluate and ignore the results.</li>
+</ul>
+<p>Haskell list is <a href="https://hackage.haskell.org/package/base-4.8.1.0/docs/src/Data.Foldable.html#line-225" target="_blank">an instance of Foldable type class</a>, its design and implementation is different from iterator pattern. For iterator in functional programming, please see this paper: <a href="http://www.cs.ox.ac.uk/jeremy.gibbons/publications/iterator.pdf" target="_blank">The Essence of the Iterator Pattern</a>.</p>
+
+
+</div>
+</body>
+</html>

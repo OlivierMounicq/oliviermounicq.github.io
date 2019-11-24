@@ -1,0 +1,636 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+
+<h1>LINQ to Objects (7) Custom Query Methods</h1>
+
+<p>After discussing the query methods provided by .NET, this part demonstrates how to define custom query methods:</p>
+<ul>
+<li>Sequence queries: return a new IEnumerable&lt;T&gt; sequence (deferred execution)&nbsp;
+<ul>
+<li>Generation: Create, Guid, RandomInt32, RandomDouble, FromValue, FromValues, EmptyIfNull</li>
+<li>Concatenation: Join</li>
+<li>Partitioning: Subsequence</li>
+<li>Comparison: OrderBy*, OrderByDescending*, ThenBy*, ThenByDescending*, GroupBy*, Join*, GroupJoin*, Distinct, Union, Intersect*, Except*</li>
+<li>List: Insert, Remove, RemoveAll, RemoveAt</li>
+</ul>
+</li>
+<li>Collection queries: return a new collection (immediate execution)
+<ul>
+<li>Comparison: ToDictionary, ToLookup</li>
+</ul>
+</li>
+<li>Value queries: return a single value (immediate execution)
+<ul>
+<li>List: IndexOf, LastIndexOf</li>
+<li>Aggregation: PercentileExclusive, PercentileInclusive, Percentile</li>
+<li>Quantifiers: IsNullOrEmpty, IsNotNullOrEmpty</li>
+<li>Comparison: Contains, SequenceEqual</li>
+</ul>
+</li>
+<li>Void queries: return void (immediate execution)
+<ul>
+<li>Iteration: ForEach</li>
+</ul>
+</li>
+</ul>
+<p>The sequence queries all implement deferred execution, where the sequence queries marked with * implements eager evaluation, and other unmarked sequence queries implements lazy evaluation. The collection queries, value queries, and void queries all implements immediate execution.</p>
+<p>These query methods can be defined in the following static class:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">EnumerableX </span><span style="color: black;">{ }</span></pre>
+<h1>Returns a new IEnumerable&lt;T&gt; sequence</h1>
+<h2>Generation</h2>
+<p>The previous part discussed the Defer query method a sequence factory, and the Create query method accepting a iterator factory. The following Create method is defined to generate a sequence of values by repeatedly calling a value factory:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Create&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; valueFactory, </span><span style="color: blue;">int</span><span style="color: black;">? count = </span><span style="color: blue;">null</span><span style="color: black;">)
+{
+    </span><span style="color: blue;">if </span><span style="color: black;">(count &lt; 0)
+    {
+        </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(count));
+    }
+
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; CreateGenerator()
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(count == </span><span style="color: blue;">null</span><span style="color: black;">)
+        {
+            </span><span style="color: blue;">while </span><span style="color: black;">(</span><span style="color: blue;">true</span><span style="color: black;">)
+            {
+                </span><span style="color: blue;">yield return </span><span style="color: black;">valueFactory();<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+            }
+        }
+        </span><span style="color: blue;">for </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">index = 0; index &lt; count; index++)
+        {
+            </span><span style="color: blue;">yield return </span><span style="color: black;">valueFactory(); </span><span style="color: green;">// Deferred execution.
+        </span><span style="color: black;">}
+    }
+    </span><span style="color: blue;">return </span><span style="color: black;">CreateGenerator();
+}</span></pre>
+<p>When count is not provided, an infinite sequence is generated. For example, the following Guid query method calls Create repeatedly with Guid.NewGuid to generate a sequence of new GUIDs:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Guid</span><span style="color: black;">&gt; NewGuid(</span><span style="color: blue;">int</span><span style="color: black;">? count) =&gt; Create(</span><span style="color: #2b91af;">Guid</span><span style="color: black;">.NewGuid, count);</span></pre>
+<p>The following methods generate a sequence of random numbers:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; RandomInt32(
+    </span><span style="color: blue;">int </span><span style="color: black;">min = </span><span style="color: blue;">int</span><span style="color: black;">.MinValue, </span><span style="color: blue;">int </span><span style="color: black;">max = </span><span style="color: blue;">int</span><span style="color: black;">.MaxValue, </span><span style="color: blue;">int</span><span style="color: black;">? seed = </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">? count = </span><span style="color: blue;">null</span><span style="color: black;">) =&gt;
+        </span><span style="color: #2b91af;">EnumerableEx</span><span style="color: black;">.Defer(() =&gt;
+        {
+            </span><span style="color: #2b91af;">Random </span><span style="color: black;">random = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Random</span><span style="color: black;">(seed ?? </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.TickCount);
+            </span><span style="color: blue;">return </span><span style="color: black;">Create(() =&gt; random.Next(min, max), count);
+        });
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">&gt; RandomDouble(</span><span style="color: blue;">int</span><span style="color: black;">? seed = </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">? count = </span><span style="color: blue;">null</span><span style="color: black;">) =&gt;
+    </span><span style="color: #2b91af;">EnumerableEx</span><span style="color: black;">.Defer(() =&gt; Create(</span><span style="color: blue;">new </span><span style="color: #2b91af;">Random</span><span style="color: black;">(seed ?? </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.TickCount).NextDouble, count));</span></pre>
+<p>Here Defer is called to defer the instantiation of Random.</p>
+<p>The following EmptyIfNull can be used to replace null check and null coalescing:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; EmptyIfNull&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source) =&gt;<span style="color: black;">
+    </span>source ?? </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Empty&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;();</span></pre>
+<p>For example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">EmptyIfNull(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source1, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source2)
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; positive = source1.EmptyIfNull()
+        .Union(source2.EmptyIfNull())
+        .Where(int32 =&gt; int32 &gt; 0);
+}</span></pre>
+<h2>Concatenation</h2>
+<p>string has a useful method Join:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">System.Collections.Generic;
+
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">String
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static string </span><span style="color: black;">Join(</span><span style="color: blue;">string </span><span style="color: black;">separator, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; values);
+    }
+}</span></pre>
+<p>It concatenates the values with a single separator between each 2 adjacent string values. A general Join query method can be defined as:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Join&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">TSource </span><span style="color: black;">separator)
+{</span><span style="color: black;">
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; iterator = source.GetEnumerator())
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(iterator.MoveNext())
+        {
+            </span><span style="color: blue;">yield return </span><span style="color: black;">iterator.Current;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+            </span><span style="color: blue;">while </span><span style="color: black;">(iterator.MoveNext())
+            {
+                </span><span style="color: blue;">yield return </span><span style="color: black;">separator;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+                </span><span style="color: blue;">yield return </span><span style="color: black;">iterator.Current;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+            }
+        }
+    }
+}</span></pre>
+<p>The following overload accepting a sequence of multiple separators:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Join&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; separators)
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; iterator = source.GetEnumerator())
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(iterator.MoveNext())
+        {
+            </span><span style="color: blue;">yield return </span><span style="color: black;">iterator.Current; </span><span style="color: green;">// Deferred execution.
+            </span><span style="color: blue;">while </span><span style="color: black;">(iterator.MoveNext())
+            {
+                </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">separator </span><span style="color: blue;">in </span><span style="color: black;">separators)
+                {
+                    </span><span style="color: blue;">yield return </span><span style="color: black;">separator; </span><span style="color: green;">// Deferred execution.
+                </span><span style="color: black;">}
+                </span><span style="color: blue;">yield return </span><span style="color: black;">iterator.Current; </span><span style="color: green;">// Deferred execution.
+            </span><span style="color: black;">}
+        }
+    }
+}</span></pre>
+<h2>Partitioning</h2>
+<p>Similar to string.Substring, a general Subsequence method can be defined as:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Subsequence&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: blue;">int </span><span style="color: black;">startIndex, </span><span style="color: blue;">int </span><span style="color: black;">count) =&gt;
+        source.Skip(startIndex).Take(count);</span></pre>
+<h2>Comparison</h2>
+<p>The IComparer&lt;T&gt; and IEqualityComparer&lt;T&gt; interfaces are involved a lot in LINQ query methods:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Collections.Generic
+{
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+    {
+        </span><span style="color: blue;">int </span><span style="color: black;">Compare(</span><span style="color: #2b91af;">T </span><span style="color: black;">x, </span><span style="color: #2b91af;">T </span><span style="color: black;">y);
+    }
+
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IEqualityComparer</span><span style="color: black;">&lt;</span><span style="color: blue;">in </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+    {
+        </span><span style="color: blue;">bool </span><span style="color: black;">Equals(</span><span style="color: #2b91af;">T </span><span style="color: black;">x, </span><span style="color: #2b91af;">T </span><span style="color: black;">y);
+
+        </span><span style="color: blue;">int </span><span style="color: black;">GetHashCode(</span><span style="color: #2b91af;">T </span><span style="color: black;">obj);
+    }
+}</span></pre>
+<p>They are wrappers of simple functions. However, in C#, interfaces are less convenient then functions. C# supports lambda expression define anonymous functions inline, but does not support <a href="https://en.wikipedia.org/wiki/Closure_(computer_programming)#Local_classes_and_Lambda_functions_.28Java.29" target="_blank">anonymous class</a> to enable inline interface. It could be convenient if query methods can accept functions instead of interfaces. To Iplement this, the following helper methods can be defined to convert functions to the above interfaces:</p>
+<pre class="code"><span style="color: blue;">private static </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; ToComparer&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; compare) =&gt;
+    </span><span style="color: #2b91af;">Comparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;.Create(</span><span style="color: blue;">new </span><span style="color: #2b91af;">Comparison</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(compare));
+
+</span><span style="color: blue;">private static </span><span style="color: #2b91af;">IEqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; ToEqualityComparer&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; equals, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; getHashCode = </span><span style="color: blue;">null</span><span style="color: black;">) =&gt;
+        </span><span style="color: blue;">new </span><span style="color: #2b91af;">EqualityComparerWrapper</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(equals, getHashCode);</span></pre>
+<p>.NET provides a built-in API Comparer&lt;T&gt;.Create to convert function to IComparer&lt;T&gt;, which can be directly used. F#’s core library provides a Microsoft.FSharp.Collections.HashIdentity type to wrap functions for IEqualityComparer&lt;T&gt;, but it is not easy to use in C#. So the EqualityComparerWrapper&lt;T&gt; wrapper can be defined:</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">EqualityComparerWrapper</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IEqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; equals;
+
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; getHashCode;
+
+    </span><span style="color: blue;">public </span><span style="color: black;">EqualityComparerWrapper(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; equals, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; getHashCode = </span><span style="color: blue;">null</span><span style="color: black;">)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.equals = equals;
+        </span><span style="color: blue;">this</span><span style="color: black;">.getHashCode = getHashCode ?? (value =&gt; value.GetHashCode());
+    }
+
+    </span><span style="color: blue;">public bool </span><span style="color: black;">Equals(</span><span style="color: #2b91af;">T </span><span style="color: black;">x, </span><span style="color: #2b91af;">T </span><span style="color: black;">y) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.equals(x, y);
+
+    </span><span style="color: blue;">public int </span><span style="color: black;">GetHashCode(</span><span style="color: #2b91af;">T </span><span style="color: black;">obj) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.getHashCode(obj);
+}</span></pre>
+<p>The getHashCode function is optional, because any type inherits a GetHashCode method from object. Take the ordering query methods as example, now overloads can be defined to accept a (T, T) –&gt; int function instead of IComparer&lt;T&gt; interface:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; OrderBy&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; compare) =&gt;
+        source.OrderBy(keySelector, ToComparer(compare));
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; OrderByDescending&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; compare) =&gt;
+        source.OrderByDescending(keySelector, ToComparer(compare));
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; ThenBy&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; compare) =&gt;
+        source.ThenBy(keySelector, ToComparer(compare));
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; ThenByDescending&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; compare) =&gt;
+        source.ThenByDescending(keySelector, ToComparer(compare));</span></pre>
+<p>Similar overloads can be defined for GroupBy, Join, GroupJoin, Distinct, Union, Intersect, Except:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; GroupBy&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TElement</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TElement</span><span style="color: black;">&gt; elementSelector,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TElement</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; equals,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; getHashCode = </span><span style="color: blue;">null</span><span style="color: black;">) =&gt;
+        source.GroupBy(keySelector, elementSelector, resultSelector, ToEqualityComparer(equals, getHashCode));
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Join&lt;</span><span style="color: #2b91af;">TOuter</span><span style="color: black;">, </span><span style="color: #2b91af;">TInner</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TOuter</span><span style="color: black;">&gt; outer,
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TInner</span><span style="color: black;">&gt; inner,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TOuter</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; outerKeySelector,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TInner</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; innerKeySelector,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TOuter</span><span style="color: black;">, </span><span style="color: #2b91af;">TInner</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; equals,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; getHashCode = </span><span style="color: blue;">null</span><span style="color: black;">) =&gt;
+        outer.Join(
+            inner,
+            outerKeySelector,
+            innerKeySelector,
+            resultSelector,
+            ToEqualityComparer(equals, getHashCode));
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; GroupJoin&lt;</span><span style="color: #2b91af;">TOuter</span><span style="color: black;">, </span><span style="color: #2b91af;">TInner</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TOuter</span><span style="color: black;">&gt; outer,
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TInner</span><span style="color: black;">&gt; inner,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TOuter</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; outerKeySelector,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TInner</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; innerKeySelector,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TOuter</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TInner</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; equals,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; getHashCode = </span><span style="color: blue;">null</span><span style="color: black;">) =&gt;
+        outer.GroupJoin(
+            inner,
+            outerKeySelector,
+            innerKeySelector,
+            resultSelector,
+            ToEqualityComparer(equals, getHashCode));
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Distinct&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; equals,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; getHashCode = </span><span style="color: blue;">null</span><span style="color: black;">) =&gt;
+        source.Distinct(ToEqualityComparer(equals, getHashCode));
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Union&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; first,
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; second,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; equals,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; getHashCode = </span><span style="color: blue;">null</span><span style="color: black;">) =&gt;
+        first.Union(second, ToEqualityComparer(equals, getHashCode));
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Intersect&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; first,
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; second,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; equals,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; getHashCode = </span><span style="color: blue;">null</span><span style="color: black;">) =&gt;
+        first.Intersect(second, ToEqualityComparer(equals, getHashCode));
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Except&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; first,
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; second,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; equals,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; getHashCode = </span><span style="color: blue;">null</span><span style="color: black;">) =&gt;
+        first.Except(second, ToEqualityComparer(equals, getHashCode));</span></pre>
+<h2>List</h2>
+<p>The List&lt;T&gt; type provides handy methods, which can be implemented for sequence too. The Insert query method return a new sequence with the specified value inserted at the specified index:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Insert&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: blue;">int </span><span style="color: black;">index, </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value)
+{
+    </span><span style="color: blue;">if </span><span style="color: black;">(index &lt; 0)
+    {
+        </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(index));
+    }
+
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; InsertGenerator()
+    {
+        </span><span style="color: blue;">int </span><span style="color: black;">currentIndex = 0;
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">sourceValue </span><span style="color: blue;">in </span><span style="color: black;">source)
+        {
+            </span><span style="color: blue;">if </span><span style="color: black;">(currentIndex == index)
+            {
+                </span><span style="color: blue;">yield return </span><span style="color: black;">value;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+            }
+            </span><span style="color: blue;">yield return </span><span style="color: black;">sourceValue;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+            currentIndex = </span><span style="color: blue;">checked</span><span style="color: black;">(currentIndex + 1);
+        }
+        </span><span style="color: blue;">if </span><span style="color: black;">(index == currentIndex)
+        {
+            </span><span style="color: blue;">yield return </span><span style="color: black;">value;<span style="color: black;"> </span><span style="color: green;">// Deferred execution.</span>
+        }
+        </span><span style="color: blue;">else if </span><span style="color: black;">(index &gt; currentIndex)
+        {
+            </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(
+                </span><span style="color: blue;">nameof</span><span style="color: black;">(index),
+                </span><span style="color: #a31515;">$"</span><span style="color: black;">{</span><span style="color: blue;">nameof</span><span style="color: black;">(index)} </span><span style="color: #a31515;">must be within the bounds of </span><span style="color: black;">{</span><span style="color: blue;">nameof</span><span style="color: black;">(source)}</span><span style="color: #a31515;">."</span><span style="color: black;">);
+        }
+    }
+    </span><span style="color: blue;">return </span><span style="color: black;">InsertGenerator();
+}</span></pre>
+<p>There are some difference between the above Insert query method and List&lt;T&gt;.Insert. The above Insert is fluent by returning IEnumerable&lt;T&gt;, while List&lt;T&gt;.Insert returns void so is not fluent. The above Insert creates a new sequence with the specified value inserted, while List&lt;T&gt;.Insert directly changes the original list. The above Insert also implements deferred execution and lazy evaluation with generator, while List&lt;T&gt;.Insert executes immediately.</p>
+<p>RemoveAt returns a new sequence with a value removed at the specified index:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; RemoveAt&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: blue;">int </span><span style="color: black;">index)
+{
+    </span><span style="color: blue;">if </span><span style="color: black;">(index &lt; 0)
+    {
+        </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(index));
+    }
+
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; RemoveAtGenerator()
+    {
+        </span><span style="color: blue;">int </span><span style="color: black;">currentIndex = 0;
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+        {
+            </span><span style="color: blue;">if </span><span style="color: black;">(currentIndex != index)
+            {
+                </span><span style="color: blue;">yield return </span><span style="color: black;">value; </span><span style="color: green;">// Deferred execution.
+            </span><span style="color: black;">}
+            currentIndex = </span><span style="color: blue;">checked</span><span style="color: black;">(currentIndex + 1);
+        }
+        </span><span style="color: blue;">if </span><span style="color: black;">(index &gt;= currentIndex)
+        {
+            </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(index));
+        }
+    }
+    </span><span style="color: blue;">return </span><span style="color: black;">RemoveAtGenerator();
+}</span></pre>
+<p>Remove returns a new sequence with the first occurrence of the specified value removed. Besides being deferred and lazy, it also accepts an optional equality comparer:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Remove&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value,
+    </span><span style="color: #2b91af;">IEqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; comparer = </span><span style="color: blue;">null</span><span style="color: black;">)
+{
+    comparer = comparer ?? </span><span style="color: #2b91af;">EqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;.Default;
+    </span><span style="color: blue;">bool </span><span style="color: black;">isRemoved = </span><span style="color: blue;">false</span><span style="color: black;">;
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">sourceValue </span><span style="color: blue;">in </span><span style="color: black;">source)
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(!isRemoved &amp;&amp; comparer.Equals(sourceValue, value))
+        {
+            isRemoved = </span><span style="color: blue;">true</span><span style="color: black;">;
+        }
+        </span><span style="color: blue;">else
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">yield return </span><span style="color: black;">sourceValue; </span><span style="color: green;">// Deferred execution.
+        </span><span style="color: black;">}
+    }
+}</span></pre>
+<p>RemoveAll return a new sequence with all occurrences of the specified value removed:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; RemoveAll&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value,
+    </span><span style="color: #2b91af;">IEqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; comparer = </span><span style="color: blue;">null</span><span style="color: black;">)
+{
+    comparer = comparer ?? </span><span style="color: #2b91af;">EqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;.Default;
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">sourceValue </span><span style="color: blue;">in </span><span style="color: black;">source)
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(!comparer.Equals(sourceValue, value))
+        {
+            </span><span style="color: blue;">yield return </span><span style="color: black;">sourceValue; </span><span style="color: green;">// Deferred execution.
+        </span><span style="color: black;">}
+    }
+}</span></pre>
+<h1>Collection queries</h1>
+<h2>Comparison</h2>
+<p>ToDictionary and ToLookup accept IEqualityComparer&lt;T&gt; too. Their overloads for functions can be defined:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">Dictionary</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TElement</span><span style="color: black;">&gt; ToDictionary&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TElement</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TElement</span><span style="color: black;">&gt; elementSelector,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; equals,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; getHashCode = </span><span style="color: blue;">null</span><span style="color: black;">) =&gt;
+        source.ToDictionary(keySelector, elementSelector, ToEqualityComparer(equals, getHashCode));
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">ILookup</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TElement</span><span style="color: black;">&gt; ToLookup&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TElement</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TElement</span><span style="color: black;">&gt; elementSelector,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; equals,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; getHashCode = </span><span style="color: blue;">null</span><span style="color: black;">) =&gt;
+        source.ToLookup(keySelector, elementSelector, ToEqualityComparer(equals, getHashCode));</span></pre>
+<h1>Returns a single value</h1>
+<h2>List</h2>
+<p>IndexOf is similar to List&lt;T&gt;.IndexOf. It finds the index of first occurrence of the specified value. –1 is returned id the specified value is not found:</p>
+<pre class="code"><span style="color: blue;">public static int </span><span style="color: black;">IndexOf&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value,
+    </span><span style="color: blue;">int </span><span style="color: black;">startIndex = 0,
+    </span><span style="color: blue;">int</span><span style="color: black;">? count = </span><span style="color: blue;">null</span><span style="color: black;">,
+    </span><span style="color: #2b91af;">IEqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; comparer = </span><span style="color: blue;">null</span><span style="color: black;">)
+{
+    comparer = comparer ?? </span><span style="color: #2b91af;">EqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;.Default;
+    source = source.Skip(startIndex);
+    </span><span style="color: blue;">if </span><span style="color: black;">(count != </span><span style="color: blue;">null</span><span style="color: black;">)
+    {
+        source = source.Take(count.Value);
+    }
+    </span><span style="color: blue;">int </span><span style="color: black;">index = </span><span style="color: blue;">checked</span><span style="color: black;">(0 + startIndex);
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">sourceValue </span><span style="color: blue;">in </span><span style="color: black;">source)
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(comparer.Equals(sourceValue, value))
+        {
+            </span><span style="color: blue;">return </span><span style="color: black;">index;
+        }
+        index = </span><span style="color: blue;">checked</span><span style="color: black;">(index + 1);
+    }
+    </span><span style="color: blue;">return </span><span style="color: black;">-1;
+}</span></pre>
+<p>LastIndexOf finds the index of last occurrence of the specified value:</p>
+<pre class="code"><span style="color: blue;">public static int </span><span style="color: black;">LastIndexOf&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value,
+    </span><span style="color: blue;">int </span><span style="color: black;">startIndex = 0,
+    </span><span style="color: blue;">int</span><span style="color: black;">? count = </span><span style="color: blue;">null</span><span style="color: black;">,
+    </span><span style="color: #2b91af;">IEqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; comparer = </span><span style="color: blue;">null</span><span style="color: black;">)
+{
+    comparer = comparer ?? </span><span style="color: #2b91af;">EqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;.Default;
+    source = source.Skip(startIndex);
+    </span><span style="color: blue;">if </span><span style="color: black;">(count != </span><span style="color: blue;">null</span><span style="color: black;">)
+    {
+        source = source.Take(count.Value);
+    }
+    </span><span style="color: blue;">int </span><span style="color: black;">lastIndex = -1;
+    </span><span style="color: blue;">int </span><span style="color: black;">index = </span><span style="color: blue;">checked</span><span style="color: black;">(0 + startIndex);
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">sourceValue </span><span style="color: blue;">in </span><span style="color: black;">source)
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(comparer.Equals(sourceValue, value))
+        {
+            lastIndex = index;
+        }
+        index = </span><span style="color: blue;">checked</span><span style="color: black;">(index + 1);
+    }
+    </span><span style="color: blue;">return </span><span style="color: black;">lastIndex;
+}</span></pre>
+<h2>Aggregation</h2>
+<p>.NET provides basic aggregation queries, including Sum/Average/Max/Min queries. In reality, it is also common to calculate the variance, standard deviation, and percentile. The following VariancePopulation/VarianceSample/Variance query methods are equivalent to Excel <a href="https://support.office.com/en-us/article/VAR-P-function-73d1285c-108c-4843-ba5d-a51f90656f3a" target="_blank">VAR.P</a>/<a href="https://support.office.com/en-us/article/VAR-S-function-913633de-136b-449d-813e-65a00b2b990b" target="_blank">VAR.S</a>/<a href="https://support.office.com/en-us/article/VAR-function-270da762-03d5-4416-8503-10008194458a" target="_blank">VAR</a> functions:</p>
+<pre class="code"><span style="color: blue;">public static double </span><span style="color: black;">VariancePopulation&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;( <span style="color: black;"></span><span style="color: green;">// Excel VAR.P function.</span>
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector,
+    </span><span style="color: #2b91af;">IFormatProvider </span><span style="color: black;">formatProvider = </span><span style="color: blue;">null</span><span style="color: black;">)
+    </span><span style="color: blue;">where </span><span style="color: #2b91af;">TKey </span><span style="color: black;">: </span><span style="color: #2b91af;">IConvertible
+</span><span style="color: black;">{</span><span style="color: green;">
+    </span><span style="color: blue;">double</span><span style="color: black;">[] keys = source.Select(key =&gt; keySelector(key).ToDouble(formatProvider)).ToArray();
+    </span><span style="color: blue;">double </span><span style="color: black;">mean = keys.Average();
+    </span><span style="color: blue;">return </span><span style="color: black;">keys.Sum(key =&gt; (key - mean) * (key - mean)) / keys.Length;
+}
+
+</span><span style="color: blue;">public static double </span><span style="color: black;">VarianceSample&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;( <span style="color: black;"></span><span style="color: green;">// Excel VAR.S function.</span>
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector,
+    </span><span style="color: #2b91af;">IFormatProvider </span><span style="color: black;">formatProvider = </span><span style="color: blue;">null</span><span style="color: black;">)
+    </span><span style="color: blue;">where </span><span style="color: #2b91af;">TKey </span><span style="color: black;">: </span><span style="color: #2b91af;">IConvertible
+</span><span style="color: black;">{</span><span style="color: green;">
+    </span><span style="color: blue;">double</span><span style="color: black;">[] keys = source.Select(key =&gt; keySelector(key).ToDouble(formatProvider)).ToArray();
+    </span><span style="color: blue;">double </span><span style="color: black;">mean = keys.Average();
+    </span><span style="color: blue;">return </span><span style="color: black;">keys.Sum(key =&gt; (key - mean) * (key - mean)) / (keys.Length - 1);
+}
+
+</span><span style="color: blue;">public static double </span><span style="color: black;">Variance&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;( <span style="color: black;"></span><span style="color: green;">// Excel VAR function.</span>
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector,
+    </span><span style="color: #2b91af;">IFormatProvider </span><span style="color: black;">formatProvider = </span><span style="color: blue;">null</span><span style="color: black;">)
+    </span><span style="color: blue;">where </span><span style="color: #2b91af;">TKey </span><span style="color: black;">: </span><span style="color: #2b91af;">IConvertible </span><span style="color: black;">=&gt;</span><span style="color: green;">
+        </span><span style="color: black;">source.VarianceSample(keySelector, formatProvider);</span></pre>
+<p>And the following StandardDeviationPopulation/StabdardDeviationSample/StabdardDeviation query methods implements Excel <a href="https://support.office.com/en-us/article/STDEV-P-function-6e917c05-31a0-496f-ade7-4f4e7462f285" target="_blank">STDEV.P</a>/<a href="https://support.office.com/en-us/article/STDEV-S-function-7d69cf97-0c1f-4acf-be27-f3e83904cc23" target="_blank">STDEV.S</a>/<a href="https://support.office.com/en-us/article/STDEV-function-51fecaaa-231e-4bbb-9230-33650a72c9b0" target="_blank">STDEV</a> functions:</p>
+<pre class="code"><span style="color: blue;">public static double </span><span style="color: black;">StandardDeviationPopulation&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;( <span style="color: black;"></span><span style="color: green;">// Excel STDEV.P function.</span>
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector,
+    </span><span style="color: #2b91af;">IFormatProvider </span><span style="color: black;">formatProvider = </span><span style="color: blue;">null</span><span style="color: black;">)
+    </span><span style="color: blue;">where </span><span style="color: #2b91af;">TKey </span><span style="color: black;">: </span><span style="color: #2b91af;">IConvertible </span><span style="color: black;">=&gt;</span><span style="color: green;">
+        </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(source.VariancePopulation(keySelector, formatProvider));
+
+</span><span style="color: blue;">public static double </span><span style="color: black;">StandardDeviationSample&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;( <span style="color: black;"></span><span style="color: green;">// Excel STDEV.S function.</span>
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector,
+    </span><span style="color: #2b91af;">IFormatProvider </span><span style="color: black;">formatProvider = </span><span style="color: blue;">null</span><span style="color: black;">)
+    </span><span style="color: blue;">where </span><span style="color: #2b91af;">TKey </span><span style="color: black;">: </span><span style="color: #2b91af;">IConvertible </span><span style="color: black;">=&gt;</span><span style="color: green;">
+        </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(source.VarianceSample(keySelector, formatProvider));
+
+</span><span style="color: blue;">public static double </span><span style="color: black;">StandardDeviation&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;( <span style="color: black;"></span><span style="color: green;">// Excel STDDEV.P function.</span>
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector,
+    </span><span style="color: #2b91af;">IFormatProvider </span><span style="color: black;">formatProvider = </span><span style="color: blue;">null</span><span style="color: black;">)
+    </span><span style="color: blue;">where </span><span style="color: #2b91af;">TKey </span><span style="color: black;">: </span><span style="color: #2b91af;">IConvertible </span><span style="color: black;">=&gt;</span><span style="color: green;">
+        </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(source.Variance(keySelector, formatProvider));</span></pre>
+<p>And the following PercentileExclusive/PercentileInclusive/Percentile implement Excel <a href="https://support.office.com/en-us/article/PERCENTILE-EXC-function-bbaa7204-e9e1-4010-85bf-c31dc5dce4ba" target="_blank">PERCENTILE.EXC</a>/<a href="https://support.office.com/en-us/article/PERCENTILE-INC-Function-DAX-15f69af8-1588-4863-9acf-2acc00384ffd" target="_blank">PERCENTILE.INC</a>/<a href="https://support.office.com/en-us/article/PERCENTILE-function-91b43a53-543c-4708-93de-d626debdddca" target="_blank">PERCENTILE</a> functions:</p>
+<pre class="code"><span style="color: blue;">public static double </span><span style="color: black;">PercentileExclusive&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;( </span><span style="color: green;">// Excel PERCENTILE.EXC function.
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector,
+    </span><span style="color: blue;">double </span><span style="color: black;">percentile,
+    </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; comparer = </span><span style="color: blue;">null</span><span style="color: black;">,
+    </span><span style="color: #2b91af;">IFormatProvider </span><span style="color: black;">formatProvider = </span><span style="color: blue;">null</span><span style="color: black;">)
+    </span><span style="color: blue;">where </span><span style="color: #2b91af;">TKey </span><span style="color: black;">: </span><span style="color: #2b91af;">IConvertible
+</span><span style="color: black;">{
+    </span><span style="color: blue;">if </span><span style="color: black;">(percentile &lt; 0 || percentile &gt; 1)
+    {
+        </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(percentile), </span><span style="color: #a31515;">$"</span><span style="color: black;">{</span><span style="color: blue;">nameof</span><span style="color: black;">(percentile)} </span><span style="color: #a31515;">must be between 0 and 1."</span><span style="color: black;">);
+    }
+</span><span style="color: green;">
+    </span><span style="color: black;">comparer = comparer ?? </span><span style="color: #2b91af;">Comparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;.Default;
+    </span><span style="color: #2b91af;">TKey</span><span style="color: black;">[] orderedKeys = source.Select(keySelector).OrderBy(key =&gt; key, comparer).ToArray();
+    </span><span style="color: blue;">int </span><span style="color: black;">length = orderedKeys.Length;
+    </span><span style="color: blue;">if </span><span style="color: black;">(percentile &lt; (</span><span style="color: blue;">double</span><span style="color: black;">)1 / length || percentile &gt; 1 - (</span><span style="color: blue;">double</span><span style="color: black;">)1 / (length + 1))
+    {
+        </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(
+            </span><span style="color: blue;">nameof</span><span style="color: black;">(percentile),
+            </span><span style="color: #a31515;">$"</span><span style="color: black;">{</span><span style="color: blue;">nameof</span><span style="color: black;">(percentile)} </span><span style="color: #a31515;">must be in the range between (1 / source.Count()) and (1 - 1 / source.Count())."</span><span style="color: black;">);
+    }
+
+    </span><span style="color: blue;">double </span><span style="color: black;">index = percentile * (length + 1) - 1;
+    </span><span style="color: blue;">int </span><span style="color: black;">integerComponentOfIndex = (</span><span style="color: blue;">int</span><span style="color: black;">)index;
+    </span><span style="color: blue;">double </span><span style="color: black;">decimalComponentOfIndex = index - integerComponentOfIndex;
+    </span><span style="color: blue;">double </span><span style="color: black;">keyAtIndex = orderedKeys[integerComponentOfIndex].ToDouble(formatProvider);
+
+    </span><span style="color: blue;">double </span><span style="color: black;">keyAtNextIndex = orderedKeys[integerComponentOfIndex + 1].ToDouble(formatProvider);
+    </span><span style="color: blue;">return </span><span style="color: black;">keyAtIndex + (keyAtNextIndex - keyAtIndex) * decimalComponentOfIndex;
+}
+
+</span><span style="color: blue;">public static double </span><span style="color: black;">PercentileInclusive&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;( </span><span style="color: green;">// Excel PERCENTILE.INC function.
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector,
+    </span><span style="color: blue;">double </span><span style="color: black;">percentile,
+    </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; comparer = </span><span style="color: blue;">null</span><span style="color: black;">,
+    </span><span style="color: #2b91af;">IFormatProvider </span><span style="color: black;">formatProvider = </span><span style="color: blue;">null</span><span style="color: black;">)
+    </span><span style="color: blue;">where </span><span style="color: #2b91af;">TKey </span><span style="color: black;">: </span><span style="color: #2b91af;">IConvertible
+</span><span style="color: black;">{
+    </span><span style="color: blue;">if </span><span style="color: black;">(percentile &lt; 0 || percentile &gt; 1)
+    {
+        </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(percentile), </span><span style="color: #a31515;">$"</span><span style="color: black;">{</span><span style="color: blue;">nameof</span><span style="color: black;">(percentile)} </span><span style="color: #a31515;">must be between 0 and 1."</span><span style="color: black;">);
+    }
+</span><span style="color: green;">
+    </span><span style="color: black;">comparer = comparer ?? </span><span style="color: #2b91af;">Comparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;.Default;
+    </span><span style="color: #2b91af;">TKey</span><span style="color: black;">[] orderedKeys = source.Select(keySelector).OrderBy(key =&gt; key, comparer).ToArray();
+    </span><span style="color: blue;">int </span><span style="color: black;">length = orderedKeys.Length;
+
+    </span><span style="color: blue;">double </span><span style="color: black;">index = percentile * (length - 1);
+    </span><span style="color: blue;">int </span><span style="color: black;">integerComponentOfIndex = (</span><span style="color: blue;">int</span><span style="color: black;">)index;
+    </span><span style="color: blue;">double </span><span style="color: black;">decimalComponentOfIndex = index - integerComponentOfIndex;
+    </span><span style="color: blue;">double </span><span style="color: black;">keyAtIndex = orderedKeys[integerComponentOfIndex].ToDouble(formatProvider);
+
+    </span><span style="color: blue;">if </span><span style="color: black;">(integerComponentOfIndex &gt;= length - 1)
+    {
+        </span><span style="color: blue;">return </span><span style="color: black;">keyAtIndex;
+    }
+
+    </span><span style="color: blue;">double </span><span style="color: black;">keyAtNextIndex = orderedKeys[integerComponentOfIndex + 1].ToDouble(formatProvider);
+    </span><span style="color: blue;">return </span><span style="color: black;">keyAtIndex + (keyAtNextIndex - keyAtIndex) * decimalComponentOfIndex;
+}
+
+</span><span style="color: blue;">public static double </span><span style="color: black;">Percentile&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;( </span><span style="color: green;">// Excel PERCENTILE function.
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector,
+    </span><span style="color: blue;">double </span><span style="color: black;">percentile,
+    </span><span style="color: #2b91af;">IComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; comparer = </span><span style="color: blue;">null</span><span style="color: black;">,
+    </span><span style="color: #2b91af;">IFormatProvider </span><span style="color: black;">formatProvider = </span><span style="color: blue;">null</span><span style="color: black;">)
+    </span><span style="color: blue;">where </span><span style="color: #2b91af;">TKey </span><span style="color: black;">: </span><span style="color: #2b91af;">IConvertible
+</span><span style="color: black;">{
+    </span><span style="color: blue;">if </span><span style="color: black;">(percentile &lt; 0 || percentile &gt; 1)
+    {
+        </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(percentile), </span><span style="color: #a31515;">$"</span><span style="color: black;">{</span><span style="color: blue;">nameof</span><span style="color: black;">(percentile)} </span><span style="color: #a31515;">must be between 0 and 1."</span><span style="color: black;">);
+    }
+</span><span style="color: green;">
+    </span><span style="color: blue;">return </span><span style="color: black;">PercentileInclusive(source, keySelector, percentile, comparer, formatProvider);
+}</span></pre>
+<h2>Quantifiers</h2>
+<p>string has a very useful IsNullOrEmpty method, and here is the LINQ version:</p>
+<pre class="code"><span style="color: blue;">public static bool </span><span style="color: black;">IsNullOrEmpty&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source) =&gt; source == </span><span style="color: blue;">null </span><span style="color: black;">|| !source.Any();</span></pre>
+<h2>Comparison</h2>
+<p>Contains and SequentialEqual also accepts IEqualityComparer&lt;T&gt;. They can be overloaded with functions:</p>
+<pre class="code"><span style="color: blue;">public static bool </span><span style="color: black;">Contains&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">TSource </span><span style="color: black;">value,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; equals,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; getHashCode = </span><span style="color: blue;">null</span><span style="color: black;">) =&gt;
+        source.Contains(value, ToEqualityComparer(equals, getHashCode));
+
+</span><span style="color: blue;">public static bool </span><span style="color: black;">SequenceEqual&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; first,
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; second,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; equals,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; getHashCode = </span><span style="color: blue;">null</span><span style="color: black;">) =&gt;
+        first.SequenceEqual(second, ToEqualityComparer(equals, getHashCode));</span></pre>
+<h1>Void queries</h1>
+<h2>Iteration</h2>
+<p>EnumerableEx.ForEach from Ix is very handy. However, in contrast of foreach statement, it does not support breaking the loop. So here is an improved EnumerableX.ForEach:</p>
+<pre class="code"><span style="color: blue;">public static void </span><span style="color: black;">ForEach&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; onNext)
+{</span><span style="color: black;">
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(!onNext(value))
+        {
+            </span><span style="color: blue;">break</span><span style="color: black;">;
+        }
+    }
+}</span></pre>
+<p>It follows the same convention of <a href="http://api.jquery.com/jquery.each/" target="_blank">jQuery.each</a>. When onNext function returns false, ForEach stops execution. And the indexed overload is:</p>
+<pre class="code"><span style="color: blue;">public static void </span><span style="color: black;">ForEach&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; onNext)
+{</span><span style="color: black;">
+    </span><span style="color: blue;">int </span><span style="color: black;">index = 0;
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">TSource </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source)
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(!onNext(value, index))
+        {
+            </span><span style="color: blue;">break</span><span style="color: black;">;
+        }
+        index = </span><span style="color: blue;">checked</span><span style="color: black;">(index + 1);</span><span style="color: green;">
+    </span><span style="color: black;">}
+}</span></pre>
+<p>The last overload just iterate the source sequence and pull all values:</p>
+<pre class="code"><span style="color: blue;">public static void </span><span style="color: black;">ForEach(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable </span><span style="color: black;">source)
+{
+    </span><span style="color: #2b91af;">IEnumerator </span><span style="color: black;">iterator = source.GetEnumerator();
+    </span><span style="color: blue;">try
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">while </span><span style="color: black;">(iterator.MoveNext()) { }
+    }
+    </span><span style="color: blue;">finally
+    </span><span style="color: black;">{
+        (iterator </span><span style="color: blue;">as </span><span style="color: #2b91af;">IDisposable</span><span style="color: black;">)?.Dispose();
+    }
+}</span></pre>
+<p>It is useful to just execute a LINQ query and ignore all query results.</p>
+
+
+</div>
+</body>
+</html>

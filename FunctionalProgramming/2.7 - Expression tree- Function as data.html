@@ -1,0 +1,575 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+<h1>C# Functional Programming In-Depth (7) Expression Tree: Function as Data</h1>
+
+<p>C# lambda expression is a powerful syntactic sugar. Besides representing anonymous function, the same syntax can also represent expression tree.</p>
+<h1>Lambda expression as expression tree</h1>
+<p>An expression tree can be created with the same lambda expression syntax for anonymous function:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">ExpressionTree
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">ExpressionLambda()
+    {
+        </span><span style="color: green;">// Func&lt;int, bool&gt; isPositive = int32 =&gt; int32 &gt; 0;
+        </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;&gt; isPositiveExpression = int32 =&gt; int32 &gt; 0;
+    }
+}</span></pre>
+<p>This time, the expected type for the lambda expression is no longer a Func&lt;int, bool&gt; function type, but Expression&lt;Func&lt;int, bool&gt;&gt;. The lambda expression here is no longer compiled to executable anonymous function, but a tree data structure representing that function’s logic, which is called expression tree.</p>
+<h2>Metaprogramming: function as data</h2>
+<p>The above lambda expression is compiled to expression tree building code:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledExpressionLambda()
+{
+    </span><span style="color: #2b91af;">ParameterExpression </span><span style="color: black;">parameterExpression = </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Parameter(</span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: blue;">int</span><span style="color: black;">), </span><span style="color: #a31515;">"int32"</span><span style="color: black;">); </span><span style="color: green;">// int32 parameter.
+    </span><span style="color: #2b91af;">ConstantExpression </span><span style="color: black;">constantExpression = </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Constant(0, </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: blue;">int</span><span style="color: black;">)); </span><span style="color: green;">// 0
+    </span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">greaterThanExpression = </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.GreaterThan(
+        left: parameterExpression, right: constantExpression); </span><span style="color: green;">// int32 &gt; 0
+
+    </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;&gt; isPositiveExpression = </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Lambda&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;&gt;(
+        body: greaterThanExpression, </span><span style="color: green;">// ... =&gt; int32 &gt; 0
+        </span><span style="color: black;">parameters: parameterExpression); </span><span style="color: green;">// int32 =&gt; ...
+</span><span style="color: black;">}</span></pre>
+<p>Here the Expression&lt;Func&lt;int bool&gt;&gt; instance represents the entire tree, the ParameterExpression, ConstantExpression, BinaryExpression instances are nodes in that tree. And they are all derived from System.Linq.Expressions.Expression type:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Linq.Expressions
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public abstract partial class </span><span style="color: #2b91af;">Expression
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">ExpressionType </span><span style="color: black;">NodeType { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">Type </span><span style="color: black;">Type { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">ParameterExpression </span><span style="color: black;">: </span><span style="color: #2b91af;">Expression
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public string </span><span style="color: black;">Name { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">ConstantExpression </span><span style="color: black;">: </span><span style="color: #2b91af;">Expression
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public object </span><span style="color: black;">Value { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">: </span><span style="color: #2b91af;">Expression
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public </span><span style="color: #2b91af;">Expression </span><span style="color: black;">Left { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: blue;">public </span><span style="color: #2b91af;">Expression </span><span style="color: black;">Right { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+
+    </span><span style="color: blue;">public abstract class </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">: </span><span style="color: #2b91af;">Expression
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public </span><span style="color: #2b91af;">Expression </span><span style="color: black;">Body { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: blue;">public </span><span style="color: #2b91af;">ReadOnlyCollection</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ParameterExpression</span><span style="color: black;">&gt; Parameters { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+
+    </span><span style="color: blue;">public sealed class </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TDelegate</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">LambdaExpression
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public </span><span style="color: #2b91af;">TDelegate </span><span style="color: black;">Compile();
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>The above expression tree data structure can be visualized as:</p>
+<pre class="code"><span style="color: black;">Expression&lt;Func&lt;int, bool&gt;&gt; (NodeType = Lambda, Type = Func&lt;int, bool&gt;)
+|_Parameters
+| |_ParameterExpression (NodeType = Parameter, Type = int)
+|   |_Name = "int32"
+|_Body
+  |_BinaryExpression (NodeType = GreaterThan, Type = bool)
+    |_Left
+    | |_ParameterExpression (NodeType = Parameter, Type = int)
+    |   |_Name = "int32"
+    |_Right
+      |_ConstantExpression (NodeType = Constant, Type = int)
+        |_Value = 0</span></pre>
+<p>So this expression tree is an <a href="https://en.wikipedia.org/wiki/Abstract_syntax_tree" target="_blank">abstract syntactic tree</a>, representing the abstract syntactic structure of C# function source code int32 =&gt; int32 &gt; 0. Notice each node has NodeType property and Type property. NodeType returns the represented construct type in the tree, and Type returns the represented .NET type. For example, above ParameterExpression is parameter node representing an int parameter in the source code, so its NodeType is Parameter and its Type is int.</p>
+<p>To summarize, the differences between</p>
+<pre class="code"><span style="color: #2b91af;">Func</span>&lt;<span style="color: blue;">int</span>, <span style="color: blue;">bool</span>&gt; isPositive = int32 =&gt; int32 &gt; 0;<span style="color: black;"> </span><span style="color: green;">// Code.</span></pre>
+<p>and</p>
+<pre class="code"><span style="color: #2b91af;">Expression</span>&lt;<span style="color: #2b91af;">Func</span>&lt;<span style="color: blue;">int</span>, <span style="color: blue;">bool</span>&gt;&gt; isPositiveExpression = int32 =&gt; int32 &gt; 0;<span style="color: black;"> </span><span style="color: green;">// Data.</span></pre>
+<p>are:</p>
+<ul>
+<li>isPositive variable is a function represented by delegate instance, and can be called. The lambda expression int32 =&gt; int32 &gt; 0 is compiled to executable code. When isPositive is called, this code is executed.</li>
+<li>isPositiveExpression variable is an abstract syntactic tree data structure. So apparently it cannot be directly called like an executable function. The lambda expression int32 =&gt; int32 &gt; 0 is compiled to the building of an expression tree, where each node is an Expression instance. This entire tree represents the syntactic structure and logic of function int32 =&gt; int32 &gt; 0. This tree’s top node is a Expression&lt;Func&lt;int, bool&gt;&gt; instance, since this is a lambda expression. It has 2 child nodes:
+<ul>
+<li>A ParameterExpression collection, representing all the parameters of the lambda expression. The lambda expression has 1 parameter, so this collection contains one node:
+<ul>
+<li>A ParameterExpression instance, representing the int parameter named “int32”.</li>
+</ul>
+</li>
+<li>A Body node representing the lambda expression’s body, which is a BinaryExpression instance, representing the body is a “&gt;” (greater than) comparison of 2 operands. So it has 2 child nodes:
+<ul>
+<li>A reference of above ParameterExpression instance, representing the left operand.</li>
+<li>A ConstantExpression instance, representing the right operand 0.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p>Because each node in expression tree is strong typed with rich information. The nodes can be traversed to obtain the represented function’s C# source code logic, and convert to the logic of another language. Here isPositiveExpression represents the function logic to predicate whether an int value is greater than a constant 0, and it can be converted to SQL query’s greater-than predicate in a SQL WHERE clause, etc.</p>
+<h2>.NET expressions</h2>
+<p>Besides above ParameterExpression, ConstantExpression, BinaryExpression, LambdaExpression, .NET provides a rich collection of expressions nodes. The following is their inheritance hierarchy:</p>
+<ul>
+<li>Expression</li>
+<ul>
+<li>BinaryExpression</li>
+<li>BlockExpression</li>
+<li>ConditionalExpression</li>
+<li>ConstantExpression</li>
+<li>DebugInfoExpression</li>
+<li>DefaultExpression</li>
+<li>DynamicExpression</li>
+<li>GotoExpression</li>
+<li>IndexExpression</li>
+<li>InvocationExpression</li>
+<li>LabelExpression</li>
+<li>LambdaExpression</li>
+<ul>
+<li>Expression&lt;TDelegate&gt;</li>
+</ul>
+<li>ListInitExpression</li>
+<li>LoopExpression</li>
+<li>MemberExpression</li>
+<li>MemberInitExpression</li>
+<li>MethodCallExpression</li>
+<li>NewArrayExpression</li>
+<li>NewExpression</li>
+<li>ParameterExpression</li>
+<li>RuntimeVariablesExpression</li>
+<li>SwitchExpression</li>
+<li>TryExpression</li>
+<li>TypeBinaryExpression</li>
+<li>UnaryExpression</li>
+</ul>
+</ul>
+<p>And, as demonstrated above, expression can be instantiated by calling the factory methods of Expression type:</p>
+<pre class="code"><span style="color: blue;">public abstract partial class </span><span style="color: #2b91af;">Expression
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">ParameterExpression </span><span style="color: black;">Parameter(</span><span style="color: #2b91af;">Type </span><span style="color: black;">type, </span><span style="color: blue;">string </span><span style="color: black;">name);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">ConstantExpression </span><span style="color: black;">Constant(</span><span style="color: blue;">object </span><span style="color: black;">value, </span><span style="color: #2b91af;">Type </span><span style="color: black;">type);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">GreaterThan(</span><span style="color: #2b91af;">Expression </span><span style="color: black;">left, </span><span style="color: #2b91af;">Expression </span><span style="color: black;">right);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TDelegate</span><span style="color: black;">&gt; Lambda&lt;</span><span style="color: #2b91af;">TDelegate</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Expression </span><span style="color: black;">body, </span><span style="color: blue;">params </span><span style="color: #2b91af;">ParameterExpression</span><span style="color: black;">[] parameters);
+}</span></pre>
+<p>Expression has many other factory methods to cover all the expression instantiation cases:</p>
+<pre class="code"><span style="color: blue;">public abstract partial class </span><span style="color: #2b91af;">Expression
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">Add(</span><span style="color: #2b91af;">Expression </span><span style="color: black;">left, </span><span style="color: #2b91af;">Expression </span><span style="color: black;">right);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">Subtract(</span><span style="color: #2b91af;">Expression </span><span style="color: black;">left, </span><span style="color: #2b91af;">Expression </span><span style="color: black;">right);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">Multiply(</span><span style="color: #2b91af;">Expression </span><span style="color: black;">left, </span><span style="color: #2b91af;">Expression </span><span style="color: black;">right);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">Divide(</span><span style="color: #2b91af;">Expression </span><span style="color: black;">left, </span><span style="color: #2b91af;">Expression </span><span style="color: black;">right);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">Equal(</span><span style="color: #2b91af;">Expression </span><span style="color: black;">left, </span><span style="color: #2b91af;">Expression </span><span style="color: black;">right);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">UnaryExpression </span><span style="color: black;">ArrayLength(</span><span style="color: #2b91af;">Expression </span><span style="color: black;">array);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">UnaryExpression </span><span style="color: black;">Not(</span><span style="color: #2b91af;">Expression </span><span style="color: black;">expression);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">ConditionalExpression </span><span style="color: black;">Condition(</span><span style="color: #2b91af;">Expression </span><span style="color: black;">test, </span><span style="color: #2b91af;">Expression </span><span style="color: black;">ifTrue, </span><span style="color: #2b91af;">Expression </span><span style="color: black;">ifFalse);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">NewExpression </span><span style="color: black;">New(</span><span style="color: #2b91af;">ConstructorInfo </span><span style="color: black;">constructor, </span><span style="color: blue;">params </span><span style="color: #2b91af;">Expression</span><span style="color: black;">[] arguments);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">MethodCallExpression </span><span style="color: black;">Call(</span><span style="color: #2b91af;">MethodInfo </span><span style="color: black;">method, </span><span style="color: blue;">params </span><span style="color: #2b91af;">Expression</span><span style="color: black;">[] arguments);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">BlockExpression </span><span style="color: black;">Block(</span><span style="color: blue;">params </span><span style="color: #2b91af;">Expression</span><span style="color: black;">[] expressions);
+
+    </span><span style="color: green;">// Other members.
+</span><span style="color: black;">}</span></pre>
+<p>Some expression node can have multiple possible NodeType values. For example:</p>
+<ul>
+<li>UnaryExpression represents any unary operation with an operator and a operand. Its NodeType can be ArrayLength, Negate, Not, Convert, Decreament, Increment, Throw, UnaryPlus, etc.</li>
+<li>BinaryExpression represents any binary operation with an operator, a left operand, and a right operand, its NodeType can be Add, And, Assign, Divide, Equal, .GreaterThan, GreaterThanOrEqual, LessThan, LessThanOrEqual, Modulo, Multiply, NotEqual, Or, Power, Subtract, etc.</li>
+</ul>
+<p>So far C# compiler only implements this “function as data” syntactic sugar for expression lambda, and it is not available to statement lambda yet. The following code cannot be compiled:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">StatementLambda()
+{
+    </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;&gt; isPositiveExpression = int32 =&gt;
+    {
+        </span><span style="color: #2b91af;">Console</span><span style="color: black;">.WriteLine(int32);
+        </span><span style="color: blue;">return </span><span style="color: black;">int32 &gt; 0;
+    };
+}</span></pre>
+<p>It results a compiler error: A lambda expression with a statement body cannot be converted to an expression tree. The above expression tree has to be built manually:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">StatementLambda()
+{
+    </span><span style="color: #2b91af;">ParameterExpression </span><span style="color: black;">parameterExpression = </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Parameter(</span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: blue;">int</span><span style="color: black;">), </span><span style="color: #a31515;">"int32"</span><span style="color: black;">); </span><span style="color: green;">// int32 parameter.
+    </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;&gt; isPositiveExpression = </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Lambda&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;&gt;(
+        body: </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Block( </span><span style="color: green;">// ... =&gt; {
+            // Console.WriteLine(int32);
+            </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Call(</span><span style="color: blue;">new </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Console</span><span style="color: black;">.WriteLine).Method, parameterExpression),
+            </span><span style="color: green;">// return int32 &gt; 0;
+            </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.GreaterThan(parameterExpression, </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Constant(0, </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: blue;">int</span><span style="color: black;">)))), </span><span style="color: green;">// }
+        </span><span style="color: black;">parameters: parameterExpression); </span><span style="color: green;">// int32 =&gt; ...
+</span><span style="color: black;">}</span></pre>
+<h1>Compile expression tree to CIL</h1>
+<p>Expression tree is data - abstract syntactic tree. In C# and LINQ, expression tree is usually used to represent the abstract syntactic structure of function, so that it can be compiled to other <a href="https://en.wikipedia.org/wiki/Domain-specific_language" target="_blank">domain-specific languages</a>, like SQL query, URI query, etc. To demonstrate this, take a simple mathematics function as example, which accepts double parameters and execute the 4 basic binary arithmetical calculation: add, subtract, multiply, divide:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ArithmeticalExpression()
+{
+    </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt;&gt; expression =
+        (a, b, c, d, e) =&gt; a + b - c * d / 2 + e * 3;
+}</span></pre>
+<p>The entire tree can be visualized as:</p>
+<pre class="code"><span style="color: black;">Expression&lt;Func&lt;double, double, double, double, double, double&gt;&gt; (NodeType = Lambda, Type = Func&lt;double, double, double, double, double, double&gt;)
+|_Parameters
+| |_ParameterExpression (NodeType = Parameter, Type = double)
+| | |_Name = "a"
+| |_ParameterExpression (NodeType = Parameter, Type = double)
+| | |_Name = "b"
+| |_ParameterExpression (NodeType = Parameter, Type = double)
+| | |_Name = "c"
+| |_ParameterExpression (NodeType = Parameter, Type = double)
+| | |_Name = "d"
+| |_ParameterExpression (NodeType = Parameter, Type = double)
+|   |_Name = "e"
+|_Body
+  |_BinaryExpression (NodeType = Add, Type = double)
+    |_Left
+    | |_BinaryExpression (NodeType = Subtract, Type = double)
+    |   |_Left
+    |   | |_BinaryExpression (NodeType = Add, Type = double)
+    |   |   |_Left
+    |   |   | |_ParameterExpression (NodeType = Parameter, Type = double)
+    |   |   |   |_Name = "a"
+    |   |   |_Right
+    |   |     |_ParameterExpression (NodeType = Parameter, Type = double)
+    |   |       |_Name = "b"
+    |   |_Right
+    |     |_BinaryExpression (NodeType = Divide, Type = double)
+    |       |_Left
+    |       | |_BinaryExpression (NodeType = Multiply, Type = double)
+    |       |   |_Left
+    |       |   | |_ParameterExpression (NodeType = Parameter, Type = double)
+    |       |   |   |_Name = "c"
+    |       |   |_right
+    |       |     |_ParameterExpression (NodeType = Parameter, Type = double)
+    |       |       |_Name = "d"
+    |       |_Right
+    |         |_ConstantExpression (NodeType = Constant, Type = int)
+    |           |_Value = 2
+    |_Right
+      |_BinaryExpression (NodeType = Multiply, Type = double)
+        |_Left
+        | |_ParameterExpression (NodeType = Parameter, Type = double)
+        |   |_Name = "e"
+        |_Right
+          |_ConstantExpression (NodeType = Constant, Type = int)
+            |_Value = 3</span></pre>
+<p>This is a very simple expression tree, where:</p>
+<ul>
+<li>each internal node is a binary node (BinaryExpression instance) representing add, subtract, multiply, or divide binary operations;</li>
+<li>each leaf node is either a parameter (ParameterExpression instance), or a constant (ConstantExpression instance).</li>
+</ul>
+<p>In total there are 6 kinds of nodes in this tree:</p>
+<ul>
+<li>add: BinaryExpression { NodeType = ExpressionType.Add }</li>
+<li>subtract: BinaryExpression { NodeType = ExpressionType.Subtract }</li>
+<li>multiply: BinaryExpression { NodeType = ExpressionType.Multiply }</li>
+<li>divide: BinaryExpression { NodeType = ExpressionType.Divide}</li>
+<li>constant: ParameterExpression { NodeType = ExpressionType.Constant }</li>
+<li>parameter: ConstantExpression { NodeType = ExpressionType.Parameter }</li>
+</ul>
+<h2>Traverse expression tree</h2>
+<p>Recursively traversing this tree is very easy. The following base type implements the basic logic of traversing:</p>
+<pre class="code"><span style="color: blue;">internal abstract class </span><span style="color: #2b91af;">BinaryArithmeticExpressionVisitor</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">internal virtual </span><span style="color: #2b91af;">TResult </span><span style="color: black;">VisitBody(</span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.VisitNode(expression.Body, expression);
+
+    </span><span style="color: blue;">protected </span><span style="color: #2b91af;">TResult </span><span style="color: black;">VisitNode(</span><span style="color: #2b91af;">Expression </span><span style="color: black;">node, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression)
+    {
+        </span><span style="color: green;">// Processes the 6 types of node.
+        </span><span style="color: blue;">switch </span><span style="color: black;">(node.NodeType)
+        {
+            </span><span style="color: blue;">case </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Add:
+                </span><span style="color: blue;">return this</span><span style="color: black;">.VisitAdd((</span><span style="color: #2b91af;">BinaryExpression</span><span style="color: black;">)node, expression);
+
+            </span><span style="color: blue;">case </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Constant:
+                </span><span style="color: blue;">return this</span><span style="color: black;">.VisitConstant((</span><span style="color: #2b91af;">ConstantExpression</span><span style="color: black;">)node, expression);
+
+            </span><span style="color: blue;">case </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Divide:
+                </span><span style="color: blue;">return this</span><span style="color: black;">.VisitDivide((</span><span style="color: #2b91af;">BinaryExpression</span><span style="color: black;">)node, expression);
+
+            </span><span style="color: blue;">case </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Multiply:
+                </span><span style="color: blue;">return this</span><span style="color: black;">.VisitMultiply((</span><span style="color: #2b91af;">BinaryExpression</span><span style="color: black;">)node, expression);
+
+            </span><span style="color: blue;">case </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Parameter:
+                </span><span style="color: blue;">return this</span><span style="color: black;">.VisitParameter((</span><span style="color: #2b91af;">ParameterExpression</span><span style="color: black;">)node, expression);
+
+            </span><span style="color: blue;">case </span><span style="color: #2b91af;">ExpressionType</span><span style="color: black;">.Subtract:
+                </span><span style="color: blue;">return this</span><span style="color: black;">.VisitSubtract((</span><span style="color: #2b91af;">BinaryExpression</span><span style="color: black;">)node, expression);
+
+            </span><span style="color: blue;">default</span><span style="color: black;">:
+                </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(node));
+        }
+    }
+
+    </span><span style="color: blue;">protected abstract </span><span style="color: #2b91af;">TResult </span><span style="color: black;">VisitAdd(</span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">add, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression);
+
+    </span><span style="color: blue;">protected abstract </span><span style="color: #2b91af;">TResult </span><span style="color: black;">VisitConstant(</span><span style="color: #2b91af;">ConstantExpression </span><span style="color: black;">constant, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression);
+
+    </span><span style="color: blue;">protected abstract </span><span style="color: #2b91af;">TResult </span><span style="color: black;">VisitDivide(</span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">divide, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression);
+
+    </span><span style="color: blue;">protected abstract </span><span style="color: #2b91af;">TResult </span><span style="color: black;">VisitMultiply(</span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">multiply, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression);
+
+    </span><span style="color: blue;">protected abstract </span><span style="color: #2b91af;">TResult </span><span style="color: black;">VisitParameter(</span><span style="color: #2b91af;">ParameterExpression </span><span style="color: black;">parameter, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression);
+
+    </span><span style="color: blue;">protected abstract </span><span style="color: #2b91af;">TResult </span><span style="color: black;">VisitSubtract(</span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">subtract, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression);
+}</span></pre>
+<p>The VisitNode method detects the node type, and dispatch to 6 abstract methods for all 6 kinds of nodes. The following type implements those 6 methods:</p>
+<pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">PrefixVisitor </span><span style="color: black;">: </span><span style="color: #2b91af;">BinaryArithmeticExpressionVisitor</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">protected override string </span><span style="color: black;">VisitAdd
+        (</span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">add, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.VisitBinary(add, </span><span style="color: #a31515;">"add"</span><span style="color: black;">, expression);
+
+    </span><span style="color: blue;">protected override string </span><span style="color: black;">VisitConstant
+        (</span><span style="color: #2b91af;">ConstantExpression </span><span style="color: black;">constant, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression) =&gt; constant.Value.ToString();
+
+    </span><span style="color: blue;">protected override string </span><span style="color: black;">VisitDivide
+        (</span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">divide, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.VisitBinary(divide, </span><span style="color: #a31515;">"div"</span><span style="color: black;">, expression);
+
+    </span><span style="color: blue;">protected override string </span><span style="color: black;">VisitMultiply
+        (</span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">multiply, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression) =&gt;
+            </span><span style="color: blue;">this</span><span style="color: black;">.VisitBinary(multiply, </span><span style="color: #a31515;">"mul"</span><span style="color: black;">, expression);
+
+    </span><span style="color: blue;">protected override string </span><span style="color: black;">VisitParameter
+        (</span><span style="color: #2b91af;">ParameterExpression </span><span style="color: black;">parameter, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression) =&gt; parameter.Name;
+
+    </span><span style="color: blue;">protected override string </span><span style="color: black;">VisitSubtract
+        (</span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">subtract, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression) =&gt;
+            </span><span style="color: blue;">this</span><span style="color: black;">.VisitBinary(subtract, </span><span style="color: #a31515;">"sub"</span><span style="color: black;">, expression);
+
+    </span><span style="color: blue;">private string </span><span style="color: black;">VisitBinary( </span><span style="color: green;">// Recursion: operator(left, right)
+        </span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">binary, </span><span style="color: blue;">string </span><span style="color: black;">@operator, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression) =&gt;
+            </span><span style="color: #a31515;">$"</span><span style="color: black;">{@operator}</span><span style="color: #a31515;">(</span><span style="color: black;">{</span><span style="color: blue;">this</span><span style="color: black;">.VisitNode(binary.Left, expression)}</span><span style="color: #a31515;">, </span><span style="color: black;">{</span><span style="color: blue;">this</span><span style="color: black;">.VisitNode(binary.Right, expression)}</span><span style="color: #a31515;">)"</span><span style="color: black;">;
+}</span></pre>
+<p>When visiting a binary node, it recursively outputs in prefix style operator(left, right). For example, the infix expression a + b is converted to add(a, b), which can be viewed as calling add function with arguments a and b. The following code outputs the function body’s logic in prefixed, function call style:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">ExpressionTree
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Prefix()
+    {
+        </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt;&gt; infix =
+            (a, b, c, d, e) =&gt; a + b - c * d / 2 + e * 3;
+        </span><span style="color: #2b91af;">PrefixVisitor </span><span style="color: black;">prefixVisitor = </span><span style="color: blue;">new </span><span style="color: #2b91af;">PrefixVisitor</span><span style="color: black;">();
+        </span><span style="color: blue;">string </span><span style="color: black;">prefix = prefixVisitor.VisitBody(infix); </span><span style="color: green;">// add(sub(add(a, b), div(mul(c, d), 2)), mul(e, 3))
+    </span><span style="color: black;">}
+}</span></pre>
+<p>Actually .NET provides a built-in <a href="http://msdn.microsoft.com/en-us/library/system.linq.expressions.expressionvisitor.aspx" target="_blank">System.Linq.Expressions.ExpressionVisitor</a> type. Here traversers are implemented from scratch just for demonstration purpose.</p>
+<h2>Expression tree to CIL at runtime</h2>
+<p align="left">If the output is in postfix style (a, b, add), then it can be viewed as: load a to stack, load b to stack, add 2 values on stack. This is how the stack based CIL language works. So a different visitor can be created to output <a href="https://en.wikipedia.org/wiki/List_of_CIL_instructions">CIL instructions</a>. CIL instructions can be represented by <a href="https://msdn.microsoft.com/en-us/library/system.reflection.emit.opcode.aspx" target="_blank">System.Reflection.Emit.OpCode</a> structures. So the output can be a sequence of instruction-argument pairs, represented by a tuple of a OpCode value, and a double value (operand) or null (no operand):</p>
+<pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">PostfixVisitor </span><span style="color: black;">: </span><span style="color: #2b91af;">BinaryArithmeticExpressionVisitor</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">OpCode</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">?)&gt;&gt;
+{
+    </span><span style="color: blue;">protected override </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">OpCode</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">?)&gt; VisitAdd(
+        </span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">add, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.VisitBinary(add, </span><span style="color: #2b91af;">OpCodes</span><span style="color: black;">.Add, expression);
+
+    </span><span style="color: blue;">protected override </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">OpCode</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">?)&gt; VisitConstant(
+        </span><span style="color: #2b91af;">ConstantExpression </span><span style="color: black;">constant, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression) =&gt;
+            </span><span style="color: blue;">new </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">OpCode</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">?)&gt;() { (</span><span style="color: #2b91af;">OpCodes</span><span style="color: black;">.Ldc_R8, (</span><span style="color: blue;">double</span><span style="color: black;">?)constant.Value) };
+
+    </span><span style="color: blue;">protected override </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">OpCode</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">?)&gt; VisitDivide(
+        </span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">divide, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression) =&gt;
+            </span><span style="color: blue;">this</span><span style="color: black;">.VisitBinary(divide, </span><span style="color: #2b91af;">OpCodes</span><span style="color: black;">.Div, expression);
+
+    </span><span style="color: blue;">protected override </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">OpCode</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">?)&gt; VisitMultiply(
+        </span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">multiply, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression) =&gt;
+            </span><span style="color: blue;">this</span><span style="color: black;">.VisitBinary(multiply, </span><span style="color: #2b91af;">OpCodes</span><span style="color: black;">.Mul, expression);
+
+    </span><span style="color: blue;">protected override </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">OpCode</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">?)&gt; VisitParameter(
+        </span><span style="color: #2b91af;">ParameterExpression </span><span style="color: black;">parameter, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression)
+    {
+        </span><span style="color: blue;">int </span><span style="color: black;">index = expression.Parameters.IndexOf(parameter);
+        </span><span style="color: blue;">return new </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">OpCode</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">?)&gt;() { (</span><span style="color: #2b91af;">OpCodes</span><span style="color: black;">.Ldarg_S, (</span><span style="color: blue;">double</span><span style="color: black;">?)index) };
+    }
+
+    </span><span style="color: blue;">protected override </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">OpCode</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">?)&gt; VisitSubtract(
+        </span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">subtract, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression) =&gt;
+            </span><span style="color: blue;">this</span><span style="color: black;">.VisitBinary(subtract, </span><span style="color: #2b91af;">OpCodes</span><span style="color: black;">.Sub, expression);
+
+    </span><span style="color: blue;">private </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">OpCode</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">?)&gt; VisitBinary( </span><span style="color: green;">// Recursion: left, right, operator
+        </span><span style="color: #2b91af;">BinaryExpression </span><span style="color: black;">binary, </span><span style="color: #2b91af;">OpCode </span><span style="color: black;">postfix, </span><span style="color: #2b91af;">LambdaExpression </span><span style="color: black;">expression)
+    {
+        </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">OpCode</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">?)&gt; cils = </span><span style="color: blue;">this</span><span style="color: black;">.VisitNode(binary.Left, expression);
+        cils.AddRange(</span><span style="color: blue;">this</span><span style="color: black;">.VisitNode(binary.Right, expression));
+        cils.Add((postfix, (</span><span style="color: blue;">double</span><span style="color: black;">?)</span><span style="color: blue;">null</span><span style="color: black;">));
+        </span><span style="color: blue;">return </span><span style="color: black;">cils;
+    }
+}</span></pre>
+<p>The following code outputs a sequence of CIL code:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Cil()
+{
+    </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt;&gt; infix =
+        (a, b, c, d, e) =&gt; a + b - c * d / 2 + e * 3;
+
+    </span><span style="color: #2b91af;">PostfixVisitor </span><span style="color: black;">postfixVisitor = </span><span style="color: blue;">new </span><span style="color: #2b91af;">PostfixVisitor</span><span style="color: black;">();
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">OpCode</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">?)&gt; postfix = postfixVisitor.VisitBody(infix);
+    </span><span style="color: blue;">foreach </span><span style="color: black;">((</span><span style="color: #2b91af;">OpCode </span><span style="color: black;">Operator, </span><span style="color: blue;">double</span><span style="color: black;">? Operand) code </span><span style="color: blue;">in </span><span style="color: black;">postfix)
+    {
+        </span><span style="color: #a31515;">$"</span><span style="color: black;">{code.Operator} {code.Operand}</span><span style="color: #a31515;">"</span><span style="color: black;">.WriteLine();
+    }
+    </span><span style="color: green;">// ldarg.s 0
+    // ldarg.s 1
+    // add
+    // ldarg.s 2
+    // ldarg.s 3
+    // mul
+    // ldc.r8 2
+    // div
+    // sub
+    // ldarg.s 4
+    // ldc.r8 3
+    // mul
+    // add
+</span><span style="color: black;">}</span></pre>
+<p>So the C# logic represented in this expression tree is successfully compiled to CIL language.</p>
+<h2>Expression tree to function at runtime</h2>
+<p>The above compiled CIL code is executable, so a function can be created at runtime, then the CIL code can be emitted into that function. This kind of function is call dynamic function, because it is not in a static assembly generated at compile time, but generated at runtime.</p>
+<pre class="code"><span style="color: blue;">internal static class </span><span style="color: #2b91af;">BinaryArithmeticCompiler
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static </span><span style="color: #2b91af;">TDelegate </span><span style="color: black;">Compile&lt;</span><span style="color: #2b91af;">TDelegate</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TDelegate</span><span style="color: black;">&gt; expression)
+    {
+        </span><span style="color: #2b91af;">DynamicMethod </span><span style="color: black;">dynamicFunction = </span><span style="color: blue;">new </span><span style="color: #2b91af;">DynamicMethod</span><span style="color: black;">(
+            name: </span><span style="color: blue;">string</span><span style="color: black;">.Empty,
+            returnType: expression.ReturnType,
+            parameterTypes: expression.Parameters.Select(parameter =&gt; parameter.Type).ToArray(),
+            m: </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">BinaryArithmeticCompiler</span><span style="color: black;">).Module);
+        EmitIL(dynamicFunction.GetILGenerator(), </span><span style="color: blue;">new </span><span style="color: #2b91af;">PostfixVisitor</span><span style="color: black;">().VisitBody(expression));
+        </span><span style="color: blue;">return </span><span style="color: black;">(</span><span style="color: #2b91af;">TDelegate</span><span style="color: black;">)(</span><span style="color: blue;">object</span><span style="color: black;">)dynamicFunction.CreateDelegate(</span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">TDelegate</span><span style="color: black;">));
+    }
+
+    </span><span style="color: blue;">private static void </span><span style="color: black;">EmitIL(</span><span style="color: #2b91af;">ILGenerator </span><span style="color: black;">ilGenerator, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;(</span><span style="color: #2b91af;">OpCode</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">?)&gt; il)
+    {
+        </span><span style="color: blue;">foreach </span><span style="color: black;">((</span><span style="color: #2b91af;">OpCode </span><span style="color: black;">Operation, </span><span style="color: blue;">double</span><span style="color: black;">? Operand) code </span><span style="color: blue;">in </span><span style="color: black;">il)
+        {
+            </span><span style="color: blue;">if </span><span style="color: black;">(code.Operand == </span><span style="color: blue;">null</span><span style="color: black;">)
+            {
+                ilGenerator.Emit(code.Operation); </span><span style="color: green;">// add, sub, mul, div
+            </span><span style="color: black;">}
+            </span><span style="color: blue;">else if </span><span style="color: black;">(code.Operation == </span><span style="color: #2b91af;">OpCodes</span><span style="color: black;">.Ldarg_S)
+            {
+                ilGenerator.Emit(code.Operation, (</span><span style="color: blue;">int</span><span style="color: black;">)code.Operand); </span><span style="color: green;">// ldarg.s (int)index
+            </span><span style="color: black;">}
+            </span><span style="color: blue;">else
+            </span><span style="color: black;">{
+                ilGenerator.Emit(code.Operation, code.Operand.Value); </span><span style="color: green;">// ldc.r8 (double)constant
+            </span><span style="color: black;">}
+        }
+        ilGenerator.Emit(</span><span style="color: #2b91af;">OpCodes</span><span style="color: black;">.Ret); </span><span style="color: green;">// Returns the result.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>The following code demonstrate how to use it:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Compile()
+{
+    </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt;&gt; expression =
+        (a, b, c, d, e) =&gt; a + b - c * d / 2 + e * 3;
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt; function =
+        </span><span style="color: #2b91af;">BinaryArithmeticCompiler</span><span style="color: black;">.Compile(expression);
+    </span><span style="color: blue;">double </span><span style="color: black;">result = function(1, 2, 3, 4, 5); </span><span style="color: green;">// 12
+</span><span style="color: black;">}</span></pre>
+<p>.NET provides a built-in API, System.Linq.Expressions.Expression&lt;TDelegate&gt;’s Compile method, for this purpose - compile expression tree to executable function at runtime:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">BuiltInCompile()
+{
+    </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt;&gt; infix =
+        (a, b, c, d, e) =&gt; a + b - c * d / 2 + e * 3;
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">, </span><span style="color: blue;">double</span><span style="color: black;">&gt; function = infix.Compile();
+    </span><span style="color: blue;">double </span><span style="color: black;">result = function(1, 2, 3, 4, 5); </span><span style="color: green;">// 12
+</span><span style="color: black;">}</span></pre>
+<p>Internally, Expression&lt;TDelegate&gt;.Compile calls APIs of System.Linq.Expressions.Compiler.LambdaCompile, which is a complete expression tree to CIL compiler implementation.</p>
+<h1>Expression tree and LINQ remote query</h1>
+<p>Expression tree is very important in LINQ remote query, because it is easy to build expression tree, especially with the lambda expression, and it is also easy to compile/convert/translate a C# expression tree’s logic to a different domain or different language. In above examples, expression tree is converted to executable CIL. As fore mentioned, there are local and remote LINQ queries, like relational database. The following examples are a local LINQ to Objects query for local in memory objects, and a remote LINQ to Entities query for relational database:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">ExpressionTree
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">LinqToObjects(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; source)
+    {
+        </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; query = source.Where(product =&gt; product.ListPrice &gt; 0M); </span><span style="color: green;">// Define query.
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">Product </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">query) </span><span style="color: green;">// Execute query.
+        </span><span style="color: black;">{
+            result.Name.WriteLine();
+        }
+    }
+
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">LinqToEntities(</span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; source)
+    {
+        </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; query = source.Where(product =&gt; product.ListPrice &gt; 0M); </span><span style="color: green;">// Define query.
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">Product </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">query) </span><span style="color: green;">// Execute query.
+        </span><span style="color: black;">{
+            result.Name.WriteLine();
+        }
+    }
+}</span></pre>
+<p>The above LINQ to Objects query’s data source is a sequence of Product objects in current .NET application’s local memory. The LINQ to Entities query’s data source is Product table in remote relational database, which is not available in current local memory. In LINQ, local data source and query are represented by IEnumerable&lt;T&gt;, and remote data source and query are represented by IQueryable&lt;T&gt;. They have different LINQ query extension methods, table above Where as example:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Linq
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Enumerable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Where&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; predicate);
+    }
+
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Queryable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Where&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;&gt; predicate);
+    }
+}</span></pre>
+<p>As a result, the Where query and predicate lambda expression share identical syntax for local and remote LINQ queries, but their compilation is totally different. The local query’s predicate is compiled to function, and the remote query’s predicate is compiled to expression tree:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">CompiledExpressionTree
+</span><span style="color: black;">{
+    [</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
+    </span><span style="color: blue;">private static </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; cachedPredicate;
+
+    [</span><span style="color: #2b91af;">CompilerGenerated</span><span style="color: black;">]
+    </span><span style="color: blue;">private static bool </span><span style="color: black;">Predicate(</span><span style="color: #2b91af;">Product </span><span style="color: black;">product) =&gt; product.ListPrice &gt; 0M;
+
+    </span><span style="color: blue;">public static void </span><span style="color: black;">LinqToObjects(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; source)
+    {
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; predicate = cachedPredicate ?? (cachedPredicate = Predicate);
+        </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; query = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Where(source, predicate);
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">Product </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">query) </span><span style="color: green;">// Execute query.
+        </span><span style="color: black;">{
+            </span><span style="color: #2b91af;">TraceExtensions</span><span style="color: black;">.WriteLine(result.Name);
+        }
+    }
+}
+
+</span><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">CompiledExpressionTree
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">LinqToEntities(</span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; source)
+    {
+        </span><span style="color: #2b91af;">ParameterExpression </span><span style="color: black;">productParameter = </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Parameter(</span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">), </span><span style="color: #a31515;">"product"</span><span style="color: black;">);
+        </span><span style="color: #2b91af;">Expression</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;&gt; predicateExpression = </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Lambda&lt;</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt;&gt;(
+            </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.GreaterThan(
+                </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Property(productParameter, </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.ListPrice)),
+                </span><span style="color: #2b91af;">Expression</span><span style="color: black;">.Constant(0M, </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: blue;">decimal</span><span style="color: black;">))),
+            productParameter);
+
+        </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; query = </span><span style="color: #2b91af;">Queryable</span><span style="color: black;">.Where(source, predicateExpression); </span><span style="color: green;">// Define query.
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">Product </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">query) </span><span style="color: green;">// Execute query.
+        </span><span style="color: black;">{
+            </span><span style="color: #2b91af;">TraceExtensions</span><span style="color: black;">.WriteLine(result.Name);
+        }
+    }
+}</span></pre>
+<p>At runtime, when the local query executes, the anonymous function is called for each local value in the source sequence, and the remote query is usually translated to a domain specific language, then submit to the remote data source and execute. Here in LINQ to Entities query, the predicate expression tree is translated to predicate in SQL query, and submitted to the database to execute. The translation from expression tree to SQL will be covered in LINQ to Entities chapter.</p>
+
+
+</div>
+</body>
+</html>

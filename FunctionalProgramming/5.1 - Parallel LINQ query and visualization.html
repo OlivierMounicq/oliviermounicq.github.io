@@ -1,0 +1,512 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+<h1>Parallel LINQ (1) Local Parallel Query and Visualization</h1>
+
+<p>So far, all the discussion for LINQ to Objects/XML does not involve multi-threading, concurrency, or parallel computing. This is by design, because pulling values from an IEnumerable&lt;T&gt; sequence is not thread-safe.When multiple threads simultaneously access one IEnumerable&lt;T&gt; sequence, race condition can occur and lead to unpredictable consequence. As a result, all the LINQ to Objects/XML queries are implemented in a sequential manner with a single thread. To scale LINQ in multi-processor environment, Since .NET Framework4.0, a parallel version of LINQ to Objects is also provided, called Parallel LINQ or PLINQ.</p>
+<h1>Parallel LINQ types and methods</h1>
+<p>Parallel LINQ types are provided as a parity with LINQ to Objects:</p>
+<table width="531" cellspacing="0" cellpadding="2">
+<tbody>
+<tr>
+<td width="278" valign="top">Sequential LINQ</td>
+<td width="251" valign="top">Parallel LINQ</td>
+</tr>
+<tr>
+<td width="278" valign="top">System.Collections.IEnumerable</td>
+<td width="251" valign="top">System.Linq.ParallelQuery</td>
+</tr>
+<tr>
+<td width="278" valign="top">System.Collections.Generic.IEnumerable&lt;T&gt;</td>
+<td width="251" valign="top">System.Linq.ParallelQuery&lt;T&gt;</td>
+</tr>
+<tr>
+<td width="278" valign="top">System.Linq.IOrderedEnumerable&lt;T&gt;</td>
+<td width="251" valign="top">System.Linq.OrderedParallelQuery&lt;T&gt;</td>
+</tr>
+<tr>
+<td width="278" valign="top">System.Linq.Enumerable</td>
+<td width="251" valign="top">System.Linq.ParallelEnumerable</td>
+</tr>
+</tbody>
+</table>
+<p>As the parity, System.Linq.ParallelEnumerable provides the parallel version of System.Linq.Enumerable query methods. For example, the following is the comparison of the sequential and parallel generation query methods Range/Repeat:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Linq
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Enumerable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; Range(</span><span style="color: blue;">int </span><span style="color: black;">start, </span><span style="color: blue;">int </span><span style="color: black;">count);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Repeat&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TResult </span><span style="color: black;">element, </span><span style="color: blue;">int </span><span style="color: black;">count);
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">ParallelEnumerable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; Range(</span><span style="color: blue;">int </span><span style="color: black;">start, </span><span style="color: blue;">int </span><span style="color: black;">count);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Repeat&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">TResult </span><span style="color: black;">element, </span><span style="color: blue;">int </span><span style="color: black;">count);
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>And the following are the sequential and parallel Where/Select/Concat/Cast methods side by side:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Linq
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Enumerable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Where&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; predicate);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Concat&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; first, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; second);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Cast&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable </span><span style="color: black;">source);
+    }
+
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">ParallelEnumerable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Where&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">bool</span><span style="color: black;">&gt; predicate);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Select&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; selector);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; Concat&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; first, </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; second);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Cast&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">ParallelQuery </span><span style="color: black;">source);
+    }
+}</span></pre>
+<p>For each query method, the type of generic source sequence and result sequence is simply replaced by ParallelQuery&lt;T&gt;, the type of non-generic sequence is replaced by ParallelQuery, and other parameter types remain the same. Similarly, the following are the ordering methods side by side, where the type of ordered source sequence and result sequence is replaced by IOrderedQueryable&lt;T&gt;, and, again, the key selector callback function is replaced by expression tree:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Linq
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Enumerable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; OrderBy&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; OrderByDescending&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; ThenBy&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; ThenByDescending&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">IOrderedEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+    }
+
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">ParallelEnumerable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">OrderedParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; OrderBy&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">OrderedParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; OrderByDescending&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">OrderedParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; ThenBy&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">OrderedParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">OrderedParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; ThenByDescending&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt;(
+            </span><span style="color: blue;">this </span><span style="color: #2b91af;">OrderedParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TKey</span><span style="color: black;">&gt; keySelector);
+    }
+}</span></pre>
+<p>With this design, the fluent method chaining, and the LINQ query expression pattern is implemented for Parallel LINQ queries.</p>
+<p>Besides Enumerable parities, ParallelEnumerable also provides additional methods and additional overrides for Aggregate method:</p>
+<ul>
+<li>Sequence queries</li>
+<ul>
+<li>Ordering: AsOrdered, AsUnordered</li>
+<li>Conversion: AsParallel, AsSequential</li>
+<li>Settings: WithCancellation, WithDegreeOfParallelism, WithExecutionMode, WithMergeOptions</li>
+</ul>
+<li>Value queries</li>
+<ul>
+<li>Aggregation: Aggregate</li>
+</ul>
+<li>Void queries</li>
+<ul>
+<li>Iteration: ForAll</li>
+<!--EndFragment--></ul>
+</ul>
+<p>They are covered in this part and the next parts.</p>
+<h1>Parallel vs. sequential query</h1>
+<p>A ParallelQuery&lt;T&gt; instance can be created by calling generation methods of ParallelEnumerable, like Range, Repeat, etc., then the parallel query methods can be called fluently:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Generation()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">&gt; sequentialQuery = </span><span style="color: #2b91af;">Enumerable
+        </span><span style="color: black;">.Repeat(0, 5) </span><span style="color: green;">// Return IEnumerable&lt;int&gt;.
+        </span><span style="color: black;">.Concat(</span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 5)) </span><span style="color: green;">// Enumerable.Concat.
+        </span><span style="color: black;">.Where(int32 =&gt; int32 &gt; 0) </span><span style="color: green;">// Enumerable.Where.
+        </span><span style="color: black;">.Select(int32 =&gt; </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(int32)); </span><span style="color: green;">//  Enumerable.Select.
+
+    </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">&gt; parallelQuery = </span><span style="color: #2b91af;">ParallelEnumerable
+        </span><span style="color: black;">.Repeat(0, 5) </span><span style="color: green;">// Return ParallelQuery&lt;int&gt;.
+        </span><span style="color: black;">.Concat(</span><span style="color: #2b91af;">ParallelEnumerable</span><span style="color: black;">.Range(0, 5)) </span><span style="color: green;">// ParallelEnumerable.Concat.
+        </span><span style="color: black;">.Where(int32 =&gt; int32 &gt; 0) </span><span style="color: green;">// ParallelEnumerable.Where.
+        </span><span style="color: black;">.Select(int32 =&gt; </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(int32)); </span><span style="color: green;">// ParallelEnumerable.Select.
+</span><span style="color: black;">}</span></pre>
+<p>It can also be created by calling ParallelEnumerable.AsParallel for IEnumerable&lt;T&gt; or IEnumerable:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">ParallelQuery </span><span style="color: black;">AsParallel(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable </span><span style="color: black;">source);
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; AsParallel&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source);</span></pre>
+<p>For example,</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">AsParallel(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source1, </span><span style="color: #2b91af;">IEnumerable </span><span style="color: black;">source2)
+{
+    </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; parallelQuery1 = source1 </span><span style="color: green;">// IEnumerable&lt;int&gt;.
+        </span><span style="color: black;">.AsParallel(); </span><span style="color: green;">// Return ParallelQuery&lt;int&gt;.
+
+    </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; parallelQuery2 = source2 </span><span style="color: green;">// IEnumerable.
+        </span><span style="color: black;">.AsParallel() </span><span style="color: green;">// Return ParallelQuery.
+        </span><span style="color: black;">.Cast&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(); </span><span style="color: green;">// ParallelEnumerable.Cast.
+</span><span style="color: black;">}</span></pre>
+<p>AsParallel also has a overload accepting a partitioner, which is discussed later in this chapter.</p>
+<p>To apply sequential query methods to a ParallelQuery&lt;T&gt; instance, just call ParallelEnumerable.AsSequential method, which returns ]IEnumerable&lt;T&gt;, from where the sequential query methods can be called:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; AsSequential&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source);
+</span></pre>
+<p>For example:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">QueryMethods
+</span><span style="color: black;">{
+    </span><span style="color: blue;">private static readonly </span><span style="color: #2b91af;">Assembly </span><span style="color: black;">CoreLibrary = </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: blue;">object</span><span style="color: black;">).Assembly;
+
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">SequentialParallel()
+    {
+        </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; obsoleteTypes = CoreLibrary.GetExportedTypes() </span><span style="color: green;">// Return IEnumerable&lt;Type&gt;.
+            </span><span style="color: black;">.AsParallel() </span><span style="color: green;">// Return ParallelQuery&lt;Type&gt;.
+            </span><span style="color: black;">.Where(type =&gt; type.GetCustomAttribute&lt;</span><span style="color: #2b91af;">ObsoleteAttribute</span><span style="color: black;">&gt;() != </span><span style="color: blue;">null</span><span style="color: black;">) </span><span style="color: green;">// ParallelEnumerable.Where.
+            </span><span style="color: black;">.Select(type =&gt; type.FullName) </span><span style="color: green;">// ParallelEnumerable.Select.
+            </span><span style="color: black;">.AsSequential() </span><span style="color: green;">// Return IEnumerable&lt;Type&gt;.
+            </span><span style="color: black;">.OrderBy(name =&gt; name); </span><span style="color: green;">// Enumerable.OrderBy.
+        </span><span style="color: black;">obsoleteTypes.WriteLines();
+    }
+}</span></pre>
+<p>The query expression version of the above query is:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">QueryExpression()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; obsoleteTypes =
+        </span><span style="color: blue;">from </span><span style="color: black;">name </span><span style="color: blue;">in
+            </span><span style="color: black;">(</span><span style="color: blue;">from </span><span style="color: black;">type </span><span style="color: blue;">in </span><span style="color: black;">CoreLibrary.GetExportedTypes().AsParallel()
+             </span><span style="color: blue;">where </span><span style="color: black;">type.GetCustomAttribute&lt;</span><span style="color: #2b91af;">ObsoleteAttribute</span><span style="color: black;">&gt;() != </span><span style="color: blue;">null
+             select </span><span style="color: black;">type.FullName).AsSequential()
+        </span><span style="color: blue;">orderby </span><span style="color: black;">name
+        </span><span style="color: blue;">select </span><span style="color: black;">name;
+    obsoleteTypes.WriteLine();
+}</span></pre>
+<p>In Parallel LINQ, ParallelEnumerable.AsEnumerable calls AsSequential to do the same work.</p>
+<h1>Execute parallel query</h1>
+<p>As demonstrated in LINQ to Objects chapter, Interactive Extension (Ix) provides a useful EnumerableEx.ForEach method, which pulls values from the source sequence, and execute the specified function for each value sequentially. Its parallel version is ParallelEnumerable.ForAll method.</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Linq
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">EnumerableEx
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static void </span><span style="color: black;">ForEach&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; onNext);
+    }
+
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">ParallelEnumerable
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static void </span><span style="color: black;">ForAll&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; action);
+    }
+}</span></pre>
+<p>FoAll can pull values from ParallelQuery&lt;T&gt; source with multiple threads simultaneously, and call function on those threads in parallel:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ForEachForAll()
+{
+    </span><span style="color: #2b91af;">Enumerable
+        </span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 2)
+        .ForEach(value =&gt; value.WriteLine()); </span><span style="color: green;">// 0 1 2 3 4 5 6 7
+
+    </span><span style="color: #2b91af;">ParallelEnumerable
+        </span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 2)
+        .ForAll(value =&gt; value.WriteLine()); </span><span style="color: green;">// 2 6 4 0 5 3 7 1
+</span><span style="color: black;">}</span></pre>
+<p>Above is the output after executing the code in a quad core CPU,&nbsp; ForAll can output the values in different order from ForEach. And if this code is executed multiple times, the order can be different from time to time. Apparently, this is the consequence of parallel pulling. The parallel query execution and values’ order preservation is discussed in detail later.</p>
+<p>The following ForAll overload can be defined to simply execute parallel query without calling a function for each query result:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ParallelEnumerableX
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static void </span><span style="color: black;">ForAll&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source) =&gt; source.ForAll(value =&gt; { });
+}</span></pre>
+<h1>Visualize parallel query execution</h1>
+<h2>Install and configure Concurrency Visualizer</h2>
+<blockquote>
+<p>It would be nice if the internal execution of sequential/parallel LINQ queries can be visualized. This can be done in variant ways. On Windows, Microsoft has released a tool <a href="https://msdn.microsoft.com/en-us/library/dd537632.aspx" target="_blank">Concurrency Visualizer</a> for this purpose. It is an extension of Visual Studio. It provides APIs to trace the execution information at the runtime. When the execution is done, it generates charts and diagrams with the collected tracing. After the installation, restart Visual Studio, go to Analyze =&gt; Concurrency Visualizer =&gt; Advanced Settings:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-1_B83B/image_10.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-1_B83B/image_thumb_4.png" width="788" height="268" border="0"></a></p>
+<p>In the Filter tab, check Sample Events only:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-1_B83B/image_18.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-1_B83B/image_thumb_8.png" width="409" height="375" border="0"></a></p>
+<p>Then go to Markers tab, check ConcurrencyVisualizer.Markers only:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-1_B83B/image_20.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-1_B83B/image_thumb_9.png" width="409" height="375" border="0"></a></p>
+<p>In Files tab, specified a proper directory for trace files. Notice the trace files can be very large, depends on how much information is collected.</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-1_B83B/image_22.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-1_B83B/image_thumb_10.png" width="409" height="375" border="0"></a></p>
+</blockquote>
+<h2>Visualize sequential and parallel LINQ queries</h2>
+<blockquote>
+<p>Next, add a reference to Concurrency Visualizer library. which is a <a href="https://www.microsoft.com/en-in/download/details.aspx?id=49103" target="_blank">binary for downloading</a>. For convenience, a NuGget package ConcurrencyVisualizer has been created for this tutorial. The following APIs are provided to draw timespans on the time line:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">Microsoft.ConcurrencyVisualizer.Instrumentation
+{
+    </span><span style="color: blue;">public static class </span><span style="color: #2b91af;">Markers
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Span </span><span style="color: black;">EnterSpan(</span><span style="color: blue;">int </span><span style="color: black;">category, </span><span style="color: blue;">string </span><span style="color: black;">text);
+    }
+
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">MarkerSeries
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Span </span><span style="color: black;">EnterSpan(</span><span style="color: blue;">int </span><span style="color: black;">category, </span><span style="color: blue;">string </span><span style="color: black;">text);
+    }
+}</span></pre>
+<p>The category parameter is used to determine the color of the timespan, and the span parameter becomes the text label for the timespan.</p>
+</blockquote>
+<p>In .NET Core, this tool and SDK library are not available, so manually define these APIs to trace text information:</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">Markers
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">Span </span><span style="color: black;">EnterSpan(</span><span style="color: blue;">int </span><span style="color: black;">category, </span><span style="color: blue;">string </span><span style="color: black;">spanName) =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Span</span><span style="color: black;">(category, spanName);
+
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">MarkerSeries </span><span style="color: black;">CreateMarkerSeries(</span><span style="color: blue;">string </span><span style="color: black;">markSeriesName) =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">MarkerSeries</span><span style="color: black;">(markSeriesName);
+}
+
+</span><span style="color: blue;">public class </span><span style="color: #2b91af;">Span </span><span style="color: black;">: </span><span style="color: #2b91af;">IDisposable
+</span><span style="color: black;">{
+    </span><span style="color: blue;">private readonly int </span><span style="color: black;">category;
+
+    </span><span style="color: blue;">private readonly string </span><span style="color: black;">spanName;
+
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">DateTime </span><span style="color: black;">start;
+
+    </span><span style="color: blue;">public </span><span style="color: black;">Span(</span><span style="color: blue;">int </span><span style="color: black;">category, </span><span style="color: blue;">string </span><span style="color: black;">spanName, </span><span style="color: blue;">string </span><span style="color: black;">markSeriesName = </span><span style="color: blue;">null</span><span style="color: black;">)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.category = category;
+        </span><span style="color: blue;">this</span><span style="color: black;">.spanName = </span><span style="color: blue;">string</span><span style="color: black;">.IsNullOrEmpty(markSeriesName) ? spanName : </span><span style="color: maroon;">$@"</span><span style="color: black;">{markSeriesName}</span><span style="color: maroon;">/</span><span style="color: black;">{spanName}</span><span style="color: maroon;">"</span><span style="color: black;">;
+        </span><span style="color: blue;">this</span><span style="color: black;">.start = </span><span style="color: #2b91af;">DateTime</span><span style="color: black;">.Now;
+        </span><span style="color: #a31515;">$"</span><span style="color: black;">{</span><span style="color: blue;">this</span><span style="color: black;">.start.ToString(</span><span style="color: #a31515;">"o"</span><span style="color: black;">)}</span><span style="color: #a31515;">: thread id: </span><span style="color: black;">{</span><span style="color: #2b91af;">Thread</span><span style="color: black;">.CurrentThread.ManagedThreadId}</span><span style="color: #a31515;">, category: </span><span style="color: black;">{</span><span style="color: blue;">this</span><span style="color: black;">.category}</span><span style="color: #a31515;">, span: </span><span style="color: black;">{</span><span style="color: blue;">this</span><span style="color: black;">.spanName}</span><span style="color: #a31515;">"
+            </span><span style="color: black;">.WriteLine();
+    }
+
+    </span><span style="color: blue;">public void </span><span style="color: black;">Dispose()
+    {
+        </span><span style="color: #2b91af;">DateTime </span><span style="color: black;">end = </span><span style="color: #2b91af;">DateTime</span><span style="color: black;">.Now;
+        </span><span style="color: #a31515;">$"</span><span style="color: black;">{end.ToString(</span><span style="color: #a31515;">"o"</span><span style="color: black;">)}</span><span style="color: #a31515;">: thread id: </span><span style="color: black;">{</span><span style="color: #2b91af;">Thread</span><span style="color: black;">.CurrentThread.ManagedThreadId}</span><span style="color: #a31515;">, category: </span><span style="color: black;">{</span><span style="color: blue;">this</span><span style="color: black;">.category}</span><span style="color: #a31515;">, span: </span><span style="color: black;">{</span><span style="color: blue;">this</span><span style="color: black;">.spanName}</span><span style="color: #a31515;">, duration: </span><span style="color: black;">{end - start}</span><span style="color: #a31515;">"
+            </span><span style="color: black;">.WriteLine();
+    }
+}
+
+</span><span style="color: blue;">public class </span><span style="color: #2b91af;">MarkerSeries
+</span><span style="color: black;">{
+    </span><span style="color: blue;">private readonly string </span><span style="color: black;">markSeriesName;
+
+    </span><span style="color: blue;">public </span><span style="color: black;">MarkerSeries(</span><span style="color: blue;">string </span><span style="color: black;">markSeriesName) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.markSeriesName = markSeriesName;
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">Span </span><span style="color: black;">EnterSpan(</span><span style="color: blue;">int </span><span style="color: black;">category, </span><span style="color: blue;">string </span><span style="color: black;">spanName) =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Span</span><span style="color: black;">(category, spanName, markSeriesName);
+}</span></pre>
+<p>The following example calls these APIs to trace/visualize the sequence and parallel LINQ query execution:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ForEachForAllTimeSpans()
+{
+    </span><span style="color: blue;">string </span><span style="color: black;">sequentialTimeSpanName = </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">EnumerableEx</span><span style="color: black;">.ForEach);
+    </span><span style="color: green;">// Render a timespan for the entire sequential LINQ query execution, with text label "ForEach".
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">Markers</span><span style="color: black;">.EnterSpan(-1, sequentialTimeSpanName))
+    {
+        </span><span style="color: #2b91af;">MarkerSeries </span><span style="color: black;">markerSeries = </span><span style="color: #2b91af;">Markers</span><span style="color: black;">.CreateMarkerSeries(sequentialTimeSpanName);
+        </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 2).ForEach(value =&gt;
+        {
+            </span><span style="color: green;">// Render a sub timespan for each action execution, with each value as text label.
+            </span><span style="color: blue;">using </span><span style="color: black;">(markerSeries.EnterSpan(</span><span style="color: #2b91af;">Thread</span><span style="color: black;">.CurrentThread.ManagedThreadId, value.ToString()))
+            {
+                </span><span style="color: green;">// Add workload to extend the action execution to a more visible timespan.
+                </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 10_000_000).ForEach();
+                value.WriteLine();
+            }
+        });
+    }
+
+    </span><span style="color: blue;">string </span><span style="color: black;">parallelTimeSpanName = </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ParallelEnumerable</span><span style="color: black;">.ForAll);
+    </span><span style="color: green;">// Render a timespan for the entire parallel LINQ query execution, with text label "ForAll".
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">Markers</span><span style="color: black;">.EnterSpan(-2, parallelTimeSpanName))
+    {
+        </span><span style="color: #2b91af;">MarkerSeries </span><span style="color: black;">markerSeries = </span><span style="color: #2b91af;">Markers</span><span style="color: black;">.CreateMarkerSeries(parallelTimeSpanName);
+        </span><span style="color: #2b91af;">ParallelEnumerable</span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 2).ForAll(value =&gt;
+        {
+            </span><span style="color: green;">// Render a sub timespan for each action execution, with each value as text label.
+            </span><span style="color: blue;">using </span><span style="color: black;">(markerSeries.EnterSpan(</span><span style="color: #2b91af;">Thread</span><span style="color: black;">.CurrentThread.ManagedThreadId, value.ToString()))
+            {
+                </span><span style="color: green;">// Add workload to extends the action execution to a more visible timespan.
+                </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 10_000_000).ForEach();
+                value.WriteLine();
+            }
+        });
+    }
+}
+</span></pre>
+<p>In the functions which are passed to ForEach and ForAll, a foreach loop over a sequence with 10 million values adds some workload to make the function call take longer time, otherwise the function execution timespan looks too tiny in the visualization. Now, setup a trace listener and call the above method to visualize the execution:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">TraceToFile()
+{
+    </span><span style="color: green;">// Trace to file:
+    </span><span style="color: blue;">string </span><span style="color: black;">file = Path.Combine(Path.GetTempPath(), </span><span style="color: #a31515;">"Trace.txt"</span><span style="color: black;">);
+    </span><span style="color: blue;">using </span><span style="color: black;">(TextWriterTraceListener traceListener = </span><span style="color: blue;">new </span><span style="color: black;">TextWriterTraceListener(file))
+    </span><span style="color: green;">// Or trace to console:
+    // using (TextWriterTraceListener traceListener = new TextWriterTraceListener(Console.Out))
+    </span><span style="color: black;">{
+        Trace.Listeners.Add(traceListener);
+        QueryMethods.ForEachForAllTimeSpans();
+    }
+}</span></pre>
+<blockquote>
+<p>On Windows, click Visual Studio =&gt; Analyze =&gt; Concurrency Visualizer =&gt; Start with Current Project. When the console application finishes running, a rich trace UI is generated. The first tab Utilization shows that the CPU usage was about 25% for a while, which seems to be the sequential LINQ query executing on the quad core CPU. Then the CPU usage became almost 100%, which seems to be the Parallel LINQ execution.</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-1_B83B/image_16.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-1_B83B/image_thumb_5.png" width="768" height="575" border="0"></a></p>
+<p>The second tab Threads proves this. In the thread list on the left, right click the threads not working on LINQ queries and hide them, the view becomes:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-1_B83B/image_2.png"><img title="image" style="border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-1_B83B/image_thumb.png" width="768" height="575" border="0"></a></p>
+</blockquote>
+<p>It uncovers how the LINQ queries execute on this quad core CPU. ForEach query pulls the values and call the specified function sequentially, with the main thread. ForAll query does the work with 4 threads (main threads and 3 other threads), each thread processed 2 values. The values 6, 0, 4, 2 is processed before 7, 1, 5, 3, which leads to the trace output: 2 6 4 0 5 3 7 1.</p>
+<blockquote>
+<p>Click the ForEach timespan, the Current panel shows the execution duration is 4750 milliseconds. Click ForAll, it shows 1314 milliseconds:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-1_B83B/image_6.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-1_B83B/image_thumb_1.png" width="768" height="575" border="0"></a></p>
+</blockquote>
+<p>This is about 27% of ForEach execution time, close a quarter, as expected. It cannot be exactly 25%, because On the device, there are other running processes and threads using CPU, also the parallel query has extra work to manage multithreading, which is covered later in this chapter.</p>
+<blockquote>
+<p>In the last tab Cores, select the LINQ query threads 9884, 12360, 11696, and 6760. It shows how the workload is distributed in the 4 cores:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-1_B83B/image_24.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-1_B83B/image_thumb_6.png" width="768" height="575" border="0"></a></p>
+</blockquote>
+<p>Above LINQ visualization code looks noisy, because it mixes the LINQ query and the tracing/visualizing. Regarding the Single Responsibility Principle, the tracing/visualizing logics can be encapsulated for reuse. The following methods wraps the tracing calls:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">Visualizer
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal const string </span><span style="color: black;">Parallel = </span><span style="color: blue;">nameof</span><span style="color: black;">(Parallel);
+
+    </span><span style="color: blue;">internal const string </span><span style="color: black;">Sequential = </span><span style="color: blue;">nameof</span><span style="color: black;">(Sequential);
+
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Visualize&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; action, </span><span style="color: blue;">string </span><span style="color: black;">span = Sequential, </span><span style="color: blue;">int </span><span style="color: black;">category = -1)
+    {
+</span><span style="color: black;">        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">Markers</span><span style="color: black;">.EnterSpan(category, span))
+        {
+            </span><span style="color: #2b91af;">MarkerSeries </span><span style="color: black;">markerSeries = </span><span style="color: #2b91af;">Markers</span><span style="color: black;">.CreateMarkerSeries(span);
+            source.ForEach(value =&gt;
+            {
+                </span><span style="color: blue;">using </span><span style="color: black;">(markerSeries.EnterSpan(</span><span style="color: #2b91af;">Thread</span><span style="color: black;">.CurrentThread.ManagedThreadId, value.ToString()))
+                {
+                    action(value);
+                }
+            });
+        }
+</span><span style="color: gray;">    </span><span style="color: black;">}
+
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Visualize&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; action, </span><span style="color: blue;">string </span><span style="color: black;">span = Parallel, </span><span style="color: blue;">int </span><span style="color: black;">category = -2)
+    {</span><span style="color: black;">
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">Markers</span><span style="color: black;">.EnterSpan(category, span))
+        {
+            </span><span style="color: #2b91af;">MarkerSeries </span><span style="color: black;">markerSeries = </span><span style="color: #2b91af;">Markers</span><span style="color: black;">.CreateMarkerSeries(span);
+            source.ForAll(value =&gt;
+            {
+                </span><span style="color: blue;">using </span><span style="color: black;">(markerSeries.EnterSpan(</span><span style="color: #2b91af;">Thread</span><span style="color: black;">.CurrentThread.ManagedThreadId, value.ToString()))
+                {
+                    action(value);
+                }
+            });
+        }</span><span style="color: gray;">
+    </span><span style="color: black;">}
+}</span></pre>
+<p>Now the LINQ queries can be visualized in a much cleaner way:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">VisualizeForEachForAll()
+{
+    </span><span style="color: #2b91af;">Enumerable
+        </span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 2)
+        .Visualize(value =&gt;
+        {
+            </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 10_000_000).ForEach(); <span style="color: black;"></span><span style="color: green;">// Workload.</span>
+            value.WriteLine();
+        });
+
+    </span><span style="color: #2b91af;">ParallelEnumerable
+        </span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 2)
+        .Visualize(value =&gt;
+        {
+            </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, 10_000_000).ForEach(); <span style="color: black;"></span><span style="color: green;">// Workload.</span>
+            value.WriteLine();
+        });
+}</span></pre>
+<h2>Visualize chaining query methods</h2>
+<p>Besides visualizing function calls for ForEach and ForAll, the following Visualize overloads can be defined to visualize sequential and parallel query methods:</p>
+<pre class="code"><span style="color: blue;">internal static </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Visualize&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TMiddle</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TMiddle</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; query,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TMiddle</span><span style="color: black;">&gt; func,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt; spanFactory = </span><span style="color: blue;">null</span><span style="color: black;">,
+    </span><span style="color: blue;">string </span><span style="color: black;">span = Sequential)
+{
+    </span><span style="color: #2b91af;">MarkerSeries </span><span style="color: black;">markerSeries = </span><span style="color: #2b91af;">Markers</span><span style="color: black;">.CreateMarkerSeries(span);
+    </span><span style="color: blue;">return </span><span style="color: black;">query(
+        source,
+        value =&gt;
+        {
+            </span><span style="color: blue;">using </span><span style="color: black;">(markerSeries.EnterSpan(
+                </span><span style="color: #2b91af;">Thread</span><span style="color: black;">.CurrentThread.ManagedThreadId, spanFactory?.Invoke(value) ?? value.ToString()))
+            {
+                </span><span style="color: blue;">return </span><span style="color: black;">func(value);
+            }
+        });
+}
+
+</span><span style="color: blue;">internal static </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; Visualize&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TMiddle</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TMiddle</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; query,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TMiddle</span><span style="color: black;">&gt; func,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: blue;">string</span><span style="color: black;">&gt; spanFactory = </span><span style="color: blue;">null</span><span style="color: black;">,
+    </span><span style="color: blue;">string </span><span style="color: black;">span = Parallel)
+{
+    </span><span style="color: #2b91af;">MarkerSeries </span><span style="color: black;">markerSeries = </span><span style="color: #2b91af;">Markers</span><span style="color: black;">.CreateMarkerSeries(span);
+    </span><span style="color: blue;">return </span><span style="color: black;">query(
+        source,
+        value =&gt;
+        {
+            </span><span style="color: blue;">using </span><span style="color: black;">(markerSeries.EnterSpan(
+                </span><span style="color: #2b91af;">Thread</span><span style="color: black;">.CurrentThread.ManagedThreadId, spanFactory?.Invoke(value) ?? value.ToString()))
+            {
+                </span><span style="color: blue;">return </span><span style="color: black;">func(value);
+            }
+        });
+}</span></pre>
+<p>And the following method encapsulates the workload generation according to the input value:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Functions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static int </span><span style="color: black;">ComputingWorkload(</span><span style="color: blue;">int </span><span style="color: black;">value = 0, </span><span style="color: blue;">int </span><span style="color: black;">iteration = 10_000_000)
+    {
+        </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, iteration * (value + 1)).ForEach();
+        </span><span style="color: blue;">return </span><span style="color: black;">value;
+    }
+}</span></pre>
+<p>Take a simple Where and Select query chaining as example,</p>
+<pre class="code"><span style="color: green;">// using static Functions;
+</span><span style="color: blue;">internal static void </span><span style="color: black;">WhereSelect()
+{
+    </span><span style="color: #2b91af;">Enumerable
+        </span><span style="color: black;">.Range(0, 2)
+        .Visualize(</span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Where, _ =&gt; <span style="color: blue;"></span><span style="color: black;">ComputingWorkload</span>() &gt;= 0, value =&gt; </span><span style="color: #a31515;">$"</span><span style="color: black;">{</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Where)} {value}</span><span style="color: #a31515;">"</span><span style="color: black;">)
+        .Visualize(</span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Select, _ =&gt; <span style="color: blue;"></span><span style="color: black;">ComputingWorkload</span>(), value =&gt; </span><span style="color: #a31515;">$"</span><span style="color: black;">{</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Select)} {value}</span><span style="color: #a31515;">"</span><span style="color: black;">)
+        .ForEach();
+
+    </span><span style="color: #2b91af;">ParallelEnumerable
+        </span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 2)
+        .Visualize(
+            </span><span style="color: #2b91af;">ParallelEnumerable</span><span style="color: black;">.Where,
+            _ =&gt; <span style="color: blue;"></span><span style="color: black;">ComputingWorkload</span>() &gt;= 0,
+            value =&gt; </span><span style="color: #a31515;">$"</span><span style="color: black;">{</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ParallelEnumerable</span><span style="color: black;">.Where)} {value}</span><span style="color: #a31515;">"</span><span style="color: black;">)
+        .Visualize(
+            </span><span style="color: #2b91af;">ParallelEnumerable</span><span style="color: black;">.Select,
+            _ =&gt; <span style="color: blue;"></span><span style="color: black;">ComputingWorkload</span>(),
+            value =&gt; </span><span style="color: #a31515;">$"</span><span style="color: black;">{</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ParallelEnumerable</span><span style="color: black;">.Select)} {value}</span><span style="color: #a31515;">"</span><span style="color: black;">)
+        .ForAll();
+}</span></pre>
+<blockquote>
+<p>The sequential and parallel queries are visualized as:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-1_B83B/image_12.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-1_B83B/image_thumb_2.png" width="800" height="600" border="0"></a></p>
+</blockquote>
+<p>This visualizing approach will be used for the entire chapter to demonstrate parallel LINQ queries.</p>
+
+
+</div>
+</body>
+</html>

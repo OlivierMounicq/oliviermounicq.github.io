@@ -1,0 +1,132 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+<h1>Lambda Calculus via C# (8) Undecidability of Equivalence</h1>
+
+<p>All the previous parts demonstrated what <a href="http://en.wikipedia.org/wiki/Lambda_calculus" target="_blank">lambda calculus</a> can do – defining functions to model the computing, applying functions to execute the computing, implementing recursion, encoding data types and data structures, etc. Lambda calculus is a powerful tool, and it is Turing complete. This part discuss some interesting problem that cannot be done with lambda calculus – asserting whether 2 lambda expressions are equivalent.</p>
+<p>Assuming f<sub>1</sub> and f<sub>2</sub> are 2 functions, they are equivalent if for ∀x, there is f<sub>1</sub> x ≡ f<sub>2</sub> x. For example, the following 2 functions can <a href="http://weblogs.asp.net/dixin/lambda-calculus-via-c-sharp-2-fundamentals-lambda-expression-variables-reductions">alpha-convert</a> to each other:</p>
+<pre class="code"><span style="background: rgb(245, 245, 245); color: black;">f1 := λx.Add x 1
+f2 := λy.Add y 1</span></pre>
+<p>Apparently they are equivalent. And they are both equivalent to:</p>
+<pre class="code"><span style="background: rgb(245, 245, 245); color: black;">f3 := λx.Add 1 x</span></pre>
+<p>because Add is commutative. <a href="http://en.wikipedia.org/wiki/Lambda_calculus#Undecidability_of_equivalence" target="_blank">Undecidability of equivalence</a> means, in lambda calculus, there is no function can takes 2 lambda expressions as input, and returns True/False to indicate whether those 2 lambda expressions are equivalent or not. <a href="http://www.joachim-breitner.de/various/ChurchTalk2011.pdf" target="_blank">Alonzo Church has a proof</a> using <a href="http://en.wikipedia.org/wiki/Lambda_calculus#Normal_forms_and_confluence" target="_blank">normal form</a>. An intuitive proof can be done by viewing equivalence problem as another version of <a href="http://en.wikipedia.org/wiki/Halting_problem" target="_blank">halting problem</a>. Actually, Alonzo Church’s publish on equivalence is earlier (April 1936) than Alan Turing’s publish on halting problem (May 1936). To make it simple, this part discusses the undecidability of halting problem first, then discuss the undecidability of equivalence.</p>
+<h1>Halting problem</h1>
+<p>The halting problem is the problem of determining, when running an arbitrary program with an input, whether the program halts (finish running) or does not halt (run forever). For example:</p>
+<ul>
+<li>Function Increase halts (finish running) with argument x, and returns x + 1.</li>
+<li>Function <a href="http://weblogs.asp.net/dixin/lambda-calculus-via-c-sharp-20-combinators">ω does not halt with argument ω</a>, <a href="http://weblogs.asp.net/dixin/lambda-calculus-via-c-sharp-20-combinators">Ω := ω ω reduces (runs) forever</a>.</li>
+</ul>
+<p>No general algorithm can solve the halting problem for all possible program-input pairs. To prove this, first define a simple function Sequence.</p>
+<pre class="code"><span style="background: rgb(245, 245, 245); color: black;">Sequence := λa.λb.b</span></pre>
+<p>When applying Sequence, the <a href="http://en.wikipedia.org/wiki/Lambda_calculus#Reduction_strategies" target="_blank">reduction strategy</a> matters. In normal order, both its first argument is never reduced. In this part, applicative order is always assumed - the same reduction strategy as C#. So Sequence can be viewed as - reduce (run) a then reduce (run) b sequentially, and return the reduction result of b. When applying Sequence with Ω and another lambda expression. It reduces forever in applicative order:</p>
+<pre class="code">  <span style="color: black;">Sequence Ω x
+≡ Sequence (ω ω) x
+≡ Sequence ((λx.x x) (λx.x x)) x
+≡ Sequence ((λx.x x) (λx.x x)) x
+≡ ...</span></pre>
+<p>Because Ω does not halt, Sequence Ω does not halt either. In C#:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: rgb(43, 145, 175);">Functions</span><span style="color: black;">&lt;</span><span style="color: rgb(43, 145, 175);">T1</span><span style="color: black;">, </span><span style="color: rgb(43, 145, 175);">T2</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">public static readonly </span><span style="color: rgb(43, 145, 175);">Func</span><span style="color: black;">&lt;</span><span style="color: rgb(43, 145, 175);">T1</span><span style="color: black;">, </span><span style="color: rgb(43, 145, 175);">Func</span><span style="color: black;">&lt;</span><span style="color: rgb(43, 145, 175);">T2</span><span style="color: black;">, </span><span style="color: rgb(43, 145, 175);">T2</span><span style="color: black;">&gt;&gt;
+        Sequence = value1 =&gt; value2 =&gt; value2;
+}</span></pre>
+<p>Assume an IsHalting function exists, which takes 2 parameters f and x, and returns True/False if function f halts/does not halt with parameter x:</p>
+<pre class="code"><span style="background: rgb(245, 245, 245); color: black;">IsHalting := λf.λx.If (/* f halts with x */) (λx.True) (λx.False)</span></pre>
+<p>Then an IsNotHalting function can be defined to test whether function f does not halt with argument f (itself):</p>
+<pre class="code"><span style="background: rgb(245, 245, 245); color: black;">IsNotHalting := λf.If (IsHalting f f) (λx.Sequence Ω False) (λx.True)</span></pre>
+<p>When a certain function f does not halt with itself, by definition IsNotHalting f returns True:</p>
+<pre class="code"><span style="background: rgb(245, 245, 245); color: black;">  IsNotHalting f
+≡ If (<span style="text-decoration: underline;">IsHalting f f</span>) (λx.Sequence Ω False) (λx.True))
+≡ If (<span style="text-decoration: underline;">False</span>) (λx.Sequence Ω False) (λx.True))
+≡ True</span></pre>
+<p>Remember the If function is lazy, here λx.Sequence Ω False is never reduced. When f halts with itself, the application reduces to Sequence Ω False:</p>
+<pre class="code"><span style="background: rgb(245, 245, 245); color: black;">  IsNotHalting f
+≡ If (<span style="text-decoration: underline;">IsHalting f f</span>) (λx.Sequence Ω False) (λx.True))
+≡ If (<span style="text-decoration: underline;">True</span>) (λx.Sequence Ω False) (λx.True))
+≡ <span style="text-decoration: underline;">Sequence Ω</span> False
+≡ Sequence (ω ω) False
+≡ Sequence ((λx.x x) (λx.x x)) False
+≡ Sequence ((λx.x x) (λx.x x)) False
+≡ ...</span></pre>
+<p>As fore mentioned, Sequence Ω does not halt. So in this case, IsNotHalting f never returns False.</p>
+<p>In C# IsHalting and IsNotHalting functions can be represented as:</p><pre class="code"><span style="color: blue;">internal static class </span><span style="color: rgb(43, 145, 175);">Halting</span><span style="color: black;">&lt;</span><span style="color: rgb(43, 145, 175);">T</span><span style="color: black;">, </span><span style="color: rgb(43, 145, 175);">TResult</span><span style="color: black;">&gt;
+{
+    </span><span style="color: green;">// IsHalting = f =&gt; x =&gt; True if f halts with x; otherwise, False
+    </span><span style="color: blue;">internal static readonly </span><span style="color: black;">Func&lt;Func&lt;T, TResult&gt;, Func&lt;T, Boolean&gt;&gt;
+        IsHalting = f =&gt; x =&gt; </span><span style="color: blue;">throw new </span><span style="color: rgb(0, 141, 217);">NotImplementedException</span><span style="color: black;">();
+
+    </span><span style="color: green;">// IsNotHalting = f =&gt; If(IsHalting(f)(f))(_ =&gt; Sequence(Ω)(False))(_ =&gt; True)
+    </span><span style="color: blue;">internal static readonly </span><span style="color: black;">Func&lt;SelfApplicableFunc&lt;TResult&gt;, Boolean&gt;
+        IsNotHalting = f =&gt;
+            If(Halting&lt;SelfApplicableFunc&lt;TResult&gt;, TResult&gt;.IsHalting(</span><span style="color: blue;">new </span><span style="color: black;">Func&lt;SelfApplicableFunc&lt;TResult&gt;, TResult&gt;(f))(f))
+                (_ =&gt; Functions&lt;TResult, Boolean&gt;.Sequence(OmegaCombinators&lt;TResult&gt;.Ω)(False))
+                (_ =&gt; True);
+}</span></pre><p>Here since f can be applied with itself, it is represented with the SelfApplicableFunc&lt;TResult&gt; function type.</p>
+<p>It is interesting when IsNotHalting is applied with argument IsNotHalting (itself). Assume IsNotHalting halts with IsNotHalting, in another word:</p>
+<pre class="code"><span style="background: rgb(245, 245, 245); color: black;">  IsHalting IsNotHalting IsNotHalting
+≡ True</span></pre>
+<p>then there is:</p>
+<pre class="code"><span style="background: rgb(245, 245, 245); color: black;">  IsNotHalting IsNotHalting
+≡ If (<span style="text-decoration: underline;">IsHalting IsNotHalting IsNotHalting</span>) (λx.Sequence Ω False) (λx.True)
+≡ If (<span style="text-decoration: underline;">True</span>) (λx.Sequence Ω False) (λx.True)
+≡ <span style="text-decoration: underline;">Sequence Ω</span> False
+≡ Sequence (ω ω) False
+≡ Sequence ((λx.x x) (λx.x x)) False
+≡ Sequence ((λx.x x) (λx.x x)) False
+≡ ...</span></pre>
+<p>So IsNotHalting IsNotHalting is reduced to Sequence Ω False, and is then reduced forever, which means actually IsNotHalting does not halt with IsNotHalting.</p>
+<p>On the other hand, Assume IsNotHalting does not halt with IsNotHalting, in another word:</p>
+<pre class="code"><span style="background: rgb(245, 245, 245); color: black;">  IsHalting IsNotHalting IsNotHalting
+≡ False</span></pre>
+<p>then there is:</p>
+<pre class="code"><span style="background: rgb(245, 245, 245); color: black;">  IsNotHalting IsNotHalting
+≡ If (IsHalting IsNotHalting IsNotHalting) (λx.Sequence Ω False) (λx.True)
+≡ If (False) (λx.Sequence Ω False) (λx.True)
+≡ True</span></pre>
+<p>So IsNotHalting IsNotHalting is reduced to True, which means IsNotHalting halts with IsNotHalting.</p>
+<p>Therefore, if IsHalting exists, it leads to IsNotHalting with the following properties:</p>
+<ul>
+<li>If IsNotHalting halts with IsNotHalting, then IsNotHalting does not halt with IsNotHalting</li>
+<li>If IsNotHalting does not halt with IsNotHalting, then IsNotHalting halts with IsNotHalting.</li>
+</ul>
+<p>This proves IsNotHalting and IsHalting cannot exist.</p>
+<h1>Equivalence problem</h1>
+<p>After understanding the halting problem, the equivalence problem becomes very easy to prove. Assume an AreEquivalent function exists:</p>
+<pre class="code"><span style="background: rgb(245, 245, 245); color: black;">AreEquivalent := λa.λb.If (/* a and b are equivalent */) (λx.True) (λx.False)</span></pre>
+<p>which takes 2 lambda expression as parameter, and returns True/False if they are/are not equivalent. Now define the following 2 functions:</p>
+<pre class="code"><span style="background: rgb(245, 245, 245); color: black;">GetTrue1 := λf.λx.λy.Sequence (f x) True
+GetTrue2 := λf.λx.λy.True</span></pre>
+<p>Given arbitrary function f and its argument x:</p>
+<pre class="code"><span style="background: rgb(245, 245, 245); color: black;">  GetTrue1 f x
+≡ λy.Sequence (f x) True
+
+  GetTrue2 f x
+≡ λy.True</span></pre>
+<p>For specified f and x:</p>
+<ul>
+<li>if f halts with x, then, ∀y, (GetTrue1 f x y) and (GetTrue2 f x y) both always returns True. That is, partially applied functions GetTrue1 f x and GetTrue2 f x are equivalent.</li>
+<li>if f does not halt with x, then, ∀y, (GetTrue1 f x y) never returns True, and (GetTrue2 f x y) always returns True. That is, partially applied functions (GetTrue1 f x) and (GetTrue2 f x) are not equivalent.</li>
+</ul>
+<p>Now halting problem and equivalence problem are connected. IsHalting function can be directly defined by AreEquivalent function:</p>
+<pre class="code"><span style="background: rgb(245, 245, 245); color: black;">IsHalting := λf.λx.AreEquivalent (GetTrue1 f x) (GetTrue2 f x)</span></pre>
+<p>The partial application (GetTrue1 f x) and (GetTrue2 f x) can be substituted as:</p>
+<pre class="code"><span style="background: rgb(245, 245, 245); color: black;">IsHalting := λf.λx.AreEquivalent (λy.Sequence (f x) True) (λy.True)</span></pre>
+<p>In C#:</p><pre class="code"><span style="color: blue;">internal static class </span><span style="color: rgb(43, 145, 175);">Equivalence</span><span style="color: black;">&lt;</span><span style="color: rgb(43, 145, 175);">T</span><span style="color: black;">, </span><span style="color: rgb(43, 145, 175);">TResult</span><span style="color: black;">&gt;
+{
+    </span><span style="color: green;">// IsEquivalent = f1 =&gt; f2 =&gt; True if f1 and f2 are equivalent; otherwise, False
+    </span><span style="color: blue;">internal static readonly </span><span style="color: black;">Func&lt;Func&lt;T, TResult&gt;, Func&lt;Func&lt;T, TResult&gt;, Boolean&gt;&gt;
+        IsEquivalent = f1 =&gt; f2 =&gt; </span><span style="color: blue;">throw new </span><span style="color: rgb(0, 141, 217);">NotImplementedException</span><span style="color: black;">();
+
+    </span><span style="color: green;">// IsHalting = f =&gt; x =&gt; IsEquivalent(_ =&gt; Sequence(f(x))(True))(_ =&gt; True)
+    </span><span style="color: blue;">internal static readonly </span><span style="color: black;">Func&lt;Func&lt;T, TResult&gt;, Func&lt;T, Boolean&gt;&gt;
+        IsHalting = f =&gt; x =&gt; Equivalence&lt;T, Boolean&gt;.IsEquivalent(_ =&gt; Functions&lt;TResult, Boolean&gt;.Sequence(f(x))(True))(_ =&gt; True);
+}</span></pre><p>If the above AreEquivalent function can be defined, then IsHalting can be defined. It is already approved that IsHalting cannot exist, so AreEquivalent cannot exist either. This demonstrates equivalence problem is just another version of halting problem. So, lambda expressions’ equivalence is undecidable. The undecidability is actually a very general topic in computability theory and mathematical logic. The undecidability of halting problem and lambda calculus’ undecidability of equivalence are examples of <a href="http://en.wikipedia.org/wiki/Rice%27s_theorem" target="_blank">Rice's theorem</a>, and also examples of <a href="http://en.wikipedia.org/wiki/Kurt_G%C3%B6del" target="_blank">Kurt Gödel</a>'s <a href="http://en.wikipedia.org/wiki/G%C3%B6del's_incompleteness_theorems" target="_blank">incompleteness theorems</a>.</p>
+
+
+</div>
+</body>
+</html>

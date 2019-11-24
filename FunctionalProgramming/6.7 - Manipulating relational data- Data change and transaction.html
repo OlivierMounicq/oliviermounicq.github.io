@@ -1,0 +1,716 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+
+<h1>Entity Framework/Core and LINQ to Entities (7) Data Changes and Transactions</h1>
+
+<p>Besides LINQ to Entities queries, EF/Core also provides rich APIs for data changes, with imperative paradigm.</p>
+<h1>Repository pattern and unit of work pattern</h1>
+<p>In EF/Core, DbSet&lt;T&gt; implements <a href="https://msdn.microsoft.com/en-us/library/ff649690.aspx" target="_blank">repository pattern</a>. Repositories can centralize data access for applications, and connect between the data source and the business logic. A DbSet&lt;T&gt; instance can be mapped to a database table, which is a repository for data <a href="https://en.wikipedia.org/wiki/Create,_read,_update_and_delete" target="_blank">CRUD (create, read, update and delete)</a>:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">Microsoft.EntityFrameworkCore
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public abstract class </span><span style="color: #2b91af;">DbSet</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt; </span><span style="color: green;">// Other interfaces.
+        </span><span style="color: blue;">where </span><span style="color: #2b91af;">TEntity </span><span style="color: black;">: </span><span style="color: blue;">class
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">TEntity </span><span style="color: black;">Find(</span><span style="color: blue;">params object</span><span style="color: black;">[] keyValues);
+
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">EntityEntry</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt; Add(</span><span style="color: #2b91af;">TEntity </span><span style="color: black;">entity);
+
+        </span><span style="color: blue;">public virtual void </span><span style="color: black;">AddRange(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt; entities);
+
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">EntityEntry</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt; Remove(</span><span style="color: #2b91af;">TEntity </span><span style="color: black;">entity);
+
+        </span><span style="color: blue;">public virtual void </span><span style="color: black;">RemoveRange(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt; entities);
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>DbSet&lt;T&gt; implements IQueryable&lt;T&gt;, so that DbSet&lt;T&gt; can represent the data source to read from. DbSet&lt;T&gt;.Find is also provided to read entity by the primary keys. After reading, the retrieved data can be changed. Add and AddRange methods track the specified entities as to be created in the repository. Remove and RemoveRange methods track the specified entities as to be deleted in the repository.</p>
+<p>As fore mentioned, a <a href="http://martinfowler.com/eaaCatalog/unitOfWork.html" target="_blank">unit of work</a> is a collection of data operations that should together or fail together as a unit. DbContext implements unit of work pattern:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">Microsoft.EntityFrameworkCore
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">DbContext </span><span style="color: black;">: </span><span style="color: #2b91af;">IDisposable</span><span style="color: black;">, </span><span style="color: #2b91af;">IInfrastructure</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IServiceProvider</span><span style="color: black;">&gt;
+    {
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">DbSet</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt; Set&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt;() </span><span style="color: blue;">where </span><span style="color: #2b91af;">TEntity </span><span style="color: black;">: </span><span style="color: blue;">class</span><span style="color: black;">;
+
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">ChangeTracker </span><span style="color: black;">ChangeTracker { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: blue;">public virtual int </span><span style="color: black;">SaveChanges();
+
+        </span><span style="color: blue;">public virtual void </span><span style="color: black;">Dispose();
+    }
+}</span></pre>
+<p>As the mapping of database, DbContext’s Set method returns the specified entity’s repositories. For example, calling AdventureWorks.Products is equivalent to calling AdventureWorks.Set&lt;Product&gt;. The entities tracking is done at the DbContext level, by its ChangeTracker. When DbContext.Submit is called, the tracked changes are submitted to database. When a unit of work is done, DbContext should be disposed.</p>
+<blockquote>
+<p>In EF, the members of DbSet&lt;TEntity&gt; and DbContext have slightly different signatures:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Data.Entity
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">DbSet</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">DbQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt;, </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt; </span><span style="color: green;">// Other interfaces.
+        </span><span style="color: blue;">where </span><span style="color: #2b91af;">TEntity </span><span style="color: black;">: </span><span style="color: blue;">class
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">TEntity </span><span style="color: black;">Find(</span><span style="color: blue;">params object</span><span style="color: black;">[] keyValues);
+
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">TEntity </span><span style="color: black;">Add(</span><span style="color: #2b91af;">TEntity </span><span style="color: black;">entity);
+
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt; AddRange(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt; entities);
+
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">TEntity </span><span style="color: black;">Remove(</span><span style="color: #2b91af;">TEntity </span><span style="color: black;">entity);
+
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt; RemoveRange(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt; entities);
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">DbContext </span><span style="color: black;">: </span><span style="color: #2b91af;">IDisposable </span><span style="color: green;">// Other interfaces.
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">DbSet</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt; Set&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt;() </span><span style="color: blue;">where </span><span style="color: #2b91af;">TEntity </span><span style="color: black;">: </span><span style="color: blue;">class</span><span style="color: black;">;
+
+        </span><span style="color: blue;">public </span><span style="color: #2b91af;">DbChangeTracker </span><span style="color: black;">ChangeTracker { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: blue;">public virtual int </span><span style="color: black;">SaveChanges();
+
+        </span><span style="color: blue;">public void </span><span style="color: black;">Dispose();
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+</blockquote>
+<h1>Track entities and changes</h1>
+<p>DbContext.ChangeTracker property returns Microsoft.EntityFrameworkCore.ChangeTracking.ChangeTracker, which can track entities for the source DbContext:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">Microsoft.EntityFrameworkCore.ChangeTracking
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">ChangeTracker </span><span style="color: black;">: </span><span style="color: #2b91af;">IInfrastructure</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IStateManager</span><span style="color: black;">&gt;
+    {
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">EntityEntry</span><span style="color: black;">&gt; Entries();
+
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">EntityEntry</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt;&gt; Entries&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt;() </span><span style="color: blue;">where </span><span style="color: #2b91af;">TEntity </span><span style="color: black;">: </span><span style="color: blue;">class</span><span style="color: black;">;<span style="color: black;">
+
+        </span><span style="color: blue;">public virtual void </span><span style="color: black;">DetectChanges();</span>
+
+        </span><span style="color: blue;">public virtual bool </span><span style="color: black;">HasChanges();
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>Each entity’s loading and tracking information is represented by Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry or Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry&lt;TEntity&gt;. The following is the non generic EntityEntry:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">Microsoft.EntityFrameworkCore.ChangeTracking
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">EntityEntry </span><span style="color: black;">: </span><span style="color: #2b91af;">IInfrastructure</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">InternalEntityEntry</span><span style="color: black;">&gt;
+    {
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">EntityState </span><span style="color: black;">State { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+        </span><span style="color: blue;">public virtual object </span><span style="color: black;">Entity { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">PropertyEntry </span><span style="color: black;">Property(</span><span style="color: blue;">string </span><span style="color: black;">propertyName);
+
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">PropertyValues </span><span style="color: black;">CurrentValues { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">PropertyValues </span><span style="color: black;">OriginalValues { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">PropertyValues </span><span style="color: black;">GetDatabaseValues();
+
+        </span><span style="color: blue;">public virtual void </span><span style="color: black;">Reload();
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>Besides the loading information APIs discussed in previous part, EntityEntry also provides rich APIs for entity’s tracking information and state management:</p>
+<ul>
+<li>State returns the entity’s tracking state: Detached, Unchanged, Added, Deleted, or Modified.</li>
+<li>Entity property returns the tracked entity</li>
+<li>Property returns the specified property’s tracking information.</li>
+<li>CurrentValues returns the tracked entity’s current property values.</li>
+<li>OriginalValues returns the tracked entity’s original property values</li>
+<li>GetDatabaseValues instantly execute a SQL query to read entity’s property values from database, without updating current entity’s property values and tracking information.</li>
+<li>Reload also executes a SQL query to read the database values, and also update current entity’s property values, and all tracking information</li>
+</ul>
+<p>The generic EntityEntry&lt;TEntity&gt; is just stronger typing:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">Microsoft.EntityFrameworkCore.ChangeTracking
+{
+    </span><span style="color: blue;">public class </span><span style="color: #2b91af;">EntityEntry</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TEntity</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">EntityEntry </span><span style="color: blue;">where </span><span style="color: #2b91af;">TEntity </span><span style="color: black;">: </span><span style="color: blue;">class
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">TEntity </span><span style="color: black;">Entity { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: green;">// Other members.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>As fore mentioned in data loading part, DbContext.Entry also accepts an entity and return its EntityEntry&lt;TEntity&gt;/EntityEntry.</p>
+<blockquote>
+<p>In EF, the types involved above are named with Db prefix: DbChangeTracker, DbEntityEntry, DbEntityEntry&lt;TEntity&gt;, DbPropertyEntry, DbPropertyValues, with similar members.</p>
+</blockquote>
+<h2>Track entities</h2>
+<p>By default, all entities read from repositories are tracked by the source DbContext. For example:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Tracking
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">EntitiesFromSameDbContext(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+    {
+        </span><span style="color: #2b91af;">Product </span><span style="color: black;">productById = adventureWorks.Products
+            .Single(product =&gt; product.ProductID == 999);
+        adventureWorks.ChangeTracker.Entries().Count().WriteLine(); </span><span style="color: green;">// 1
+
+        </span><span style="color: #2b91af;">Product </span><span style="color: black;">productByName = adventureWorks.Products
+            .Single(product =&gt; product.Name == </span><span style="color: #a31515;">"Road-750 Black, 52"</span><span style="color: black;">);
+        adventureWorks.ChangeTracker.Entries().Count().WriteLine(); </span><span style="color: green;">// 1
+        </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(productById, productByName).WriteLine(); </span><span style="color: green;">// True
+    </span><span style="color: black;">}
+}</span></pre>
+<p>The single result from the first LINQ to Entities query is tracked by DbContext. Later, the second query has a single result too. EF/Core identifies both results map to the same data row of the same table, so they are reference to the same entity instance.</p>
+<p>If data from repositories are not entities mapping to table rows, they cannot be tracked:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ObjectsFromSameDbContext(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: blue;">var </span><span style="color: black;">productById = adventureWorks.Products
+        .Select(product =&gt; </span><span style="color: blue;">new </span><span style="color: black;">{ ProductID = product.ProductID, Name = product.Name })
+        .Single(product =&gt; product.ProductID == 999);
+    </span><span style="color: blue;">var </span><span style="color: black;">productByName = adventureWorks.Products
+        .Select(product =&gt; </span><span style="color: blue;">new </span><span style="color: black;">{ ProductID = product.ProductID, Name = product.Name })
+        .Single(product =&gt; product.Name == </span><span style="color: #a31515;">"Road-750 Black, 52"</span><span style="color: black;">);
+    adventureWorks.ChangeTracker.Entries().Count().WriteLine(); </span><span style="color: green;">// 0
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(productById, productByName).WriteLine(); </span><span style="color: green;">// False
+</span><span style="color: black;">}</span></pre>
+<p>Here data is queries from repositories, and anonymous type instances are constructed on the fly. EF/Core cannot decide if 2 arbitrary instances semantically represent the same piece of data in remote database. This time 2 query results are independent from each other.</p>
+<p>Since the tracking is at DbContext scope. Entities of different DbContext instances belong to different units of work, and do not interfere each other:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">EntitiesFromMultipleDbContexts()
+{
+    </span><span style="color: #2b91af;">Product </span><span style="color: black;">productById;
+    </span><span style="color: #2b91af;">Product </span><span style="color: black;">productByName;
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+    {
+        productById = adventureWorks.Products.Single(product =&gt; product.ProductID == 999);
+    }
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+    {
+        productByName = adventureWorks.Products.Single(product =&gt; product.Name == </span><span style="color: #a31515;">"Road-750 Black, 52"</span><span style="color: black;">);
+    }
+    </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(productById, productByName).WriteLine(); </span><span style="color: green;">// False.
+</span><span style="color: black;">}</span></pre>
+<h2>Track entity changes and property changes</h2>
+<p>The following example demonstrate CRUD operations in the product repository, then examine all the tracking information:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">EntityChanges(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">Product </span><span style="color: black;">create = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Product</span><span style="color: black;">() { Name = </span><span style="color: blue;">nameof</span><span style="color: black;">(create), ListPrice = 1 };
+    adventureWorks.Products.Add(create); </span><span style="color: green;">// Create locally.
+    </span><span style="color: #2b91af;">Product </span><span style="color: black;">read = adventureWorks.Products.Single(product =&gt; product.ProductID == 999); </span><span style="color: green;">// Read from remote to local.
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; update = adventureWorks.Products
+        .Where(product =&gt; product.Name.Contains(</span><span style="color: #a31515;">"HL"</span><span style="color: black;">));
+    update.ForEach(product =&gt; product.ListPrice += 100); </span><span style="color: green;">// Update locally.
+    </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; delete = adventureWorks.Products
+        .Where(product =&gt; product.Name.Contains(</span><span style="color: #a31515;">"ML"</span><span style="color: black;">));
+    adventureWorks.Products.RemoveRange(delete); </span><span style="color: green;">// Delete locally.
+
+    </span><span style="color: black;">adventureWorks.ChangeTracker.HasChanges().WriteLine(); </span><span style="color: green;">// True
+    </span><span style="color: black;">adventureWorks.ChangeTracker.Entries&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt;().ForEach(tracking =&gt;
+    {
+        </span><span style="color: #2b91af;">Product </span><span style="color: black;">changed = tracking.Entity;
+        </span><span style="color: blue;">switch </span><span style="color: black;">(tracking.State)
+        {
+            </span><span style="color: blue;">case </span><span style="color: #2b91af;">EntityState</span><span style="color: black;">.Added:
+            </span><span style="color: blue;">case </span><span style="color: #2b91af;">EntityState</span><span style="color: black;">.Deleted:
+            </span><span style="color: blue;">case </span><span style="color: #2b91af;">EntityState</span><span style="color: black;">.Unchanged:
+                </span><span style="color: #a31515;">$"</span><span style="color: black;">{tracking.State}</span><span style="color: #a31515;">: </span><span style="color: black;">{(changed.ProductID, changed.Name, changed.ListPrice)}</span><span style="color: #a31515;">"</span><span style="color: black;">.WriteLine();
+                </span><span style="color: blue;">break</span><span style="color: black;">;
+            </span><span style="color: blue;">case </span><span style="color: #2b91af;">EntityState</span><span style="color: black;">.Modified:
+                </span><span style="color: #2b91af;">Product </span><span style="color: black;">original = (</span><span style="color: #2b91af;">Product</span><span style="color: black;">)tracking.OriginalValues.ToObject();
+                </span><span style="color: #a31515;">$"</span><span style="color: black;">{tracking.State}</span><span style="color: #a31515;">: </span><span style="color: black;">{(original.ProductID, original.Name, original.ListPrice)} </span><span style="color: #a31515;">=&gt; </span><span style="color: black;">{(changed.ProductID, changed.Name, changed.ListPrice)}</span><span style="color: #a31515;">"
+                    </span><span style="color: black;">.WriteLine();
+                </span><span style="color: blue;">break</span><span style="color: black;">;
+        }
+    });
+    </span><span style="color: green;">// Added: (-2147482647, toCreate, 1)
+    // Unchanged: (999, Road-750 Black, 52, 539.9900)
+    // Modified: (951, HL Crankset, 404.9900) =&gt; (951, HL Crankset, 504.9900)
+    // Modified: (996, HL Bottom Bracket, 121.4900) =&gt; (996, HL Bottom Bracket, 221.4900)
+    // Deleted: (950, ML Crankset, 256.4900)
+    // Deleted: (995, ML Bottom Bracket, 101.2400)
+</span><span style="color: black;">}</span></pre>
+<p>If an entity is not read from a DbContext instance’s repositories, then it has nothing to do with that unit of work, and apparently is not tracked by that DbContext instance. DbSet&lt;T&gt; provides an Attach method to place an entity to the repository, and the DbContext tracks the entity as the Unchanged state:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Attach(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">Product </span><span style="color: black;">product = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Product</span><span style="color: black;">() { ProductID = 950, Name = </span><span style="color: #a31515;">"ML Crankset"</span><span style="color: black;">, ListPrice = 539.99M };
+    adventureWorks.ChangeTracker.Entries().Count().WriteLine(); </span><span style="color: green;">// 0
+
+    </span><span style="color: black;">adventureWorks.Products.Attach(product);
+    adventureWorks.ChangeTracker.Entries().Count().WriteLine(); </span><span style="color: green;">// 1
+    </span><span style="color: black;">adventureWorks.ChangeTracker.Entries&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt;().Single().State.WriteLine(); </span><span style="color: green;">// Unchanged
+    </span><span style="color: black;">product.Name = </span><span style="color: #a31515;">"After attaching"</span><span style="color: black;">;
+    adventureWorks.ChangeTracker.Entries&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt;().Single().State.WriteLine(); </span><span style="color: green;">// Modified
+    </span><span style="color: black;">adventureWorks.ChangeTracker.Entries&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt;().WriteLines(tracking =&gt;
+        </span><span style="color: #a31515;">$"</span><span style="color: black;">{tracking.State}</span><span style="color: #a31515;">: </span><span style="color: black;">{tracking.OriginalValues[</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.Name)]} </span><span style="color: #a31515;">=&gt; </span><span style="color: black;">{tracking.CurrentValues[</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Product</span><span style="color: black;">.Name)]}</span><span style="color: #a31515;">"</span><span style="color: black;">);
+    </span><span style="color: green;">// Modified: ML Crankset =&gt; After attaching
+</span><span style="color: black;">}</span></pre>
+<h2>Track relationship changes</h2>
+<p>The relationship of entities is also tracked. Remember Product’s foreign key ProductSubcategoryID is nullable. The following example reads a subcategory and its products, then delete the relationship. As a result, each navigation property is cleared to empty collection or null. And each related subcategory’s foreign key property value is synced to null, which is tracked:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">RelationshipChanges(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">ProductSubcategory </span><span style="color: black;">subcategory = adventureWorks.ProductSubcategories
+        .Include(entity =&gt; entity.Products).Single(entity =&gt; entity.ProductSubcategoryID == 8);
+    subcategory.Products.Count.WriteLine(); </span><span style="color: green;">// 2
+    </span><span style="color: black;">subcategory.Products
+        .All(product =&gt; product.ProductSubcategory == subcategory).WriteLine(); </span><span style="color: green;">// True
+
+    </span><span style="color: black;">subcategory.Products.Clear();
+    </span><span style="color: green;">// Equivalent to: subcategory.Products.ForEach(product =&gt; product.ProductSubcategory = null);
+    </span><span style="color: black;">subcategory.Products.Count.WriteLine(); </span><span style="color: green;">// 0
+    </span><span style="color: black;">subcategory.Products
+        .All(product =&gt; product.ProductSubcategory == </span><span style="color: blue;">null</span><span style="color: black;">).WriteLine(); </span><span style="color: green;">// True
+    </span><span style="color: black;">adventureWorks.ChangeTracker.Entries&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt;().ForEach(tracking =&gt;
+    {
+        </span><span style="color: #2b91af;">Product </span><span style="color: black;">original = (</span><span style="color: #2b91af;">Product</span><span style="color: black;">)tracking.OriginalValues.ToObject();
+        </span><span style="color: #2b91af;">Product </span><span style="color: black;">changed = tracking.Entity;
+        </span><span style="color: #a31515;">$"</span><span style="color: black;">{tracking.State}</span><span style="color: #a31515;">: </span><span style="color: black;">{(original.ProductID, original.Name, original.ProductSubcategoryID)} </span><span style="color: #a31515;">=&gt; </span><span style="color: black;">{(changed.ProductID, changed.Name, changed.ProductSubcategoryID)}</span><span style="color: #a31515;">"</span><span style="color: black;">.WriteLine();
+    });
+    </span><span style="color: green;">// Modified: (950, ML Crankset, 8) =&gt; (950, ML Crankset, )
+    // Modified: (951, HL Crankset, 8) =&gt; (951, HL Crankset, )
+</span><span style="color: black;">}</span></pre>
+<h2>Enable and disable tracking</h2>
+<p>DbContext’s default behavior is to track all changes automatically. This can be turned off if not needed. To disable tracking for specific entities queried from repository, call the EntityFrameworkQueryableExtensions.AsNoTracking extension method for IQueryable&lt;T&gt; query:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">AsNoTracking(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    </span><span style="color: #2b91af;">Product </span><span style="color: black;">untracked = adventureWorks.Products.AsNoTracking().First();
+    adventureWorks.ChangeTracker.Entries().Count().WriteLine(); </span><span style="color: green;">// 0
+</span><span style="color: black;">}</span></pre>
+<p>Tracking can also be enabled or disabled at the DbContext scope, by setting the ChangeTracker.AutoDetectChangesEnabled property to true or false. The default value of ChangeTracker.AutoDetectChangesEnabled is true, so usually it is not needed to manually detect changes by calling ChangeTracker.DetectChanges method. The changes are automatically detected when DbContext.SubmitChanges is called.&nbsp; The changes are also automatically detected when tracking information is calculated, for example, when calling ChangeTracker.Entries, DbContext.Entry, etc.</p>
+<blockquote>
+<p>In EF, the switch is DbContext.Configuration.AutoDetectChangesEnabled. And when AutoDetectChangesEnabled is true (by default), DetectChanges is called much more frequently than in EF Core.</p>
+</blockquote>
+<p>If needed, changes and be manually tracked by calling ChangeTracker.DetectChanges method:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">DetectChanges(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{</span><span style="color: gray;">
+    </span><span style="color: black;">adventureWorks.ChangeTracker.AutoDetectChangesEnabled = </span><span style="color: blue;">false</span><span style="color: black;">;</span><span style="color: gray;">
+    </span><span style="color: #2b91af;">Product </span><span style="color: black;">product = adventureWorks.Products.First();
+    product.ListPrice += 100;
+    adventureWorks.ChangeTracker.HasChanges().WriteLine(); </span><span style="color: green;">// False
+    </span><span style="color: black;">adventureWorks.ChangeTracker.DetectChanges();
+    adventureWorks.ChangeTracker.HasChanges().WriteLine(); </span><span style="color: green;">// True
+</span><span style="color: black;">}</span></pre>
+<h1>Change data</h1>
+<p>To change the data in the database, just create a DbContext instance, change the data in its repositories, and call DbContext.SaveChanges method to submit the tracked changes to the remote database as a unit of work.</p>
+<h2>Create</h2>
+<p>To create new entities into the repository, call DbSet&lt;T&gt;.Add or DbSet&lt;T&gt;.AddRange. The following example creates a new category, and a new related subcategory, and add to repositories:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Changes
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">Create()
+    {
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+        {
+            </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">category = </span><span style="color: blue;">new </span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">() { Name = </span><span style="color: #a31515;">"Create" </span><span style="color: black;">};
+            </span><span style="color: #2b91af;">ProductSubcategory </span><span style="color: black;">subcategory = </span><span style="color: blue;">new </span><span style="color: #2b91af;">ProductSubcategory</span><span style="color: black;">() { Name = </span><span style="color: #a31515;">"Create" </span><span style="color: black;">};
+            category.ProductSubcategories = </span><span style="color: blue;">new </span><span style="color: #2b91af;">HashSet</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">ProductSubcategory</span><span style="color: black;">&gt;() { subcategory };
+            </span><span style="color: green;">// Equivalent to: subcategory.ProductCategory = category;
+            </span><span style="color: black;">category.ProductCategoryID.WriteLine(); </span><span style="color: green;">// 0
+            </span><span style="color: black;">subcategory.ProductCategoryID.WriteLine(); </span><span style="color: green;">// 0
+            </span><span style="color: black;">subcategory.ProductSubcategoryID.WriteLine(); </span><span style="color: green;">// 0
+
+            </span><span style="color: black;">adventureWorks.ProductCategories.Add(category); </span><span style="color: green;">// Track creation.
+            // Equivalent to: adventureWorks.ProductSubcategories.Add(subcategory);
+            </span><span style="color: black;">adventureWorks.ChangeTracker.Entries()
+                .Count(tracking =&gt; tracking.State == </span><span style="color: #2b91af;">EntityState</span><span style="color: black;">.Added).WriteLine(); </span><span style="color: green;">// 2
+            </span><span style="color: blue;">object</span><span style="color: black;">.ReferenceEquals(category.ProductSubcategories.Single(), subcategory).WriteLine(); </span><span style="color: green;">// True
+
+            </span><span style="color: black;">adventureWorks.SaveChanges().WriteLine(); </span><span style="color: green;">// 2
+            // BEGIN TRANSACTION
+            //    exec sp_executesql N'SET NOCOUNT ON;
+            //    INSERT INTO [Production].[ProductCategory] ([Name])
+            //    VALUES (@p0);
+            //    SELECT [ProductCategoryID]
+            //    FROM [Production].[ProductCategory]
+            //    WHERE @@ROWCOUNT = 1 AND [ProductCategoryID] = scope_identity();
+            //    ',N'@p0 nvarchar(50)',@p0=N'Create'
+            //
+            //    exec sp_executesql N'SET NOCOUNT ON;
+            //    INSERT INTO [Production].[ProductCategory] ([Name])
+            //    VALUES (@p0);
+            //    SELECT [ProductCategoryID]
+            //    FROM [Production].[ProductCategory]
+            //    WHERE @@ROWCOUNT = 1 AND [ProductCategoryID] = scope_identity();
+            //    ',N'@p0 nvarchar(50)',@p0=N'Create'
+            // COMMIT TRANSACTION
+
+            </span><span style="color: black;">adventureWorks.ChangeTracker.Entries()
+                .Count(tracking =&gt; tracking.State != </span><span style="color: #2b91af;">EntityState</span><span style="color: black;">.Unchanged).WriteLine(); </span><span style="color: green;">// 0
+            </span><span style="color: black;">category.ProductCategoryID.WriteLine(); </span><span style="color: green;">// 5
+            </span><span style="color: black;">subcategory.ProductCategoryID.WriteLine(); </span><span style="color: green;">// 5
+            </span><span style="color: black;">subcategory.ProductSubcategoryID.WriteLine(); </span><span style="color: green;">// 38
+            </span><span style="color: blue;">return </span><span style="color: black;">category;
+        } </span><span style="color: green;">// Unit of work.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>Here DbSet&lt;T&gt;.Add is called only once with 1 subcategory entity. Internally, Add triggers change detection, and tracks this subcategory as Added state. Since this subcategory is related with another category entity with navigation property, the related category is also tracked, as the Added state too. So in total there are 2 entity changes tracked. When DbContext.SaveChanges is called, EF/Core translates these 2 changes to 2 SQL INSERT statements:</p>
+<p>The category’s key is identity key, with value generated by database, so is subcategory. So in the translated INSERT statements, the new category’s ProductCategoryID and the new subcategory’s ProductSubcategory are ignored. After the each new row is created, a SELECT statement calls SCOPE_IDENTITY metadata function to read the last generated identity value, which is the primary key of the inserted row. As a result, since there are 2 row changes in total, SaveChanges returns 2,&nbsp; And the 2 changes are submitted in a transaction, so that all changes can succeed or fail as a unit.</p>
+<p>DbSet&lt;T&gt;.AddRange can be called with multiple entities. AddRange only triggers change detection once for all the entities, so it can have better performance than multiple Add calls,</p>
+<h2>Update</h2>
+<p>To update entities in the repositories, just change their properties, including navigation properties. The following example updates a subcategory entity’s name, and related category entity, which is translated to UPDATE statement:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Update(</span><span style="color: blue;">int </span><span style="color: black;">categoryId, </span><span style="color: blue;">int </span><span style="color: black;">subcategoryId)
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+    {
+        </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">category = adventureWorks.ProductCategories.Find(categoryId);
+        </span><span style="color: #2b91af;">ProductSubcategory </span><span style="color: black;">subcategory = adventureWorks.ProductSubcategories.Find(subcategoryId);
+        </span><span style="color: #a31515;">$"(</span><span style="color: black;">{subcategory.ProductSubcategoryID}</span><span style="color: #a31515;">, </span><span style="color: black;">{subcategory.Name}</span><span style="color: #a31515;">, </span><span style="color: black;">{subcategory.ProductCategoryID}</span><span style="color: #a31515;">)"
+            </span><span style="color: black;">.WriteLine(); </span><span style="color: green;">// (48, Create, 25)
+        </span><span style="color: black;">subcategory.Name = </span><span style="color: #a31515;">"Update"</span><span style="color: black;">; </span><span style="color: green;">// Entity property update.
+        </span><span style="color: black;">subcategory.ProductCategory = category; </span><span style="color: green;">// Relashionship (foreign key) update.
+        </span><span style="color: black;">adventureWorks.ChangeTracker.Entries().Count(tracking =&gt; tracking.State != </span><span style="color: #2b91af;">EntityState</span><span style="color: black;">.Unchanged)
+            .WriteLine(); </span><span style="color: green;">// 1
+        </span><span style="color: #a31515;">$"(</span><span style="color: black;">{subcategory.ProductSubcategoryID}</span><span style="color: #a31515;">, </span><span style="color: black;">{subcategory.Name}</span><span style="color: #a31515;">, </span><span style="color: black;">{subcategory.ProductCategoryID}</span><span style="color: #a31515;">)"
+            </span><span style="color: black;">.WriteLine(); </span><span style="color: green;">// (48, Update, 1)
+        </span><span style="color: black;">adventureWorks.SaveChanges().WriteLine(); </span><span style="color: green;">// 1
+        // BEGIN TRANSACTION
+        //    exec sp_executesql N'SET NOCOUNT ON;
+        //    UPDATE [Production].[ProductSubcategory] SET [Name] = @p0, [ProductCategoryID] = @p1
+        //    WHERE [ProductSubcategoryID] = @p2;
+        //    SELECT @@ROWCOUNT;
+        //    ',N'@p2 int,@p0 nvarchar(50),@p1 int',@p2=25,@p0=N'Update',@p1=25
+        // COMMIT TRANSACTION
+    </span><span style="color: black;">} </span><span style="color: green;">// Unit of work.
+</span><span style="color: black;">}</span></pre>
+<p>The above example first call Find to read the entities with a SELECT query, then execute the UPDATE statement. Here the row to update is located by primary key, so, if the primary key is known, then it can be used directly:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">UpdateWithoutRead(</span><span style="color: blue;">int </span><span style="color: black;">categoryId)
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+    {
+        </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">category = </span><span style="color: blue;">new </span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">()
+        {
+            ProductCategoryID = categoryId,
+            Name = </span><span style="color: #2b91af;">Guid</span><span style="color: black;">.NewGuid().ToString()<span style="color: black;"> </span><span style="color: green;">// To be updated.</span>
+        };
+        adventureWorks.ProductCategories.Attach(category); </span><span style="color: green;">// Track entity.
+        </span><span style="color: #2b91af;">EntityEntry </span><span style="color: black;">tracking = adventureWorks.ChangeTracker.Entries&lt;</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">&gt;().Single();
+        tracking.State.WriteLine(); </span><span style="color: green;">// Unchanged
+        </span><span style="color: black;">tracking.State = </span><span style="color: #2b91af;">EntityState</span><span style="color: black;">.Modified;
+        adventureWorks.SaveChanges().WriteLine(); </span><span style="color: green;">// 1
+        // BEGIN TRANSACTION
+        //    exec sp_executesql N'SET NOCOUNT ON;
+        //    UPDATE [Production].[ProductCategory] SET [Name] = @p0
+        //    WHERE [ProductCategoryID] = @p1;
+        //    SELECT @@ROWCOUNT;
+        //    ',N'@p1 int,@p0 nvarchar(50)',@p1=25,@p0=N'513ce396-4a5e-4a86-9d82-46f284aa4f94'
+        // COMMIT TRANSACTION
+    </span><span style="color: black;">} </span><span style="color: green;">// Unit of work.
+</span><span style="color: black;">}</span></pre>
+<p>Here a category entity is constructed on the fly, with specified primary key and updated Name. To track and save the changes, ii is attached to the repository. As fore mentioned, the attached entity is tracked as Unchanged state, so just manually set its state to Modified. This time, only one UPDATE statement is translated and executed, without SELECT.</p>
+<p>When there is no change to save, SaveChanges does not translate or execute any SQL and returns 0:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">SaveNoChanges(</span><span style="color: blue;">int </span><span style="color: black;">categoryId)
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+    {
+        </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">category = adventureWorks.ProductCategories.Find(categoryId);
+        </span><span style="color: blue;">string </span><span style="color: black;">originalName = category.Name;
+        category.Name = </span><span style="color: #2b91af;">Guid</span><span style="color: black;">.NewGuid().ToString(); </span><span style="color: green;">// Entity property update.
+        </span><span style="color: black;">category.Name = originalName; </span><span style="color: green;">// Entity property update.
+        </span><span style="color: #2b91af;">EntityEntry </span><span style="color: black;">tracking = adventureWorks.ChangeTracker.Entries().Single();
+        tracking.State.WriteLine(); </span><span style="color: green;">// Unchanged
+        </span><span style="color: black;">adventureWorks.ChangeTracker.HasChanges().WriteLine(); </span><span style="color: green;">// False
+        </span><span style="color: black;">adventureWorks.SaveChanges().WriteLine(); </span><span style="color: green;">// 0
+    </span><span style="color: black;">} </span><span style="color: green;">// Unit of work.
+</span><span style="color: black;">}</span></pre>
+<h2>Delete</h2>
+<p>To delete entities from the repositories, call DbSet&lt;T&gt;.Remove or DbSet&lt;T&gt;.RemoveRange. The following example read an entity then delete it:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Delete(</span><span style="color: blue;">int </span><span style="color: black;">subcategoryId)
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+    {
+        </span><span style="color: #2b91af;">ProductSubcategory </span><span style="color: black;">subcategory = adventureWorks.ProductSubcategories.Find(subcategoryId);
+        adventureWorks.ChangeTracker.Entries().Count().WriteLine(); </span><span style="color: green;">// 1
+        </span><span style="color: black;">adventureWorks.ChangeTracker.Entries&lt;</span><span style="color: #2b91af;">ProductSubcategory</span><span style="color: black;">&gt;().Single().State.WriteLine(); </span><span style="color: green;">// Unchanged
+        </span><span style="color: black;">adventureWorks.ProductSubcategories.Remove(subcategory); </span><span style="color: green;">// Track deletion.
+        </span><span style="color: black;">adventureWorks.ChangeTracker.Entries&lt;</span><span style="color: #2b91af;">ProductSubcategory</span><span style="color: black;">&gt;().Single().State.WriteLine(); </span><span style="color: green;">// Deleted
+        </span><span style="color: black;">adventureWorks.SaveChanges().WriteLine(); </span><span style="color: green;">// 1
+        // BEGIN TRANSACTION
+        //    exec sp_executesql N'SET NOCOUNT ON;
+        //    DELETE FROM [Production].[ProductSubcategory]
+        //    WHERE [ProductSubcategoryID] = @p0;
+        //    SELECT @@ROWCOUNT;
+        //    ',N'@p0 int',@p0=48
+        // COMMIT TRANSACTION
+    </span><span style="color: black;">} </span><span style="color: green;">// Unit of work.
+</span><span style="color: black;">}</span></pre>
+<p>Here, the row to delete is also located with primary key. So again, when primary key is known, reading entity can be skipped:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">DeleteWithoutRead(</span><span style="color: blue;">int </span><span style="color: black;">categoryId)
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+    {
+        </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">category = </span><span style="color: blue;">new </span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">() { ProductCategoryID = categoryId };
+        adventureWorks.ProductCategories.Attach(category);
+        adventureWorks.ChangeTracker.Entries().Count().WriteLine(); </span><span style="color: green;">// 1
+        </span><span style="color: black;">adventureWorks.ChangeTracker.Entries&lt;</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">&gt;().Single().State.WriteLine(); </span><span style="color: green;">// Unchanged
+        </span><span style="color: black;">adventureWorks.ProductCategories.Remove(category); </span><span style="color: green;">// Track deletion.
+        </span><span style="color: black;">adventureWorks.ChangeTracker.Entries&lt;</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">&gt;().Single().State.WriteLine(); </span><span style="color: green;">// Deleted
+        </span><span style="color: black;">adventureWorks.SaveChanges().WriteLine(); </span><span style="color: green;">// 1
+        //    BEGIN TRANSACTION
+        //    exec sp_executesql N'SET NOCOUNT ON;
+        //    DELETE FROM [Production].[ProductCategory]
+        //    WHERE [ProductCategoryID] = @p0;
+        //    SELECT @@ROWCOUNT;
+        //    ',N'@p0 int',@p0=25
+        // COMMIT TRANSACTION
+    </span><span style="color: black;">} </span><span style="color: green;">// Unit of work.
+</span><span style="color: black;">}</span></pre>
+<p>If a principal entity is loaded with its dependent entities, deleting the principal entity becomes cascade deletion:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">DeleteCascade(</span><span style="color: blue;">int </span><span style="color: black;">categoryId)
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+    {
+        </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">category = adventureWorks.ProductCategories</span><span style="color: black;">
+            .Include(entity =&gt; entity.ProductSubcategories)</span><span style="color: gray;">
+            </span><span style="color: black;">.Single(entity =&gt; entity.ProductCategoryID == categoryId);
+        </span><span style="color: #2b91af;">ProductSubcategory </span><span style="color: black;">subcategory = category.ProductSubcategories.Single();
+        adventureWorks.ChangeTracker.Entries().Count().WriteLine(); </span><span style="color: green;">// 2
+        </span><span style="color: black;">adventureWorks.ProductCategories.Remove(category); </span><span style="color: green;">// Track deletion.
+        // Optional: adventureWorks.ProductSubcategories.Remove(subcategory);
+        </span><span style="color: black;">adventureWorks.ChangeTracker.Entries().Count(tracking =&gt; tracking.State == </span><span style="color: #2b91af;">EntityState</span><span style="color: black;">.Deleted)
+            .WriteLine(); </span><span style="color: green;">// 2
+        </span><span style="color: black;">adventureWorks.SaveChanges().WriteLine(); </span><span style="color: green;">// 2
+        // BEGIN TRANSACTION
+        //    exec sp_executesql N'SET NOCOUNT ON;
+        //    DELETE FROM [Production].[ProductSubcategory]
+        //    WHERE [ProductSubcategoryID] = @p0;
+        //    SELECT @@ROWCOUNT;
+        //    ',N'@p0 int',@p0=49
+
+        //    exec sp_executesql N'SET NOCOUNT ON;
+        //    DELETE FROM [Production].[ProductCategory]
+        //    WHERE [ProductCategoryID] = @p1;
+        //    SELECT @@ROWCOUNT;
+        //    ',N'@p1 int',@p1=26
+        // COMMIT TRANSACTION
+    </span><span style="color: black;">} </span><span style="color: green;">// Unit of work.
+</span><span style="color: black;">}</span></pre>
+<p>Here the cascade deletion are translated and executed in the right order. The subcategory is deleted first, then category is deleted.</p>
+<blockquote>
+<p>In EF, untracked entities’ changes cannot to be translated or executed. The following example tries to delete a untracked entity from the repository, it throws InvalidOperationException:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">UntrackedChanges()
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+    {
+        </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">untracked = adventureWorks.ProductCategories
+            .AsNoTracking()
+            .Single(category =&gt; category.Name == </span><span style="color: #a31515;">"Bikes"</span><span style="color: black;">);
+        adventureWorks.ProductCategories.Remove(untracked); </span><span style="color: green;">// Track no deletion.
+        </span><span style="color: black;">adventureWorks.SaveChanges().WriteLine();</span><span style="color: black;">
+        </span><span style="color: green;">// InvalidOperationException: The object cannot be deleted because it was not found in the ObjectStateManager.</span><span style="color: gray;">
+    </span><span style="color: black;">} </span><span style="color: green;">// Unit of work.
+</span><span style="color: black;">}</span></pre>
+</blockquote>
+<h1>Transaction</h1>
+<p>As discussed above, by default DbContext.SaveChanges execute all data creation, update and deletion in a transaction, so that all the work can succeed or fail as a unit. If the unit of work succeeds, the transaction is committed, if any operation fails, the transaction is rolled back. EF/Core also supports custom transactions.</p>
+<h2>Transaction with connection resiliency and execution strategy</h2>
+<p>If the retry strategy is enabled for connection resiliency for DbContext by default, then this default retry strategy does not work custom transaction. Custom transaction works within a single retry operation, but not cross multiple retries. In EF Core, database façade’s CreateExecutionStrategy method can be called to explicitly specify a single retry operation:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Transactions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">ExecutionStrategy(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+    {
+        adventureWorks.Database.CreateExecutionStrategy().Execute(() =&gt;
+        {
+            </span><span style="color: green;">// Single retry operation, which can have custom transactions.
+        </span><span style="color: black;">});
+    }
+}</span></pre>
+<blockquote>
+<p>In EF, the default retry strategy must be manually disabled, so that an individual retry logic must be manually created to start a single retry operation. In the object-relational mapping part, an ExecutionStrategy type is defined to turn on/off the default retry strategy. It can be reused to implement this:</p>
+<pre class="code"><span style="color: blue;">public partial class </span><span style="color: #2b91af;">ExecutionStrategy </span><span style="color: black;">: </span><span style="color: #2b91af;">IDbExecutionStrategy
+</span><span style="color: black;">{
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">IDbExecutionStrategy </span><span style="color: black;">strategy = Create();
+
+    </span><span style="color: blue;">public bool </span><span style="color: black;">RetriesOnFailure =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.strategy.RetriesOnFailure;
+
+    </span><span style="color: blue;">public void </span><span style="color: black;">Execute(</span><span style="color: #2b91af;">Action </span><span style="color: black;">operation) =&gt;
+        ExecuteOperation(() =&gt; { </span><span style="color: blue;">this</span><span style="color: black;">.strategy.Execute(operation); </span><span style="color: blue;">return </span><span style="color: black;">(</span><span style="color: blue;">object</span><span style="color: black;">)</span><span style="color: blue;">null</span><span style="color: black;">; });
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">TResult </span><span style="color: black;">Execute&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; operation) =&gt;
+        ExecuteOperation(() =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.strategy.Execute(operation));
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">Task </span><span style="color: black;">ExecuteAsync(
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Task</span><span style="color: black;">&gt; operation, </span><span style="color: #2b91af;">CancellationToken </span><span style="color: black;">cancellationToken = </span><span style="color: blue;">default</span><span style="color: black;">) =&gt;
+            ExecuteOperation(() =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.strategy.ExecuteAsync(operation, cancellationToken));
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">Task</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; ExecuteAsync&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Task</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;&gt; operation, </span><span style="color: #2b91af;">CancellationToken </span><span style="color: black;">cancellationToken = </span><span style="color: blue;">default</span><span style="color: black;">) =&gt;
+            ExecuteOperation(() =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.strategy.ExecuteAsync(operation, cancellationToken));
+
+    </span><span style="color: blue;">private static </span><span style="color: #2b91af;">T </span><span style="color: black;">ExecuteOperation&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; resultFactory)
+    {
+        DisableExecutionStrategy = </span><span style="color: blue;">true</span><span style="color: black;">;
+        </span><span style="color: blue;">try
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">return </span><span style="color: black;">resultFactory();
+        }
+        </span><span style="color: blue;">finally
+        </span><span style="color: black;">{
+            DisableExecutionStrategy = </span><span style="color: blue;">false</span><span style="color: black;">;
+        }
+    }
+}</span></pre>
+<p>In EF, the database façade does not have CreateExecutionStrategy method, so a extension method can be defined for DbContext.Database:</p>
+<pre class="code"><span style="color: blue;">public static class </span><span style="color: #2b91af;">DatabaseExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static </span><span style="color: #2b91af;">ExecutionStrategy </span><span style="color: black;">CreateExecutionStrategy(</span><span style="color: blue;">this </span><span style="color: #2b91af;">DatabaseFacade </span><span style="color: black;">database) =&gt;
+        </span><span style="color: blue;">new </span><span style="color: #2b91af;">ExecutionStrategy</span><span style="color: black;">();
+}</span></pre>
+<p>Now EF can use the same pattern as EF Core to work with custom transactions.</p>
+</blockquote>
+<h2>EF/Core transaction</h2>
+<p>EF Core provides Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction to represent a transaction. It can be created by DbContext.Database.BeginTransaction, where the transaction’s <a href="https://technet.microsoft.com/en-us/library/ms189122.aspx" target="_blank">isolation level</a> can be optionally specified. The following example executes a entity change and custom SQL with one EF/Core transaction:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">DbContextTransaction(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks)
+{
+    adventureWorks.Database.CreateExecutionStrategy().Execute(() =&gt;
+    {
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IDbContextTransaction </span><span style="color: black;">transaction = adventureWorks.Database.BeginTransaction(
+            </span><span style="color: #2b91af;">IsolationLevel</span><span style="color: black;">.ReadUncommitted))
+        {
+            </span><span style="color: blue;">try
+            </span><span style="color: black;">{
+                adventureWorks.CurrentIsolationLevel().WriteLine(); </span><span style="color: green;">// ReadUncommitted
+
+                </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">category = </span><span style="color: blue;">new </span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">() { Name = </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">) };
+                adventureWorks.ProductCategories.Add(category);
+                adventureWorks.SaveChanges().WriteLine(); </span><span style="color: green;">// 1
+
+                </span><span style="color: black;">adventureWorks.Database.ExecuteSqlCommand(
+                    sql: </span><span style="color: #a31515;">"DELETE FROM [Production].[ProductCategory] WHERE [Name] = {0}"</span><span style="color: black;">,
+                    parameters: </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">)).WriteLine(); </span><span style="color: green;">// 1
+                </span><span style="color: black;">transaction.Commit();
+            }
+            </span><span style="color: blue;">catch
+            </span><span style="color: black;">{
+                transaction.Rollback();
+                </span><span style="color: blue;">throw</span><span style="color: black;">;
+            }
+        }
+    });
+}</span></pre>
+<p>EF/Core transaction wraps ADO.NET transaction. When the EF/Core transaction begins, The specified isolation level is written to a packet (represented by System.Data.SqlClient.SNIPacket type), and sent to SQL database via TDS protocol. There is no SQL statement like <a href="https://msdn.microsoft.com/en-us/library/ms173763.aspx" target="_blank">SET TRANSACTION ISOLATION LEVEL</a> executed, so the actual isolation level cannot be logged by EF/Core, or traced by SQL Profiler. In above example, CurrentIsolationLevel is called to verify the current transaction’s isolation level. It is an extension method of DbContext. It queries the dynamic management view <a href="https://msdn.microsoft.com/en-us/library/ms176013.aspx" target="_blank">sys.dm_exec_sessions</a> with current session id, which can be retrieved with <a href="https://msdn.microsoft.com/en-us/library/ms189535.aspx" target="_blank">@@SPID</a> function:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">DbContextExtensions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static readonly string </span><span style="color: black;">CurrentIsolationLevelSql = </span><span style="color: maroon;">$@"
+        SELECT
+            CASE transaction_isolation_level
+                WHEN 0 THEN N'</span><span style="color: black;">{</span><span style="color: #2b91af;">IsolationLevel</span><span style="color: black;">.Unspecified}</span><span style="color: maroon;">'
+                WHEN 1 THEN N'</span><span style="color: black;">{</span><span style="color: #2b91af;">IsolationLevel</span><span style="color: black;">.ReadUncommitted}</span><span style="color: maroon;">''
+                WHEN 2 THEN N'</span><span style="color: black;">{</span><span style="color: #2b91af;">IsolationLevel</span><span style="color: black;">.ReadCommitted}</span><span style="color: maroon;">''
+                WHEN 3 THEN N'</span><span style="color: black;">{</span><span style="color: #2b91af;">IsolationLevel</span><span style="color: black;">.RepeatableRead}</span><span style="color: maroon;">''
+                WHEN 4 THEN N'</span><span style="color: black;">{</span><span style="color: #2b91af;">IsolationLevel</span><span style="color: black;">.Serializable}</span><span style="color: maroon;">''
+                WHEN 5 THEN N'</span><span style="color: black;">{</span><span style="color: #2b91af;">IsolationLevel</span><span style="color: black;">.Snapshot}</span><span style="color: maroon;">''
+            END
+        FROM sys.dm_exec_sessions
+        WHERE session_id = @@SPID"</span><span style="color: black;">;
+</span><span style="color: gray;">
+    </span><span style="color: blue;">public static string </span><span style="color: black;">CurrentIsolationLevel(</span><span style="color: blue;">this </span><span style="color: #2b91af;">DbContext </span><span style="color: black;">context)
+    {
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">DbCommand </span><span style="color: black;">command = context.Database.GetDbConnection().CreateCommand())
+        {
+            command.CommandText = CurrentIsolationLevelSql;
+            command.Transaction = context.Database.CurrentTransaction.GetDbTransaction();
+            </span><span style="color: blue;">return </span><span style="color: black;">(</span><span style="color: blue;">string</span><span style="color: black;">)command.ExecuteScalar();
+        }
+    }</span><span style="color: gray;">
+</span><span style="color: black;">}</span></pre>
+<p>When DbContext.SaveChanges is called to create entity. it detects a transaction is explicitly created with the current DbContext, so it uses that transaction and does not automatically begins a new transaction like all the previous examples. Then DbContext.Database.ExecuteSqlCommnd is called to delete entity. It also detects and uses transaction of the current DbContext. Eventually, to commit the transaction, call IDbContextTransaction.Commit, to rollback the transaction, call IDbContextTransaction.Rollback</p>
+<blockquote>
+<p>In EF has built-in support to execute custom SQL with result of primitive type, so CurrentIsolationLevel can be implemented as:/p&gt;</p>
+<pre class="code"><span style="color: blue;">public static string </span><span style="color: black;">CurrentIsolationLevel(</span><span style="color: blue;">this </span><span style="color: #2b91af;">DbContext </span><span style="color: black;">context) =&gt;
+    context.Database.SqlQuery&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;(CurrentIsolationLevelSql).Single();</span></pre>
+</blockquote>
+<h2>ADO.NET transaction</h2>
+<p>EF/Core can also use the ADO.NET transaction, represented by System.Data.Common.DbTransaction. The following example execute the same entity change and custom SQL command with one ADO.NET transaction. To use an existing ADO.NET transaction, call DbContext.Database.UseTransaction:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">DbTransaction()
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">DbConnection </span><span style="color: black;">connection = </span><span style="color: blue;">new </span><span style="color: #2b91af;">SqlConnection</span><span style="color: black;">(</span><span style="color: #2b91af;">ConnectionStrings</span><span style="color: black;">.AdventureWorks))
+    {
+        connection.Open();
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">DbTransaction </span><span style="color: black;">transaction = connection.BeginTransaction(</span><span style="color: #2b91af;">IsolationLevel</span><span style="color: black;">.RepeatableRead))
+        {
+            </span><span style="color: blue;">try
+            </span><span style="color: black;">{
+                </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">(connection))
+                {
+                    adventureWorks.Database.CreateExecutionStrategy().Execute(() =&gt;
+                    {
+                        adventureWorks.Database.UseTransaction(transaction);
+                        adventureWorks.CurrentIsolationLevel().WriteLine(); </span><span style="color: green;">// RepeatableRead
+
+                        </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">category = </span><span style="color: blue;">new </span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">() { Name = </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">) };
+                        adventureWorks.ProductCategories.Add(category);
+                        adventureWorks.SaveChanges().WriteLine(); </span><span style="color: green;">// 1.
+                    </span><span style="color: black;">});
+                }
+                </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">DbCommand </span><span style="color: black;">command = connection.CreateCommand())
+                {
+                    command.CommandText = </span><span style="color: #a31515;">"DELETE FROM [Production].[ProductCategory] WHERE [Name] = @p0"</span><span style="color: black;">;
+                    </span><span style="color: #2b91af;">DbParameter </span><span style="color: black;">parameter = command.CreateParameter();
+                    parameter.ParameterName = </span><span style="color: #a31515;">"@p0"</span><span style="color: black;">;
+                    parameter.Value = </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">);
+                    command.Parameters.Add(parameter);
+                    command.Transaction = transaction;
+                    command.ExecuteNonQuery().WriteLine(); </span><span style="color: green;">// 1
+                </span><span style="color: black;">}
+                transaction.Commit();
+            }
+            </span><span style="color: blue;">catch
+            </span><span style="color: black;">{
+                transaction.Rollback();
+                </span><span style="color: blue;">throw</span><span style="color: black;">;
+            }
+        }
+    }
+}</span></pre>
+<h2>Transaction scope</h2>
+<blockquote>
+<p>The EF transaction only work with its source DbContext, and the ADO.NET transaction only work with its source DbConnection. Since EF work with .NET Framework, where System.Transactions.TransactionScope is provided, TransactionScope can be used with EF to have a transaction that work across the lifecycle of multiple DbContext or DbConnection instances:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">TransactionScope()
+{
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">ExecutionStrategy</span><span style="color: black;">().Execute(() =&gt;
+    {
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">TransactionScope </span><span style="color: black;">scope = </span><span style="color: blue;">new </span><span style="color: #2b91af;">TransactionScope</span><span style="color: black;">(
+            scopeOption: </span><span style="color: #2b91af;">TransactionScopeOption</span><span style="color: black;">.Required,
+            transactionOptions: </span><span style="color: blue;">new </span><span style="color: #2b91af;">TransactionOptions</span><span style="color: black;">()
+            {
+                IsolationLevel = System.Transactions.</span><span style="color: #2b91af;">IsolationLevel</span><span style="color: black;">.Serializable
+            }))
+        {
+            </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">DbConnection </span><span style="color: black;">connection = </span><span style="color: blue;">new </span><span style="color: #2b91af;">SqlConnection</span><span style="color: black;">(</span><span style="color: #2b91af;">ConnectionStrings</span><span style="color: black;">.AdventureWorks))
+            </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">DbCommand </span><span style="color: black;">command = connection.CreateCommand())
+            {
+                command.CommandText = </span><span style="color: #2b91af;">DbContextExtensions</span><span style="color: black;">.CurrentIsolationLevelSql;
+                connection.Open();
+                </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">DbDataReader </span><span style="color: black;">reader = command.ExecuteReader())
+                {
+                    reader.Read();
+                    reader[0].WriteLine(); </span><span style="color: green;">// RepeatableRead
+                </span><span style="color: black;">}
+            }
+            </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+            {
+                </span><span style="color: #2b91af;">ProductCategory </span><span style="color: black;">category = </span><span style="color: blue;">new </span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">() { Name = </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">) };
+                adventureWorks.ProductCategories.Add(category);
+                adventureWorks.SaveChanges().WriteLine(); </span><span style="color: green;">// 1
+            </span><span style="color: black;">}
+            </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+            {
+                adventureWorks.CurrentIsolationLevel().WriteLine(); </span><span style="color: green;">// Serializable
+            </span><span style="color: black;">}
+            </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">DbConnection </span><span style="color: black;">connection = </span><span style="color: blue;">new </span><span style="color: #2b91af;">SqlConnection</span><span style="color: black;">(</span><span style="color: #2b91af;">ConnectionStrings</span><span style="color: black;">.AdventureWorks))
+            </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">DbCommand </span><span style="color: black;">command = connection.CreateCommand())
+            {
+                command.CommandText = </span><span style="color: #a31515;">"DELETE FROM [Production].[ProductCategory] WHERE [Name] = @p0"</span><span style="color: black;">;
+                </span><span style="color: #2b91af;">DbParameter </span><span style="color: black;">parameter = command.CreateParameter();
+                parameter.ParameterName = </span><span style="color: #a31515;">"@p0"</span><span style="color: black;">;
+                parameter.Value = </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ProductCategory</span><span style="color: black;">);
+                command.Parameters.Add(parameter);
+
+                connection.Open();
+                command.ExecuteNonQuery().WriteLine(); </span><span style="color: green;">// 1
+            </span><span style="color: black;">}
+            scope.Complete();
+        }
+    });
+}</span>
+
+
+</div>
+</body>
+</html>

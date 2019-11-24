@@ -1,0 +1,369 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+<h1>Programming paradigms</h1>
+<p>Programming paradigm is the fundamental style of programming. There are <a href="https://en.wikipedia.org/wiki/Programming_paradigm" target="_blank">many paradigms for programming</a>, for example:</p>
+<ul>
+<li><a href="https://en.wikipedia.org/wiki/Declarative_programming" target="_blank">Declarative programming:</a> designs what is the logic of operations, without describing its control flow (SQL, etc.)</li>
+<ul>
+<li><a href="https://en.wikipedia.org/wiki/Functional_programming" target="_blank">Functional programming</a>: uses expressions to describe operations, which are treated as call of functions (Lisp, etc.)</li>
+<ul>
+<li><a href="https://en.wikipedia.org/wiki/Purely_functional_programming" target="_blank">Purely functional programming</a>: does not rely on mutable state (Haskell, etc.)</li>
+</ul>
+<li><a href="https://en.wikipedia.org/wiki/Logic_programming" target="_blank">Logic programming</a>: designs the program with facts and rules in logical form (Prolog, etc.)</li>
+</ul>
+<li><a href="https://en.wikipedia.org/wiki/Dynamic_programming_language" target="_blank">Dynamic programming</a>: executes compile time behaviors at runtime (PHP, etc.)</li>
+<li><a href="https://en.wikipedia.org/wiki/Event-driven_programming" target="_blank">Event-driven programming</a>: drives the operations with events (JavaScript, etc.)</li>
+<li><a href="https://en.wikipedia.org/wiki/Generic_programming" target="_blank">Generic programming</a>: supports type parameters for data structures and operations (Swift, etc.)</li>
+<li><a href="https://en.wikipedia.org/wiki/Imperative_programming" target="_blank">Imperative programming:</a> uses commands/statements to specify how the program operates (Assembly language, etc.)</li>
+<ul>
+<li><a href="https://en.wikipedia.org/wiki/Object-oriented_programming" target="_blank">Object-oriented programming:</a> designs the program in objects, containing data in the form of fields, and behaviors in the forms of methods
+<ul>
+<li><a href="https://en.wikipedia.org/wiki/Class-based_programming" target="_blank">Class-based programming</a>: defines the data structure and behaviors as classes, and implements inheritance for classes (C++, etc.)</li>
+<li><a href="https://en.wikipedia.org/wiki/Prototype-based_programming" target="_blank">Prototype-based programming</a>: implements classless prototypal inheritance and behavior reuse (Self, etc.)</li>
+</ul>
+</li>
+<li><a href="https://en.wikipedia.org/wiki/Procedural_programming" target="_blank">Procedural programming</a>: designs program in procedures and sub-procedures (C, etc.)</li>
+</ul>
+<li><a href="https://en.wikipedia.org/wiki/Metaprogramming" target="_blank">Metaprogramming</a>: accesses program code as data (Ruby, etc.)</li>
+<ul>
+<li><a href="https://en.wikipedia.org/wiki/Reflection_(computer_programming)" target="_blank">Reflective programming</a>: accesses the structure and behavior of the program itself at runtime (Ruby, etc.)</li>
+</ul>
+</ul>
+<p>etc.</p>
+<p>One programming language can adopt multiple paradigms. For example: C# supports many paradigms:</p>
+<ul>
+<li>declarative programming: attributes, data annotations, code contracts, etc.</li>
+<ul>
+<li>functional programming: first class functions, lambda expressions, LINQ query expressions, etc.</li>
+</ul>
+<li>dynamic programming: the dynamic type</li>
+<li>event-driven programming: events, event handlers</li>
+<li>generic programming: generics</li>
+<li>imperative programming: statements, control flows.
+<ul>
+<li>object-oriented and class-based programming: classes, encapsulation, inheritance, polymorphism, etc.</li>
+<li>procedural programming: static class, static method, using static, etc.</li>
+</ul>
+</li>
+<li>metaprogramming: code DOM, expression tree, CIL emit, compiler as a service, etc.</li>
+<ul>
+<li>reflective programming: reflection</li>
+</ul>
+</ul>
+<p>C# is such a powerful, flexible and productive language for general purpose, and all these C# language features live in in harmony. This tutorial discusses functional programming of C#, but other features, like generics, objects, attributes, expression trees, etc., is used a lot in functional C# code.</p>
+<h1>Imperative programming vs. declarative programming</h1>
+<p>Functional programming is declarative, and describes what to do; Object-oriented programming is imperative, and specifies how to do. To compare these 2 paradigms. The following examples query the delegate types in the .NET core library (mscorlib.dll of .NET Framework, System.Private.CoreLib.dll of .NET Core). The task is:</p>
+<ul>
+<li>filter the types to get delegate types</li>
+<li>group the delegate types by their namespaces</li>
+<li>sort the groups by each group’s delegate type count in descending order, and if groups have identical delegate type count, then sort them by their namespaces</li>
+</ul>
+<p>The following query is implemented this with traditional C# object-oriented programming. It is imperative. The code is a sequence of statements and commands, specifying how to execute the query:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">DelegateTypes()
+{
+    </span><span style="color: #2b91af;">Assembly </span><span style="color: black;">coreLibrary = </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: blue;">object</span><span style="color: black;">).Assembly;
+    </span><span style="color: #2b91af;">Dictionary</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Type</span><span style="color: black;">&gt;&gt; delegateTypes = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Dictionary</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Type</span><span style="color: black;">&gt;&gt;();
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">Type </span><span style="color: black;">type </span><span style="color: blue;">in </span><span style="color: black;">coreLibrary.GetExportedTypes())
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(type.BaseType == </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">MulticastDelegate</span><span style="color: black;">))
+        {
+            </span><span style="color: blue;">if </span><span style="color: black;">(!delegateTypes.TryGetValue(type.Namespace, </span><span style="color: blue;">out </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Type</span><span style="color: black;">&gt; namespaceTypes))
+            {
+                namespaceTypes = delegateTypes[type.Namespace] = </span><span style="color: blue;">new </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Type</span><span style="color: black;">&gt;();
+            }
+            namespaceTypes.Add(type);
+        }
+    }
+    </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">KeyValuePair</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Type</span><span style="color: black;">&gt;&gt;&gt; delegateTypesList =
+        </span><span style="color: blue;">new </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">KeyValuePair</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Type</span><span style="color: black;">&gt;&gt;&gt;(delegateTypes);
+    </span><span style="color: blue;">for </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">index = 0; index &lt; delegateTypesList.Count - 1; index++)
+    {
+        </span><span style="color: blue;">int </span><span style="color: black;">currentIndex = index;
+        </span><span style="color: #2b91af;">KeyValuePair</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Type</span><span style="color: black;">&gt;&gt; after = delegateTypesList[index + 1];
+        </span><span style="color: blue;">while </span><span style="color: black;">(currentIndex &gt;= 0)
+        {
+            </span><span style="color: #2b91af;">KeyValuePair</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Type</span><span style="color: black;">&gt;&gt; before = delegateTypesList[currentIndex];
+            </span><span style="color: blue;">int </span><span style="color: black;">compare = before.Value.Count.CompareTo(after.Value.Count);
+            </span><span style="color: blue;">if </span><span style="color: black;">(compare == 0)
+            {
+                compare = </span><span style="color: blue;">string</span><span style="color: black;">.Compare(after.Key, before.Key, </span><span style="color: #2b91af;">StringComparison</span><span style="color: black;">.Ordinal);
+            }
+            </span><span style="color: blue;">if </span><span style="color: black;">(compare &gt;= 0)
+            {
+                </span><span style="color: blue;">break</span><span style="color: black;">;
+            }
+            delegateTypesList[currentIndex + 1] = delegateTypesList[currentIndex];
+            currentIndex--;
+        }
+        delegateTypesList[currentIndex + 1] = after;
+    }
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">KeyValuePair</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Type</span><span style="color: black;">&gt;&gt; namespaceTypes </span><span style="color: blue;">in </span><span style="color: black;">delegateTypesList) </span><span style="color: green;">// Output.
+    </span><span style="color: black;">{
+        </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.Write(namespaceTypes.Value.Count + </span><span style="color: #a31515;">" " </span><span style="color: black;">+ namespaceTypes.Key + </span><span style="color: #a31515;">":"</span><span style="color: black;">);
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">Type </span><span style="color: black;">delegateType </span><span style="color: blue;">in </span><span style="color: black;">namespaceTypes.Value)
+        {
+            </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.Write(</span><span style="color: #a31515;">" " </span><span style="color: black;">+ delegateType.Name);
+        }
+        </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(</span><span style="color: blue;">null</span><span style="color: black;">);
+    }
+    </span><span style="color: green;">// 30 System: Action`1 Action Action`2 Action`3 Action`4 Func`1 Func`2 Func`3 Func`4 Func`5 Action`5 Action`6 Action`7 Action`8 Func`6 Func`7 Func`8 Func`9 Comparison`1 Converter`2 Predicate`1 ResolveEventHandler AssemblyLoadEventHandler AppDomainInitializer CrossAppDomainDelegate AsyncCallback ConsoleCancelEventHandler EventHandler EventHandler`1 UnhandledExceptionEventHandler
+    // 8 System.Threading: SendOrPostCallback ContextCallback ParameterizedThreadStart WaitCallback WaitOrTimerCallback IOCompletionCallback ThreadStart TimerCallback
+    // 3 System.Reflection: ModuleResolveEventHandler MemberFilter TypeFilter
+    // 3 System.Runtime.CompilerServices: TryCode CleanupCode CreateValueCallback
+    // 2 System.Runtime.Remoting.Messaging: MessageSurrogateFilter HeaderHandler
+    // 1 System.Runtime.InteropServices: ObjectCreationDelegate
+    // 1 System.Runtime.Remoting.Contexts: CrossContextDelegate
+</span><span style="color: black;">}</span></pre>
+<p>The following example is functional LINQ implementation, it is declarative. The code describes the logic, without specifying the execution details:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Linq
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">DelegateTypesQueryExpression()
+    {
+        </span><span style="color: #2b91af;">Assembly </span><span style="color: black;">coreLibrary = </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: blue;">object</span><span style="color: black;">).Assembly;
+        </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IGrouping</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: #2b91af;">Type</span><span style="color: black;">&gt;&gt; delegateTypes =
+            </span><span style="color: blue;">from </span><span style="color: black;">type </span><span style="color: blue;">in </span><span style="color: black;">coreLibrary.GetExportedTypes()
+            </span><span style="color: blue;">where </span><span style="color: black;">type.BaseType == </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">MulticastDelegate</span><span style="color: black;">)
+            </span><span style="color: blue;">group </span><span style="color: black;">type </span><span style="color: blue;">by </span><span style="color: black;">type.Namespace </span><span style="color: blue;">into </span><span style="color: black;">namespaceTypes
+            </span><span style="color: blue;">orderby </span><span style="color: black;">namespaceTypes.Count() </span><span style="color: blue;">descending</span><span style="color: black;">, namespaceTypes.Key
+            </span><span style="color: blue;">select </span><span style="color: black;">namespaceTypes;
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">IGrouping</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: #2b91af;">Type</span><span style="color: black;">&gt; namespaceTypes </span><span style="color: blue;">in </span><span style="color: black;">delegateTypes) </span><span style="color: green;">// Output.
+        </span><span style="color: black;">{
+            </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.Write(namespaceTypes.Count() + </span><span style="color: #a31515;">" " </span><span style="color: black;">+ namespaceTypes.Key + </span><span style="color: #a31515;">":"</span><span style="color: black;">);
+            </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">Type </span><span style="color: black;">delegateType </span><span style="color: blue;">in </span><span style="color: black;">namespaceTypes)
+            {
+                </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.Write(</span><span style="color: #a31515;">" " </span><span style="color: black;">+ delegateType.Name);
+            }
+            </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(</span><span style="color: blue;">null</span><span style="color: black;">);
+        }
+    }
+}</span></pre>
+<p>The following is the identical query in query method syntax:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Linq
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">DelegateTypesQueryMethods()
+    {
+        </span><span style="color: #2b91af;">Assembly </span><span style="color: black;">coreLibrary = </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: blue;">object</span><span style="color: black;">).Assembly;
+        </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IGrouping</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: #2b91af;">Type</span><span style="color: black;">&gt;&gt; delegateTypes = coreLibrary.GetExportedTypes()
+            .Where(type =&gt; type.BaseType == </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">MulticastDelegate</span><span style="color: black;">))
+            .GroupBy(type =&gt; type.Namespace)
+            .OrderByDescending(namespaceTypes =&gt; namespaceTypes.Count())
+            .ThenBy(namespaceTypes =&gt; namespaceTypes.Key);
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">IGrouping</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">, </span><span style="color: #2b91af;">Type</span><span style="color: black;">&gt; namespaceTypes </span><span style="color: blue;">in </span><span style="color: black;">delegateTypes) </span><span style="color: green;">// Output.
+        </span><span style="color: black;">{
+            </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.Write(namespaceTypes.Count() + </span><span style="color: #a31515;">" " </span><span style="color: black;">+ namespaceTypes.Key + </span><span style="color: #a31515;">":"</span><span style="color: black;">);
+            </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">Type </span><span style="color: black;">delegateType </span><span style="color: blue;">in </span><span style="color: black;">namespaceTypes)
+            {
+                </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.Write(</span><span style="color: #a31515;">" " </span><span style="color: black;">+ delegateType.Name);
+            }
+            </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(</span><span style="color: blue;">null</span><span style="color: black;">);
+        }
+    }
+}</span></pre>
+<p>So imperative programming and declarative programming are quite different paradigms and approaches. Imperative programming has a history to think from lower level up. The computer hardware’s implementation usually is imperative and stateful, so machine code is designed to be imperative and change hardware states during the execution. Then low level programming languages are designed, which usually have strong correspondence to the machine code with a little or no abstractions, so they are also imperative and stateful, like assembly language. Later, higher level programming languages are designed as abstraction of low level languages, which is usually more portable, but still imperative and stateful. For example, C is the abstractions of assembly languages, C++ was initially called C with Classes and designed as extension of C. When Microsoft designed modern languages, C# is rooted in C family of languages to make immediately familiar to programmers of C, C++, and Java,&nbsp; etc., so C# can be imperative and stateful too - Actually C# was initially called COOL (C-like Object Oriented Language). In above imperative example, all execution details of logic have to be specified.</p>
+<ul>
+<li>how to filter: scan the types, if a type is not a delegate type, ignore it.</li>
+<li>how to group: use a dictionary to store the groups, where each dictionary key is namespace, and each dictionary value is a list of delegate types under a namespace; for each delegate type, if the dictionary does not have the delegate type’s namespace as a key yet, add a key-value pair to the dictionary, where key is the namespace, and value is an empty list of types; now the current namespace must have a corresponding type list, so add the delegate type to the type list.</li>
+<li>and how to sort: copy the groups (key-value pairs of dictionary) to a list, so that the groups have an order. then scan the list of groups to apply insertion sort; when comparing 2 groups, first comparing their delegate type counts, if they have the same count, then compare their namespaces; after growing the sorted sub list of groups, eventually all groups are sorted in place.</li>
+</ul>
+<p>The above sequence of statements and commands is a control flow, where the business logic is less intuitive.</p>
+<p>In contrast, declarative programming is to think from higher level. It is usually abstractions of the mathematics and logic, disregarding how exactly the operations should be executed. This usually includes avoiding specifying how to change state and how to mutate data. In above LINQ examples, the query simply declares:</p>
+<ul>
+<li>what is the filter logic: keep delegate types</li>
+<li>what is the group logic: group delegate types by namespaces</li>
+<li>what is the sorting logic: sort the delegate type groups in descending order of delegate type counts, then in ascending order of namespaces</li>
+</ul>
+<p>The above is an data flow, where the business logic is more intuitive.</p>
+<p>The previous part demonstrated the traditional XML data and SQL database queries in imperative, object-oriented paradigm. They specify how exactly to access the specific data sources, like opening SQL database connection, etc., pass the query logic to data source with domain specific SQL and XPath languages, etc. In contrast, the LINQ to XML and LINQ to Entities queries are functional and declarative, they describe the query logic without specifying execution details.</p>
+<p>Regarding computer hardware is usually imperative, declarative code eventually needs to translated to imperative code to execute in hardware. This process is usually done by compilers at compile time, and also API calls at runtime, so that at design time, the code can be declarative and functional. Later, this tutorial will discuss how functional and declarative LINQ is implemented by C# compiler and the LINQ query APIs’ internals.</p>
+<p>Besides LINQ and functional programming, C#/.NET also provide other declarative features and APIs. For example, attribute is a powerful feature to associate declarative information with code, including assemblies, modules, types, type members:</p>
+<pre class="code"><span style="color: black;">[</span><span style="color: #2b91af;">TestClass</span><span style="color: black;">]
+</span><span style="color: blue;">public class </span><span style="color: #2b91af;">QueryMethodsTests
+</span><span style="color: black;">{
+    [</span><span style="color: #2b91af;">TestMethod</span><span style="color: black;">]
+    </span><span style="color: blue;">public void </span><span style="color: black;">FilteringTest()
+    {
+        </span><span style="color: green;">// Unit test.
+    </span><span style="color: black;">}
+
+    [</span><span style="color: #2b91af;">TestMethod</span><span style="color: black;">]
+    </span><span style="color: blue;">public void </span><span style="color: black;">GroupingTest()
+    {
+        </span><span style="color: green;">// Unit test.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>Attributes are widely used in C#/.NET programming. For example, data annotation is a technology to use attributes to modeling, display, and validate data entities. The following type uses attributes to declare validation rules for its properties, and the error messages when the validation fails:</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">Contact
+</span><span style="color: black;">{
+    [</span><span style="color: #2b91af;">Required</span><span style="color: black;">(ErrorMessageResourceType = </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">Resources</span><span style="color: black;">), ErrorMessageResourceName = </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Resources</span><span style="color: black;">.NameRequired))]
+    [</span><span style="color: #2b91af;">StringLength</span><span style="color: black;">(maximumLength: 50, MinimumLength = 1, ErrorMessageResourceType = </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">Resources</span><span style="color: black;">), ErrorMessageResourceName = </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Resources</span><span style="color: black;">.NameInvalid))]
+    </span><span style="color: blue;">public string </span><span style="color: black;">Name { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+
+    [</span><span style="color: #2b91af;">EmailAddress</span><span style="color: black;">(ErrorMessageResourceType = </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">Resources</span><span style="color: black;">), ErrorMessageResourceName = </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Resources</span><span style="color: black;">.EmailInvalid))]
+    </span><span style="color: blue;">public string </span><span style="color: black;">Email { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">set</span><span style="color: black;">; }
+}</span></pre>
+<p>Code contracts is also a declarative technology to describes the behavior of code. The following example describes type members’ precondition, postcondition, and purity, which is intuitive and readable:</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">Product
+</span><span style="color: black;">{
+    </span><span style="color: blue;">private readonly string </span><span style="color: black;">name;
+
+    </span><span style="color: blue;">private readonly decimal </span><span style="color: black;">price;
+
+    </span><span style="color: blue;">public </span><span style="color: black;">Product(</span><span style="color: blue;">string </span><span style="color: black;">name, </span><span style="color: blue;">decimal </span><span style="color: black;">price)
+    {
+        </span><span style="color: #2b91af;">Contract</span><span style="color: black;">.Requires&lt;</span><span style="color: #2b91af;">ArgumentNullException</span><span style="color: black;">&gt;(!</span><span style="color: blue;">string</span><span style="color: black;">.IsNullOrWhiteSpace(name));
+        </span><span style="color: #2b91af;">Contract</span><span style="color: black;">.Requires&lt;</span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">&gt;(price &gt;= 0);
+
+        </span><span style="color: blue;">this</span><span style="color: black;">.name = name;
+        </span><span style="color: blue;">this</span><span style="color: black;">.price = price;
+    }
+
+    </span><span style="color: blue;">public string </span><span style="color: black;">Name
+    {
+        [</span><span style="color: #2b91af;">Pure</span><span style="color: black;">]
+        </span><span style="color: blue;">get
+        </span><span style="color: black;">{
+            </span><span style="color: #2b91af;">Contract</span><span style="color: black;">.Ensures(!</span><span style="color: blue;">string</span><span style="color: black;">.IsNullOrWhiteSpace(</span><span style="color: #2b91af;">Contract</span><span style="color: black;">.Result&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;()));
+
+            </span><span style="color: blue;">return this</span><span style="color: black;">.name;
+        }
+    }
+
+    </span><span style="color: blue;">public decimal </span><span style="color: black;">Price
+    {
+        [</span><span style="color: #2b91af;">Pure</span><span style="color: black;">]
+        </span><span style="color: blue;">get
+        </span><span style="color: black;">{
+            </span><span style="color: #2b91af;">Contract</span><span style="color: black;">.Ensures(</span><span style="color: #2b91af;">Contract</span><span style="color: black;">.Result&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;() &gt;= 0);
+
+            </span><span style="color: blue;">return this</span><span style="color: black;">.price;
+        }
+    }
+}</span></pre>
+<h1>Object-oriented programming vs. functional programming</h1>
+<p>Object-oriented programming has first class objects., while in functional programming treats functions are first class citizen. To demonstrate the difference, the following example builds a document in object-oriented paradigm. It downloads HTML content from the specified URI, converts it to a word document file, and upload to OneDrive to share:</p>
+<pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">WebClient
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal </span><span style="color: #2b91af;">FileInfo </span><span style="color: black;">Download(</span><span style="color: #2b91af;">Uri </span><span style="color: black;">uri)
+    {
+        </span><span style="color: blue;">return default</span><span style="color: black;">;
+    }
+}
+
+</span><span style="color: blue;">internal class </span><span style="color: #2b91af;">DocumentConverter
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal </span><span style="color: black;">DocumentConverter(</span><span style="color: #2b91af;">FileInfo </span><span style="color: black;">template)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.Template = template;
+    }
+
+    </span><span style="color: blue;">internal </span><span style="color: #2b91af;">FileInfo </span><span style="color: black;">Template { </span><span style="color: blue;">get</span><span style="color: black;">; </span><span style="color: blue;">private set</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">internal </span><span style="color: #2b91af;">FileInfo </span><span style="color: black;">ToWord(</span><span style="color: #2b91af;">FileInfo </span><span style="color: black;">htmlDocument)
+    {
+        </span><span style="color: blue;">return default</span><span style="color: black;">;
+    }
+}
+
+</span><span style="color: blue;">internal class </span><span style="color: #2b91af;">OneDriveClient
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal void </span><span style="color: black;">Upload(</span><span style="color: #2b91af;">FileInfo </span><span style="color: black;">file) { }
+}
+
+</span><span style="color: blue;">internal class </span><span style="color: #2b91af;">DocumentBuilder
+</span><span style="color: black;">{
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">WebClient </span><span style="color: black;">webClient;
+
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">DocumentConverter </span><span style="color: black;">documentConverter;
+
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">OneDriveClient </span><span style="color: black;">oneDriveClient;
+
+    </span><span style="color: blue;">internal </span><span style="color: black;">DocumentBuilder(
+        </span><span style="color: #2b91af;">WebClient </span><span style="color: black;">webClient, </span><span style="color: #2b91af;">DocumentConverter </span><span style="color: black;">documentConverter, </span><span style="color: #2b91af;">OneDriveClient </span><span style="color: black;">oneDriveClient)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.webClient = webClient;
+        </span><span style="color: blue;">this</span><span style="color: black;">.documentConverter = documentConverter;
+        </span><span style="color: blue;">this</span><span style="color: black;">.oneDriveClient = oneDriveClient;
+    }
+
+    </span><span style="color: blue;">internal void </span><span style="color: black;">Build(</span><span style="color: #2b91af;">Uri </span><span style="color: black;">uri)
+    {
+        </span><span style="color: #2b91af;">FileInfo </span><span style="color: black;">htmlDocument = </span><span style="color: blue;">this</span><span style="color: black;">.webClient.Download(uri);
+        </span><span style="color: #2b91af;">FileInfo </span><span style="color: black;">wordDocument = </span><span style="color: blue;">this</span><span style="color: black;">.documentConverter.ToWord(htmlDocument);
+        </span><span style="color: blue;">this</span><span style="color: black;">.oneDriveClient.Upload(wordDocument);
+    }
+}</span></pre>
+<p>The above WebClient class provides the operation to download HTML content to a document. DocumentConverter class provides the operation to convert HTML document to Word document, with a specified template. And OneDriveClient class provides the operation to upload file to OneDrive. To focus on the paradigm, the implementations are omitted (If interested, the complete web content to Word document building implementation can be found <a href="https://weblogs.asp.net/dixin/convert-html-to-well-formatted-microsoft-word-document" target="_blank">here</a>). To build the document, DocumentBuilder class is defined to compose everything together. The following code demonstrates how these objects works:</p>
+<pre class="code"><span style="color: blue;">internal partial class </span><span style="color: #2b91af;">Imperative
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">BuildDocument(</span><span style="color: #2b91af;">Uri </span><span style="color: black;">uri, </span><span style="color: #2b91af;">FileInfo </span><span style="color: black;">template)
+    {
+        </span><span style="color: #2b91af;">DocumentBuilder </span><span style="color: black;">builder = </span><span style="color: blue;">new </span><span style="color: #2b91af;">DocumentBuilder</span><span style="color: black;">(
+            </span><span style="color: blue;">new </span><span style="color: #2b91af;">WebClient</span><span style="color: black;">(), </span><span style="color: blue;">new </span><span style="color: #2b91af;">DocumentConverter</span><span style="color: black;">(template), </span><span style="color: blue;">new </span><span style="color: #2b91af;">OneDriveClient</span><span style="color: black;">());
+        builder.Build(uri);
+    }
+}</span></pre>
+<p>In functional paradigm, each operation can be simply represented by a functions, and functions can be composed:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Functional
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static </span><span style="color: #2b91af;">FileInfo </span><span style="color: black;">DownloadHtml(</span><span style="color: #2b91af;">Uri </span><span style="color: black;">uri)
+    {
+        </span><span style="color: blue;">return default</span><span style="color: black;">;
+    }
+
+    </span><span style="color: blue;">internal static </span><span style="color: #2b91af;">FileInfo </span><span style="color: black;">ConvertToWord(</span><span style="color: #2b91af;">FileInfo </span><span style="color: black;">htmlDocument, </span><span style="color: #2b91af;">FileInfo </span><span style="color: black;">template)
+    {
+        </span><span style="color: blue;">return default</span><span style="color: black;">;
+    }
+
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">UploadToOneDrive(</span><span style="color: #2b91af;">FileInfo </span><span style="color: black;">file) { }
+
+    </span><span style="color: blue;">internal static </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Uri</span><span style="color: black;">, </span><span style="color: #2b91af;">FileInfo</span><span style="color: black;">&gt; CreateDocumentBuilder(
+        </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Uri</span><span style="color: black;">, </span><span style="color: #2b91af;">FileInfo</span><span style="color: black;">&gt; download, </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">FileInfo</span><span style="color: black;">, </span><span style="color: #2b91af;">FileInfo</span><span style="color: black;">, </span><span style="color: #2b91af;">FileInfo</span><span style="color: black;">&gt; convert, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">FileInfo</span><span style="color: black;">&gt; upload)
+    {
+        </span><span style="color: blue;">return </span><span style="color: black;">(uri, wordTemplate) =&gt;
+        {
+            </span><span style="color: #2b91af;">FileInfo </span><span style="color: black;">htmlDocument = download(uri);
+            </span><span style="color: #2b91af;">FileInfo </span><span style="color: black;">wordDocument = convert(htmlDocument, wordTemplate);
+            upload(wordDocument);
+        };
+    }
+}</span></pre>
+<p>This is how these functions work:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Functional
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">BuildDocument(</span><span style="color: #2b91af;">Uri </span><span style="color: black;">uri, </span><span style="color: #2b91af;">FileInfo </span><span style="color: black;">template)
+    {
+        </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Uri</span><span style="color: black;">, </span><span style="color: #2b91af;">FileInfo</span><span style="color: black;">&gt; buildDocument = CreateDocumentBuilder(
+            DownloadHtml, ConvertToWord, UploadToOneDrive);
+        buildDocument(uri, template);
+    }
+}</span></pre>
+<p>Here CreateDocumentBuilder function is called with DownloadHtml, ConvertToWord, and UploadToOneDrive functions as arguments, and its return value is a buildDocument function. These function variables work just like object variables. For example, buildDocument is of type Action&lt;Uri, FileInfo&gt;, which means accepting a Uri parameter, and returning void. This demonstrates in C# functions are first class citizens just like objects. Internally, CreateDocumentBuilder function composes the input functions and return a new function.</p>
+<p>The above LINQ query example is also an example of function composition. The entire query is composed by Where, GroupBy, OrderBy, and ThenBy.</p>
+<p>In object oriented programming, objects can have behaviors in the form of methods, comparing to functions in functional programming, they are both modularized, reusable code block, they can both be called, and they can both have parameters and return values. The main difference is, functional programming is a subtype of declarative programming. Besides declarative, functional programming encourages modeling operations as pure functions. A pure function can be viewed as a mathematical relation between a set of inputs and a set of outputs, and each certain input is related to a certain output. In another word, a pure function’s output only depends on the input. It is also self contained and does not produce side effects, like data mutation, state changes, data mutation, I/O, etc.</p>
+<p>In the above object-oriented example of delegate type query introduces a lot of variable mutations, also the dictionary object changes its state for grouping, and the list object changes its state for sorting. In contrast, the LINQ query examples do not involve mutation and state changes at all, and all the involved functions are pure functions:</p>
+<ul>
+<li>Where’s argument type =&gt; type.BaseType == typeof(MulticastDelegate) is a pure function, which accepts Type instance as input (left side of the =&gt; operator), and relates to a new bool value as output (right side of the =&gt; operator). It predicts whether the input type represents a delegate type. This syntax is called lambda expression, which will be discussed in details later. The output bool value only depends on the input type. And this function does not change states. When it is called with the the same Type object for multiple times, it produces the same bool value.</li>
+<li>GroupBy’s argument type =&gt; type.Namespace is a pure function too, which accepts Type instance as input, and relates to namespace string value as output, which is used as the grouping key. Again, the output namespace string value only depends on the input type. And this function does not change states. When it is called with the same Type object for multiple times, it produces the sane namespace string.</li>
+<li>OrderByDescending’s argument namespaceTypes =&gt; namespaceTypes.Count() is also a pure function, which accepts a group of Type instances as input, and relates to that group’s object count integer value as output, which is used as the sorting key. Again, the output object count integer value only depends on the input group. And this function does not change states. When it function is called with the same group for multiple times, it produces the sane count integer.</li>
+<li>Similarly, ThenBy’s parameter namespaceTypes =&gt; namespaceTypes.Key is still a pure function.</li>
+<li>Where, GroupBy, OrderByDescending, ThenBy are called LINQ query methods, and they are also pure functions. When they are called, they do not actually execute the filtering, grouping, and sorting logic. They have a source sequence and a function as input, and relate to a new generator object as output, which wraps the input source sequence and input function. They do not change state either. If each of these query methods is called with the same source sequence and function, it produces the same generator. This will be discussed later in detail.</li>
+</ul>
+<p>So function programming paradigm treats functions as first class citizen, encourages and self-contained functions focusing on input and output, and also encourages purity and avoids mutation and state changes. Functional programming is declarative and expressive, so it can be easy to read, maintain, parallelize, and test, etc.</p>
+<p>Many C# functional programming features, like lambda expression, local function, pattern matching, etc., are introduced to C# since 3.0 and later, but the functional paradigm and concepts has a long history.</p>
+<ul>
+<li>Lambda expression and functional programming came from lambda calculus, which was invented in 1930s.</li>
+<li>The first functional programming language, Lisp, was designed in 1950s. Lisp is also the second oldest high level programming language still widely used today. It is only 1 year younger than Fortran, an imperative programming language.</li>
+<li>LINQ query expression is rooted in monad, a concept of category theory. Category theory was started in 1940s, and monad was introduced into category theory in 1950s. Then monad programming appeared in Opal language in 1980s. In 1990s it was already heavily used in Haskell language.</li>
+</ul>
+<p>Besides covering C# language’s functional features and functional LINQ queries, this tutorial also discusses lambda calculus and category theory. By demystifying the rationale and foundations , these knowledge can build a in depth understanding of functional programming, also greatly help understanding other functional programming languages.</p>
+
+
+</div>
+</body>
+</html>

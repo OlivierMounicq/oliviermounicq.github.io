@@ -1,0 +1,507 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+
+<h1>Parallel LINQ (3) Query Methods (Operators)</h1>
+
+
+<p>Parallel LINQ provides additional query methods and additional overrides for Aggregate method:</p>
+<ul>
+<li>Sequence queries</li>
+<ul>
+<li>Ordering: AsOrdered, AsUnordered</li>
+<li>Conversion: AsParallel*, AsSequential*</li>
+<li>Settings: WithCancellation, WithDegreeOfParallelism, WithExecutionMode, WithMergeOptions</li>
+</ul>
+<li>Value queries</li>
+<ul>
+<li>Aggregation: Aggregate</li>
+</ul>
+<li>Void queries</li>
+<ul>
+<li>Iteration: ForAll*</li>
+</ul>
+</ul>
+<p>The methods marked with * are already discussed in previous parts. This part covers the unmarked query methods, and also other query methods with different behaviors from LINQ to Objects.</p>
+<h1>Query settings</h1>
+<h2>Cancellation</h2>
+<p>Parallel LINQ query execution can be cancelled by specifying a System.Threading.CancellationToken instance for the query:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; WithCancellation&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">CancellationToken </span><span style="color: black;">cancellationToken);</span></pre>
+<p>CancellationToken can be created with System.Threading.CancellationTokenSource:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Cancel()
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">CancellationTokenSource </span><span style="color: black;">cancellationTokenSource = </span><span style="color: blue;">new </span><span style="color: #2b91af;">CancellationTokenSource</span><span style="color: black;">(
+        delay: </span><span style="color: #2b91af;">TimeSpan</span><span style="color: black;">.FromSeconds(1)))
+    {
+        </span><span style="color: #2b91af;">CancellationToken </span><span style="color: black;">cancellationToken = cancellationTokenSource.Token;
+        </span><span style="color: blue;">try
+        </span><span style="color: black;">{
+            </span><span style="color: #2b91af;">ParallelEnumerable</span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 10)
+                .WithCancellation(cancellationToken)
+                .Select(value =&gt; ComputingWorkload(value))
+                .ForAll(value =&gt; value.WriteLine());
+        }
+        </span><span style="color: blue;">catch </span><span style="color: black;">(</span><span style="color: #2b91af;">OperationCanceledException </span><span style="color: black;">exception)
+        {
+            exception.WriteLine();
+            </span><span style="color: green;">// OperationCanceledException: The query has been canceled via the token supplied to WithCancellation.
+        </span><span style="color: black;">}
+    }
+}</span></pre>
+<p>After 1 second delay, If the query is still executing, is signaled to cancel, and throws an OperationCanceledException.</p>
+<h2>Degree of parallelism</h2>
+<p>WithDegreeOfParallelism specifies the maximum number of concurrent executing tasks:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; WithDegreeOfParallelism&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: blue;">int </span><span style="color: black;">degreeOfParallelism);</span></pre>
+<p>For example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">DegreeOfParallelism()
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">maxConcurrency = </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 10;
+    </span><span style="color: #2b91af;">ParallelEnumerable
+        </span><span style="color: black;">.Range(0, maxConcurrency)
+        .WithDegreeOfParallelism(maxConcurrency)
+        .Visualize(value =&gt; ComputingWorkload());
+}</span></pre>
+<p>WithDegreeOfParallelism accepts any int value from 1 to 512 (System.Linq.Parallel.Scheduling’s MAX_SUPPORTED_DOP constant field). At runtime, the actual query thread count is less than or equal to the specified count. When executing above query on a quad core CPU, WithDegreeOfParallelism is called with 40. However the visualization shows Parallel LINQ only utilizes 6 threads.</p>
+<blockquote>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-2-Partitioning_12942/image_2.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-2-Partitioning_12942/image_thumb.png" width="800" height="600" border="0"></a></p>
+</blockquote>
+<p>If WithDegreeOfParallelism is not called, the default degree of parallelism is the minimum value of current device’s processor count and 512:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Linq.Parallel
+{
+    </span><span style="color: blue;">internal static class </span><span style="color: #2b91af;">Scheduling
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">internal const int </span><span style="color: black;">MAX_SUPPORTED_DOP = 512;
+
+        </span><span style="color: blue;">internal static int </span><span style="color: black;">DefaultDegreeOfParallelism = </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Min(</span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount, MAX_SUPPORTED_DOP);
+
+        </span><span style="color: blue;">internal static int </span><span style="color: black;">GetDefaultDegreeOfParallelism() =&gt; DefaultDegreeOfParallelism;
+    }
+}</span></pre>
+<h2>Execution mode</h2>
+<p>WithExecutionMode specifies allowing the query to execute sequentially or not:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; WithExecutionMode&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">ParallelExecutionMode </span><span style="color: black;">executionMode);</span></pre>
+<p>ParallelExecutionMode is an enumeration type with 2 members. Default means Parallel LINQ can possibly <a href="http://blogs.msdn.com/b/pfxteam/archive/2009/10/31/9915569.aspx" target="_blank">decide to execute the query sequentially</a>; And ForceParallelism: the query is execute in parallel. For example:</p>
+<pre class="code"><span style="color: blue;">public static void </span><span style="color: black;">ExecutionMode()
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">count = </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 10_000;
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">Markers</span><span style="color: black;">.EnterSpan(-1, </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">)))
+    {
+        </span><span style="color: #2b91af;">Enumerable
+            </span><span style="color: black;">.Range(0, count)
+            .ToArray();
+    }
+
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">Markers</span><span style="color: black;">.EnterSpan(-2, </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ParallelExecutionMode</span><span style="color: black;">.Default)))
+    {
+        </span><span style="color: #2b91af;">ParallelEnumerable
+            </span><span style="color: black;">.Range(0, count)
+            .ToArray();
+    }
+
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">Markers</span><span style="color: black;">.EnterSpan(-3, </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ParallelExecutionMode</span><span style="color: black;">.ForceParallelism)))
+    {
+        </span><span style="color: #2b91af;">ParallelEnumerable
+            </span><span style="color: black;">.Range(0, count)
+            .WithExecutionMode(</span><span style="color: #2b91af;">ParallelExecutionMode</span><span style="color: black;">.ForceParallelism)
+            .ToArray();
+    }
+}
+</span></pre>
+<blockquote>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-2-Partitioning_12942/image_6.png"><img title="image" style="border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-2-Partitioning_12942/image_thumb_2.png" width="800" height="743" border="0"></a></p>
+</blockquote>
+<p>When Parallel LINQ execute ToArray query in the default mode, it is the same sequential execution as LINQ to Objects, with no additional thread involved. When execution mode is specified to ForceParallelism, Parallel LINQ executes ToArray in parallel with additional thread.</p>
+<h2>Merge the values</h2>
+<p>Parallel LINQ can partition the source values and process the partitions in parallel. After the processing, the result values may need to be merged, e.g., when the result values are consumed by a single thread foreach loop/ForEach method. WithMergeOptions suggests Parallel LINQ how to merge the data:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; WithMergeOptions&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">ParallelMergeOptions </span><span style="color: black;">mergeOptions);</span></pre>
+<p>ParallelMergeOptions is an enumeration with 4 members. NotBuffered means when each result value is available, it is yielded to consumer immediately without being buffered., which is similar to lazy evaluation in LINQ to Objects; FullyBuffered means all result values are stored in the full size buffer, then, they are yielded to the consumer, which is similar to eager evaluation in LINQ to Objects; AutoBuffered is between NotBuffered and FullyBuffered, means the buffer size is determined by Parallel LINQ, result values are stored in the auto sized buffer, and when the buffer is full, the result values are yielded to consumer; And Default is the same as AutoBuffered. The following code demonstrates the difference of these options:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">MergeForSelect()
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">count = 10;
+    </span><span style="color: #2b91af;">Stopwatch </span><span style="color: black;">stopwatch = </span><span style="color: #2b91af;">Stopwatch</span><span style="color: black;">.StartNew();
+    </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; notBuffered = </span><span style="color: #2b91af;">ParallelEnumerable</span><span style="color: black;">.Range(0, count)
+        .WithMergeOptions(</span><span style="color: #2b91af;">ParallelMergeOptions</span><span style="color: black;">.NotBuffered)
+        .Select(value =&gt; value + ComputingWorkload(0, 10_000_000));
+    notBuffered.ForEach(value =&gt; </span><span style="color: #a31515;">$"</span><span style="color: black;">{value}</span><span style="color: #a31515;">:</span><span style="color: black;">{stopwatch.ElapsedMilliseconds}</span><span style="color: #a31515;">"</span><span style="color: black;">.WriteLine());
+    </span><span style="color: green;">// 0:217 3:283 6:363 8:462 1:521 4:612 7:629 9:637 2:660 5:695
+
+    </span><span style="color: black;">stopwatch.Restart();
+    </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; autoBuffered = </span><span style="color: #2b91af;">ParallelEnumerable</span><span style="color: black;">.Range(0, count)
+        .WithMergeOptions(</span><span style="color: #2b91af;">ParallelMergeOptions</span><span style="color: black;">.AutoBuffered)
+        .Select(value =&gt; value + ComputingWorkload(0, 10_000_000));
+    autoBuffered.ForEach(value =&gt; </span><span style="color: #a31515;">$"</span><span style="color: black;">{value}</span><span style="color: #a31515;">:</span><span style="color: black;">{stopwatch.ElapsedMilliseconds}</span><span style="color: #a31515;">"</span><span style="color: black;">.WriteLine());
+    </span><span style="color: green;">// 6:459 8:493 7:498 9:506 0:648 1:654 2:656 3:684 4:686 5:688
+
+    </span><span style="color: black;">stopwatch.Restart();
+    </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; fullyBuffered = </span><span style="color: #2b91af;">ParallelEnumerable</span><span style="color: black;">.Range(0, count)
+        .WithMergeOptions(</span><span style="color: #2b91af;">ParallelMergeOptions</span><span style="color: black;">.FullyBuffered)
+        .Select(value =&gt; value + ComputingWorkload(0, 10_000_000));
+    fullyBuffered.ForEach(value =&gt; </span><span style="color: #a31515;">$"</span><span style="color: black;">{value}</span><span style="color: #a31515;">:</span><span style="color: black;">{stopwatch.ElapsedMilliseconds}</span><span style="color: #a31515;">"</span><span style="color: black;">.WriteLine());
+    </span><span style="color: green;">// 0:584 1:589 2:618 3:627 4:629 5:632 6:634 7:636 8:638 9:641
+</span><span style="color: black;">}</span></pre>
+<p>For above Select query execution, if NotBuffered is specified, the first result value is yielded faster; if FullyBuffered is specified, the last result value is yielded faster; if AutoBuffered is specified, the behavior is between NotBuffered and FullyBuffered. Also, since FullyBuffered buffers all result values, it can persist their order, while NotBuffered and AutoBuffered cannot.</p>
+<p>WithMergeOptions just provides a suggestion to Parallel LINQ, so Parallel LINQ can still make its own decision. For example, OrderBy has to evaluate all source values, fully buffer them, then sort them:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">MergeForOrderBy()
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">count = </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 2;
+    </span><span style="color: #2b91af;">Stopwatch </span><span style="color: black;">stopwatch = </span><span style="color: #2b91af;">Stopwatch</span><span style="color: black;">.StartNew();
+    </span><span style="color: #2b91af;">ParallelEnumerable</span><span style="color: black;">.Range(0, count)
+        .WithMergeOptions(</span><span style="color: #2b91af;">ParallelMergeOptions</span><span style="color: black;">.NotBuffered)
+        .Select(value =&gt; ComputingWorkload(value))
+        .WriteLines(value =&gt; </span><span style="color: #a31515;">$"</span><span style="color: black;">{value}</span><span style="color: #a31515;">:</span><span style="color: black;">{stopwatch.ElapsedMilliseconds}</span><span style="color: #a31515;">"</span><span style="color: black;">);
+    </span><span style="color: green;">// 0:132 2:273 1:315 4:460 3:579 6:611 5:890 7:1103
+
+    </span><span style="color: black;">stopwatch.Restart();
+    </span><span style="color: #2b91af;">ParallelEnumerable</span><span style="color: black;">.Range(0, count)
+        .WithMergeOptions(</span><span style="color: #2b91af;">ParallelMergeOptions</span><span style="color: black;">.NotBuffered)
+        .Select(value =&gt; ComputingWorkload(value))
+        .OrderBy(value =&gt; value) </span><span style="color: green;">// Eager evaluation.
+        </span><span style="color: black;">.WriteLines(value =&gt; </span><span style="color: #a31515;">$"</span><span style="color: black;">{value}</span><span style="color: #a31515;">:</span><span style="color: black;">{stopwatch.ElapsedMilliseconds}</span><span style="color: #a31515;">"</span><span style="color: black;">);
+    </span><span style="color: green;">// 0:998 1:999 2:999 3:1000 4:1000 5:1000 6:1001 7:1001
+
+    </span><span style="color: black;">stopwatch.Restart();
+    </span><span style="color: #2b91af;">ParallelEnumerable</span><span style="color: black;">.Range(0, count)
+        .WithMergeOptions(</span><span style="color: #2b91af;">ParallelMergeOptions</span><span style="color: black;">.FullyBuffered)
+        .Select(value =&gt; ComputingWorkload(value))
+        .OrderBy(value =&gt; value) </span><span style="color: green;">// Eager evaluation.
+        </span><span style="color: black;">.WriteLines(value =&gt; </span><span style="color: #a31515;">$"</span><span style="color: black;">{value}</span><span style="color: #a31515;">:</span><span style="color: black;">{stopwatch.ElapsedMilliseconds}</span><span style="color: #a31515;">"</span><span style="color: black;">);
+    </span><span style="color: green;">// 0:984 1:985 2:985 3:986 4:987 5:987 6:988 7:989
+</span><span style="color: black;">}</span></pre>
+<p>So OrderBy ignores the suggested ParallelMergeOptions and always fully buffer the values, then yield the buffered values.</p>
+<h1>Ordering</h1>
+<p>In Parallel LINQ, it is more complex to control the order of values than in sequential LINQ to Objects. Apparently, the order of values may not be persisted when they are not sequentially processed. Take the indexed Select as example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">SelectWithIndex() =&gt;
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">StaticPartitioner</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 2))
+        .AsParallel()
+        .Select((value, index) =&gt; </span><span style="color: #a31515;">$"[</span><span style="color: black;">{index}</span><span style="color: #a31515;">]=</span><span style="color: black;">{value}</span><span style="color: #a31515;">"</span><span style="color: black;">)
+        .WriteLines(); </span><span style="color: green;">// [0]=0 [1]=2 [2]=4 [3]=5 [4]=6 [5]=1 [6]=3 [7]=7</span></pre>
+<p>As demonstrated above, WithMergeOptions can impact the order of query results, where ParallelMergeOptions.FullyBuffered can be specified to preserve the order. Parallel LINQ also provides other APIs to control the order.</p>
+<h2>Control the order</h2>
+<p>AsOrdered method can be called to specify the order of values should be preserved for its following query method calls:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; AsOrdered&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source);</span></pre>
+<p>AsOrdered can only be called on the ParallelQuery&lt;T&gt; instance returned by ParallelEnumerable.AsParallel, ParallelEnumerable.Range, and ParallelEnumerable.Repeat. It throws InvalidOperationException for ParallelQuery&lt;T&gt; instance returned by any other methods.</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">AsOrdered()
+{
+    </span><span style="color: #2b91af;">Enumerable
+        </span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 2)
+        .AsParallel()
+        .Select(value =&gt; value + ComputingWorkload())
+        .WriteLines(); </span><span style="color: green;">// 3 1 2 0 4 5 6 7
+
+    </span><span style="color: #2b91af;">Enumerable
+        </span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 2)
+        .AsParallel()
+        .AsOrdered()
+        .Select(value =&gt; value + ComputingWorkload())
+        .WriteLines(); </span><span style="color: green;">// 0 1 2 3 4 5 6 7
+</span><span style="color: black;">}</span></pre>
+<p>Preserving the order means additional work. So AsUnordered method is provided to ignore the order of values for its following query method calls:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; AsUnordered&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: blue;">this </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source);</span></pre>
+<p>It can improve the query performance. Take GroupBy as example, it can execute faster if the source values are explicitly specified to be unordered:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">AsUnordered()
+{
+    </span><span style="color: #2b91af;">Random </span><span style="color: black;">random = </span><span style="color: blue;">new </span><span style="color: #2b91af;">Random</span><span style="color: black;">();
+    </span><span style="color: #2b91af;">Model</span><span style="color: black;">[] source = </span><span style="color: #2b91af;">Enumerable
+        </span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 10_000)
+        .Select(_ =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Model</span><span style="color: black;">(name: </span><span style="color: #2b91af;">Guid</span><span style="color: black;">.NewGuid().ToString(), weight: random.Next(1, 100)))
+        .ToArray();
+
+    </span><span style="color: #2b91af;">Stopwatch </span><span style="color: black;">stopwatch = </span><span style="color: #2b91af;">Stopwatch</span><span style="color: black;">.StartNew();
+    source
+        .AsParallel()
+        .GroupBy(model =&gt; model.Weight, model =&gt; model.Name)
+        .ForAll();
+    stopwatch.Stop();
+    stopwatch.ElapsedMilliseconds.WriteLine(); </span><span style="color: green;">// 35.
+
+    </span><span style="color: black;">stopwatch.Restart();
+    source
+        .AsParallel()
+        .AsUnordered()
+        .GroupBy(model =&gt; model.Weight, model =&gt; model.Name)
+        .ForAll();
+    stopwatch.Stop();
+    stopwatch.ElapsedMilliseconds.WriteLine(); </span><span style="color: green;">// 2.
+</span><span style="color: black;">}</span></pre>
+<p>And the order introduced by OrderBy/OrderByDescending/ThenBy/ThenByDescending/Reverse is preserved in their following query method calls:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">OrderBy()
+{
+    </span><span style="color: #2b91af;">Enumerable
+        </span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 2)
+        .AsParallel()
+        .Select(value =&gt; value) </span><span style="color: green;">// Order is not preserved.
+        </span><span style="color: black;">.WriteLines(); </span><span style="color: green;">// 3 1 2 0 4 5 6 7
+
+    </span><span style="color: #2b91af;">Enumerable
+        </span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 2)
+        .AsParallel()
+        .Select(value =&gt; value) </span><span style="color: green;">// Order is not preserved.
+        </span><span style="color: black;">.OrderBy(value =&gt; value) </span><span style="color: green;">// Order is introduced.
+        </span><span style="color: black;">.Select(value =&gt; value) </span><span style="color: green;">// Order is preserved.
+        </span><span style="color: black;">.WriteLines(); </span><span style="color: green;">// 3 1 2 0 4 5 6 7
+</span><span style="color: black;">}</span></pre>
+<h2>Order and correctness</h2>
+<p>In Parallel LINQ, many methods are order sensitive. If the source values are unordered:</p>
+<ul>
+<li>ElementAt: returns arbitrary value</li>
+<li>ElementAtOrDefault: returns arbitrary value or default</li>
+<li>First: returns arbitrary value</li>
+<li>FirstOrDefault: returns arbitrary value or default</li>
+<li>Last: returns arbitrary value</li>
+<li>LastOrDefault: returns arbitrary value or default</li>
+<li>Reverse: does nothing</li>
+<li>SequenceEqual: compares values in arbitrary order</li>
+<li>Skip: skips arbitrary values</li>
+<li>SkipWhile: skips arbitrary values</li>
+<li>Take: takes arbitrary values</li>
+<li>TakeWhile: takes arbitrary values with the predicate</li>
+<li>Zip: zips unordered values</li>
+</ul>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Correctness()
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">count = </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 4;
+    </span><span style="color: blue;">int</span><span style="color: black;">[] source = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, count).ToArray(); </span><span style="color: green;">// 0 ... 15.
+
+    </span><span style="color: blue;">int </span><span style="color: black;">elementAt = </span><span style="color: blue;">new </span><span style="color: #2b91af;">StaticPartitioner</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(source).AsParallel().Select(value =&gt; value + ComputingWorkload())
+        .ElementAt(count / 2).WriteLine() </span><span style="color: green;">// Expected: 8,
+        </span><span style="color: black;">.WriteLine(); </span><span style="color: green;">// Actual: 2.
+
+    </span><span style="color: blue;">int </span><span style="color: black;">first = </span><span style="color: blue;">new </span><span style="color: #2b91af;">StaticPartitioner</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(source).AsParallel().Select(value =&gt; value + ComputingWorkload())
+        .First() </span><span style="color: green;">// Expected: 0.
+        </span><span style="color: black;">.WriteLine(); </span><span style="color: green;">// Actual: 3.
+
+    </span><span style="color: blue;">int </span><span style="color: black;">last = </span><span style="color: blue;">new </span><span style="color: #2b91af;">StaticPartitioner</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(source).AsParallel().Select(value =&gt; value + ComputingWorkload())
+        .Last() </span><span style="color: green;">// Expected: 15.
+        </span><span style="color: black;">.WriteLine(); </span><span style="color: green;">// Actual: 13.
+
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">StaticPartitioner</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(source).AsParallel().Select(value =&gt; value + ComputingWorkload())
+        .Take(count / 2) </span><span style="color: green;">// Expected: 0 ... 7.
+        </span><span style="color: black;">.WriteLines(); </span><span style="color: green;">// Actual: 3 2 5 7 10 11 14 15.
+
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">StaticPartitioner</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(source).AsParallel().Select(value =&gt; value + ComputingWorkload())
+        .Skip(count / 2) </span><span style="color: green;">// Expected: 8 ... 15.
+        </span><span style="color: black;">.WriteLines(); </span><span style="color: green;">// Actual: 3 0 7 5 11 10 15 14.
+
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">StaticPartitioner</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(source).AsParallel().Select(value =&gt; value + ComputingWorkload())
+        .TakeWhile(value =&gt; value &lt;= count / 2) </span><span style="color: green;">// Expected: 0 ... 7.
+        </span><span style="color: black;">.WriteLines(); </span><span style="color: green;">// Actual: 3 5 8.
+
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">StaticPartitioner</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(source).AsParallel().Select(value =&gt; value + ComputingWorkload())
+        .SkipWhile(value =&gt; value &lt;= count / 2) </span><span style="color: green;">// Expected: 9 ... 15.
+        </span><span style="color: black;">.WriteLines(); </span><span style="color: green;">// Actual: 1 3 2 13 5 7 6 11 9 10 15 12 14.
+
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">StaticPartitioner</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(source).AsParallel().Select(value =&gt; value + ComputingWorkload())
+        .Reverse() </span><span style="color: green;">// Expected: 15 ... 0.
+        </span><span style="color: black;">.WriteLines(); </span><span style="color: green;">// Actual: 12 8 4 2 13 9 5 1 14 10 6 0 15 11 7 3.
+
+    </span><span style="color: blue;">bool </span><span style="color: black;">sequentialEqual = </span><span style="color: blue;">new </span><span style="color: #2b91af;">StaticPartitioner</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(source).AsParallel().Select(value =&gt; value + ComputingWorkload())
+        .SequenceEqual(</span><span style="color: blue;">new </span><span style="color: #2b91af;">StaticPartitioner</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(source).AsParallel()); </span><span style="color: green;">// Expected: True.
+    </span><span style="color: black;">sequentialEqual.WriteLine(); </span><span style="color: green;">// Actual: False.
+
+    </span><span style="color: blue;">new </span><span style="color: #2b91af;">StaticPartitioner</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(source).AsParallel().Select(value =&gt; value + ComputingWorkload())
+        .Zip(
+            second: </span><span style="color: blue;">new </span><span style="color: #2b91af;">StaticPartitioner</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(source).AsParallel(),
+            resultSelector: (a, b) =&gt; </span><span style="color: #a31515;">$"(</span><span style="color: black;">{a}</span><span style="color: #a31515;">, </span><span style="color: black;">{b}</span><span style="color: #a31515;">)"</span><span style="color: black;">) </span><span style="color: green;">// Expected: (0, 0) ... (15, 15).
+        </span><span style="color: black;">.WriteLines(); </span><span style="color: green;">// Actual: (3, 8) (0, 12) (1, 0) (2, 4) (6, 9) (7, 13) ...
+</span><span style="color: black;">}</span></pre>
+<p>So they must be used with ordered source to return the correct query results.</p>
+<p>And, once again, ForAll pulls values and calls the specified function in parallel, and does not maintain the order as well.</p>
+<h2>Orderable partitioner</h2>
+<p>.NET also provides APIs for partitioning with order control. The contract is the the System.Collections.OrderablePartitioner&lt;TSource&gt; abstract class, which inherits the fore mentioned Partitioner&lt;TSource&gt; type. The following are the new members in OrderablePartitioner&lt;TSource&gt;:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Collections.Concurrent
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public abstract class </span><span style="color: #2b91af;">OrderablePartitioner</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">Partitioner</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;
+    {
+        </span><span style="color: blue;">protected </span><span style="color: black;">OrderablePartitioner(</span><span style="color: blue;">bool </span><span style="color: black;">keysOrderedInEachPartition, </span><span style="color: blue;">bool </span><span style="color: black;">keysOrderedAcrossPartitions, </span><span style="color: blue;">bool </span><span style="color: black;">keysNormalized)
+        {
+            </span><span style="color: blue;">this</span><span style="color: black;">.KeysOrderedInEachPartition = keysOrderedInEachPartition;
+            </span><span style="color: blue;">this</span><span style="color: black;">.KeysOrderedAcrossPartitions = keysOrderedAcrossPartitions;
+            </span><span style="color: blue;">this</span><span style="color: black;">.KeysNormalized = keysNormalized;
+        }
+
+        </span><span style="color: blue;">public bool </span><span style="color: black;">KeysNormalized { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: blue;">public bool </span><span style="color: black;">KeysOrderedInEachPartition { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: blue;">public bool </span><span style="color: black;">KeysOrderedAcrossPartitions { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: blue;">public abstract </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">KeyValuePair</span><span style="color: black;">&lt;</span><span style="color: blue;">long</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt;&gt; GetOrderablePartitions(</span><span style="color: blue;">int </span><span style="color: black;">partitionCount);
+
+        </span><span style="color: blue;">public virtual </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">KeyValuePair</span><span style="color: black;">&lt;</span><span style="color: blue;">long</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; GetOrderableDynamicPartitions() =&gt;
+            </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">NotSupportedException</span><span style="color: black;">(</span><span style="color: #a31515;">"Dynamic partitions are not supported by this partitioner."</span><span style="color: black;">);</span><span style="color: black;">
+    }
+}</span></pre>
+<p>Instead of providing partitions of values, orderable partitioner provides partitions of key value pairs, where key is the index of source value. Its GetOrderablePartitions is the parity with Partitioner&lt;TSource&gt;.GetPartitions, return a list of iterators that yield values with keys; GetOrderableDynamicPartitions is the parity with Partitioner&lt;TSource&gt;.GetDynamicPartitions, also yields values with keys; Its KeysNormalized property returns a bool value to indicate whether the keys increase from 0; Its KeysOrderedInEachPartition indicates whether in each partition, keys increase, so that a later value’s key is greater then an former value’s key; And its KeysOrderedAcrossPartitions indicates whether keys increase partition by partition, so that a later partition’s keys are greater then an former partition’s keys. Orderable partitioner is also easy to implement with EnumerableEx.Share and IBuffer&lt;T&gt;:</p>
+<pre class="code"><span style="color: blue;">public class </span><span style="color: #2b91af;">OrderableDynamicPartitioner</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">OrderablePartitioner</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">IBuffer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">KeyValuePair</span><span style="color: black;">&lt;</span><span style="color: blue;">long</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; buffer;
+
+    </span><span style="color: blue;">public </span><span style="color: black;">OrderableDynamicPartitioner(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source)
+        : </span><span style="color: blue;">base</span><span style="color: black;">(keysOrderedInEachPartition: </span><span style="color: blue;">true</span><span style="color: black;">, keysOrderedAcrossPartitions: </span><span style="color: blue;">true</span><span style="color: black;">, keysNormalized: </span><span style="color: blue;">true</span><span style="color: black;">)
+    {
+        </span><span style="color: blue;">long </span><span style="color: black;">index = -1;
+        </span><span style="color: blue;">this</span><span style="color: black;">.buffer = source
+            .Select(value =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">KeyValuePair</span><span style="color: black;">&lt;</span><span style="color: blue;">long</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Interlocked</span><span style="color: black;">.Increment(</span><span style="color: blue;">ref </span><span style="color: black;">index), value))
+            .Share();
+    }
+
+    </span><span style="color: blue;">public override bool </span><span style="color: black;">SupportsDynamicPartitions =&gt; </span><span style="color: blue;">true</span><span style="color: black;">;
+
+    </span><span style="color: blue;">public override </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">KeyValuePair</span><span style="color: black;">&lt;</span><span style="color: blue;">long</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt;&gt; GetOrderablePartitions(
+        </span><span style="color: blue;">int </span><span style="color: black;">partitionCount) =&gt; </span><span style="color: #2b91af;">Enumerable
+            </span><span style="color: black;">.Range(0, partitionCount)
+            .Select(_ =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.buffer.GetEnumerator())
+            .ToArray();
+
+    </span><span style="color: blue;">public override </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">KeyValuePair</span><span style="color: black;">&lt;</span><span style="color: blue;">long</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; GetOrderableDynamicPartitions() =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.buffer;
+}</span></pre>
+<p>Orderable partitioner can be used with AsOrdered:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Partitioning
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">PartitionerAsOrdered()
+    {
+        </span><span style="color: blue;">int</span><span style="color: black;">[] source = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 2).ToArray();
+        </span><span style="color: blue;">new </span><span style="color: #2b91af;">OrderableDynamicPartitioner</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(source)
+            .AsParallel()
+            .Select(value =&gt; value + ComputingWorkload())
+            .WriteLines(); </span><span style="color: green;">// 1 0 5 3 4 6 2 7
+
+        </span><span style="color: blue;">new </span><span style="color: #2b91af;">OrderableDynamicPartitioner</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(source)
+            .AsParallel()
+            .AsOrdered()
+            .Select(value =&gt; value + ComputingWorkload())
+            .WriteLines(); </span><span style="color: green;">// 0 ... 7
+
+        </span><span style="color: blue;">new </span><span style="color: #2b91af;">DynamicPartitioner</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(source)
+            .AsParallel()
+            .AsOrdered()
+            .Select(value =&gt; value + ComputingWorkload())
+            .WriteLines();
+        </span><span style="color: green;">// InvalidOperationException: AsOrdered may not be used with a partitioner that is not orderable.
+    </span><span style="color: black;">}
+}</span></pre>
+<h1>Aggregation</h1>
+<p>Parallel LINQ’s Aggregate methods are more sensitive than LINQ to Object.</p>
+<h2>Commutativity, associativity and correctness</h2>
+<p>In Parallel LINQ, Aggregate methods require the provided accumulator functions to be both commutative and associative. Assume func is a function that accepts 2 parameters and returns a result, if func(a, b) ≡ func(b, a), then func is commutative; if func(func(a, b), c) ≡ func(a, func(b, c)), then func is associative. For example:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CommutativeAssociative()
+{
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; func1 = (a, b) =&gt; a + b;
+    (func1(1, 2) == func1(2, 1)).WriteLine(); </span><span style="color: green;">// True, commutative
+    </span><span style="color: black;">(func1(func1(1, 2), 3) == func1(1, func1(2, 3))).WriteLine(); </span><span style="color: green;">// True, associative.
+
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; func2 = (a, b) =&gt; a * b + 1;
+    (func2(1, 2) == func2(2, 1)).WriteLine(); </span><span style="color: green;">// True, commutative
+    </span><span style="color: black;">(func2(func2(1, 2), 3) == func2(1, func2(2, 3))).WriteLine(); </span><span style="color: green;">// False, not associative.
+
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; func3 = (a, b) =&gt; a;
+    (func3(1, 2) == func3(2, 1)).WriteLine(); </span><span style="color: green;">// False, not commutative
+    </span><span style="color: black;">(func3(func3(1, 2), 3) == func3(1, func3(2, 3))).WriteLine(); </span><span style="color: green;">// True, associative.
+
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; func4 = (a, b) =&gt; a - b;
+    (func4(1, 2) == func4(2, 1)).WriteLine(); </span><span style="color: green;">// False, not commutative
+    </span><span style="color: black;">(func4(func4(1, 2), 3) == func4(1, func4(2, 3))).WriteLine(); </span><span style="color: green;">// False, not associative.
+</span><span style="color: black;">}</span></pre>
+<p>To demonstrate how parallel aggregation is impacted by commutativity and associativity, it can be compared with sequential aggregation:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">AggregateCorrectness()
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">count = </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 2;
+    </span><span style="color: blue;">int </span><span style="color: black;">sequentialAdd = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, count).Aggregate((a, b) =&gt; a + b);
+    sequentialAdd.WriteLine(); </span><span style="color: green;">// 28
+    </span><span style="color: blue;">int </span><span style="color: black;">parallelAdd = </span><span style="color: #2b91af;">ParallelEnumerable</span><span style="color: black;">.Range(0, count).Aggregate((a, b) =&gt; a + b);
+    parallelAdd.WriteLine(); </span><span style="color: green;">// 28
+
+    </span><span style="color: blue;">int </span><span style="color: black;">sequentialSubtract = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, count).Aggregate((a, b) =&gt; a - b);
+    sequentialSubtract.WriteLine(); </span><span style="color: green;">// -28
+    </span><span style="color: blue;">int </span><span style="color: black;">parallelSubtract = </span><span style="color: #2b91af;">ParallelEnumerable</span><span style="color: black;">.Range(0, count).Aggregate((a, b) =&gt; a - b);
+    parallelSubtract.WriteLine(); </span><span style="color: green;">// 2
+</span><span style="color: black;">}</span></pre>
+<p>Apparently, parallelSubtract has incorrect result value, because the function provided to Aggregate is neither commutative nor associative. The following code visualizes the aggregation:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">VisualizeAggregate()
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">count = </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 2;
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">Markers</span><span style="color: black;">.EnterSpan(-1, </span><span style="color: #a31515;">"Sequential subtract"</span><span style="color: black;">))
+    {
+        </span><span style="color: #2b91af;">MarkerSeries </span><span style="color: black;">markerSeries = </span><span style="color: #2b91af;">Markers</span><span style="color: black;">.CreateMarkerSeries(</span><span style="color: #a31515;">"Sequential subtract"</span><span style="color: black;">);
+        </span><span style="color: blue;">int </span><span style="color: black;">sequentialSubtract = </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, count).Aggregate((a, b) =&gt;
+        {
+            </span><span style="color: blue;">using </span><span style="color: black;">(markerSeries.EnterSpan(</span><span style="color: #2b91af;">Thread</span><span style="color: black;">.CurrentThread.ManagedThreadId, </span><span style="color: #a31515;">$"</span><span style="color: black;">{a}</span><span style="color: #a31515;">, </span><span style="color: black;">{b} </span><span style="color: #a31515;">=&gt; </span><span style="color: black;">{a - b}</span><span style="color: #a31515;">"</span><span style="color: black;">))
+            {
+                </span><span style="color: blue;">return </span><span style="color: black;">a - b + ComputingWorkload();
+            }
+        });
+    }
+
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">Markers</span><span style="color: black;">.EnterSpan(-2, </span><span style="color: #a31515;">"Parallel subtract"</span><span style="color: black;">))
+    {
+        </span><span style="color: #2b91af;">MarkerSeries </span><span style="color: black;">markerSeries = </span><span style="color: #2b91af;">Markers</span><span style="color: black;">.CreateMarkerSeries(</span><span style="color: #a31515;">"Parallel subtract"</span><span style="color: black;">);
+        </span><span style="color: blue;">int </span><span style="color: black;">parallelSubtract = </span><span style="color: #2b91af;">ParallelEnumerable</span><span style="color: black;">.Range(0, count).Aggregate((a, b) =&gt;
+        {
+            </span><span style="color: blue;">using </span><span style="color: black;">(markerSeries.EnterSpan(</span><span style="color: #2b91af;">Thread</span><span style="color: black;">.CurrentThread.ManagedThreadId, </span><span style="color: #a31515;">$"</span><span style="color: black;">{a}</span><span style="color: #a31515;">, </span><span style="color: black;">{b} </span><span style="color: #a31515;">=&gt; </span><span style="color: black;">{a - b}</span><span style="color: #a31515;">"</span><span style="color: black;">))
+            {
+                </span><span style="color: blue;">return </span><span style="color: black;">a - b + ComputingWorkload();
+            }
+        });
+    }
+}
+</span></pre>
+<blockquote>
+<p>The sequential aggregation has the expected process:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-2-Partitioning_12942/image_4.png"><img title="image" style="border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-2-Partitioning_12942/image_thumb_1.png" width="800" height="600" border="0"></a></p>
+<p>The parallel aggregation has different behavior:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-2-Partitioning_12942/image_8.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-2-Partitioning_12942/image_thumb_3.png" width="800" height="600" border="0"></a></p>
+</blockquote>
+<p>It follows the pattern of parallel query methods. It first partitions the data. On this quad core CPU, it splits the 8 source values into 4 partitions, (0, 1), (2, 3), (4, 5), (6, 7). Then it execute the provided function for each parallel in parallel, the 4 partitions’ result values are –1, –1, –1, –1. And finally it merges the 4 result values with the provided function, so the final aggregation result is 2. This demonstrates that the accumulator function must be commutative and associative for the parallel aggregation.</p>
+<h2>Partition and merge</h2>
+<p>Parallel LINQ provides 2 additional Aggregate overloads, where the seed for each partition be specified with either a value or a value factory function:</p>
+<pre class="code"><span style="color: blue;">public static </span><span style="color: #2b91af;">TResult </span><span style="color: black;">Aggregate&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">TAccumulate </span><span style="color: black;">seed,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">&gt; updateAccumulatorFunc,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">, </span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">, </span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">&gt; combineAccumulatorsFunc,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector);
+
+</span><span style="color: blue;">public static </span><span style="color: #2b91af;">TResult </span><span style="color: black;">Aggregate&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt;(
+    </span><span style="color: blue;">this </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">&gt; seedFactory,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">, </span><span style="color: #2b91af;">TSource</span><span style="color: black;">, </span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">&gt; updateAccumulatorFunc,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">, </span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">, </span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">&gt; combineAccumulatorsFunc,
+    </span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TAccumulate</span><span style="color: black;">, </span><span style="color: #2b91af;">TResult</span><span style="color: black;">&gt; resultSelector);</span></pre>
+<p>They also both accept 2 accumulator functions. First, updateAccumulatorFunc can be read as “source value accumulator”, it accumulates the values within each partition to a partition result. So if there are N partitions, there are N partition results. Then, combineAccumulatorsFunc can be read as “partition result accumulator”, it accumulates all partitions’ results to a single final result. The following example calculates the sum of squares:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">MergeForAggregate()
+{
+    </span><span style="color: blue;">int </span><span style="color: black;">count = </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 2;
+    </span><span style="color: blue;">int </span><span style="color: black;">sequentialSumOfSquares = </span><span style="color: #2b91af;">Enumerable
+        </span><span style="color: black;">.Range(0, count)
+        .Aggregate(seed: 0, func: (accumulate, value) =&gt; accumulate + value * value);
+    sequentialSumOfSquares.WriteLine(); </span><span style="color: green;">// 140
+
+    </span><span style="color: blue;">int </span><span style="color: black;">parallelSumOfSquares1 = </span><span style="color: #2b91af;">ParallelEnumerable
+        </span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 2)
+        .Aggregate(
+            seed: 0, </span><span style="color: green;">// Seed for each partition.
+            </span><span style="color: black;">updateAccumulatorFunc: (accumulation, value) =&gt; accumulation + value * value, </span><span style="color: green;">// Source value accumulator for each partition's result.
+            </span><span style="color: black;">combineAccumulatorsFunc: (accumulation, partition) =&gt; accumulation + partition, </span><span style="color: green;">// Partition result accumulator for final result.
+            </span><span style="color: black;">resultSelector: result =&gt; result);
+    parallelSumOfSquares1.WriteLine(); </span><span style="color: green;">// 140
+
+    </span><span style="color: blue;">int </span><span style="color: black;">parallelSumOfSquares2 = </span><span style="color: #2b91af;">ParallelEnumerable
+        </span><span style="color: black;">.Range(0, </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount * 2)
+        .Aggregate(
+            seedFactory: () =&gt; 0, </span><span style="color: green;">// Seed factory for each partition.
+            </span><span style="color: black;">updateAccumulatorFunc: (accumulation, value) =&gt; accumulation + value * value, </span><span style="color: green;">// Source value accumulator for each partition's result.
+            </span><span style="color: black;">combineAccumulatorsFunc: (accumulation, partition) =&gt; accumulation + partition, </span><span style="color: green;">// Partition result accumulator for final result.
+            </span><span style="color: black;">resultSelector: result =&gt; result);
+    parallelSumOfSquares2.WriteLine(); </span><span style="color: green;">// 140
+</span><span style="color: black;">}</span></pre>
+<p>In the parallel aggregation, first the sum of squares are calculated for each partition. Then all partitions’ results are merged by summing up.</p>
+
+
+</div>
+</body>
+</html>

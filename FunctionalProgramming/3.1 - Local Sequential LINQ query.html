@@ -1,0 +1,590 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+<h1>LINQ to Objects (1) Local Sequential Query</h1>
+
+<p>LINQ to Objects queries sequences of .NET objects in local memory of current .NET application or service. Its data source and the queries are represented by IEnumerable&lt;T&gt;.</p>
+<h1>Iteration pattern and foreach statement</h1>
+<p>C#/.NET follows <a href="http://en.wikipedia.org/wiki/Iterator_pattern" target="_blank">iterator pattern</a> to define sequence of values, and implement sequential access to the values in sequence in a unified approach. Iteration pattern consists of a sequence (also called container of items, or aggregate of elements) and an iterator:</p>
+<pre class="code"><span style="color: blue;">internal abstract class </span><span style="color: #2b91af;">Sequence
+</span><span style="color: black;">{</span><span style="color: black;">
+    </span><span style="color: blue;">public abstract </span><span style="color: #2b91af;">Iterator </span><span style="color: black;">GetEnumerator(); </span><span style="color: green;">// Must be public.
+</span><span style="color: black;">}
+
+</span><span style="color: blue;">internal abstract class </span><span style="color: #2b91af;">Iterator
+</span><span style="color: black;">{</span><span style="color: black;">
+    </span><span style="color: blue;">public abstract bool </span><span style="color: black;">MoveNext(); </span><span style="color: green;">// Must be public.
+
+    </span><span style="color: blue;">public abstract object </span><span style="color: black;">Current { </span><span style="color: blue;">get</span><span style="color: black;">; } </span><span style="color: green;">// Must be public.
+</span><span style="color: black;">}</span></pre>
+<p>And their generic version is:</p>
+<pre class="code"><span style="color: blue;">internal abstract class </span><span style="color: #2b91af;">GenericSequence</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public abstract </span><span style="color: #2b91af;">GenericIterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; GetEnumerator(); </span><span style="color: green;">// Must be public.
+</span><span style="color: black;">}
+
+</span><span style="color: blue;">internal abstract class </span><span style="color: #2b91af;">GenericIterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public abstract bool </span><span style="color: black;">MoveNext(); </span><span style="color: green;">// Must be public.
+
+    </span><span style="color: blue;">public abstract </span><span style="color: #2b91af;">T </span><span style="color: black;">Current { </span><span style="color: blue;">get</span><span style="color: black;">; } </span><span style="color: green;">// Must be public.
+</span><span style="color: black;">}</span></pre>
+<p>These types and members demonstrate the minimum requirements for iteration pattern:</p>
+<ul>
+<li>The sequence is the container of sequential values, it has a GetEnumerator factory method returning an iterator</li>
+<li>Iterator traverses all values in the sequence. Its MoveNext method returns a bool value to indicate whether there is still a next value that can be pulled. If true is returned, its Current property can be called to pull that value.</li>
+</ul>
+<p>Then the values in above non-generic and generic sequences can be access with C# foreach statement:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">IteratorPattern
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">ForEach&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Sequence </span><span style="color: black;">sequence, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; processNext)
+    {
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">T </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">sequence)
+        {
+            processNext(value);
+        }
+    }
+
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">ForEach&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">GenericSequence</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; sequence, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; processNext)
+    {
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">T </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">sequence)
+        {
+            processNext(value);
+        }
+    }
+}</span></pre>
+<p>The above foreach loops are compiled to while loops:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledForEach&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">Sequence </span><span style="color: black;">sequence, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; processNext)
+{
+    </span><span style="color: #2b91af;">Iterator </span><span style="color: black;">iterator = sequence.GetEnumerator();
+    </span><span style="color: blue;">try
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">while </span><span style="color: black;">(iterator.MoveNext())
+        {
+            </span><span style="color: #2b91af;">T </span><span style="color: black;">value = (</span><span style="color: #2b91af;">T</span><span style="color: black;">)iterator.Current;
+            processNext(value);
+        }
+    }
+    </span><span style="color: blue;">finally
+    </span><span style="color: black;">{
+        (iterator </span><span style="color: blue;">as </span><span style="color: #2b91af;">IDisposable</span><span style="color: black;">)?.Dispose();
+    }
+}
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">CompiledForEach&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">GenericSequence</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; sequence, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; processNext)
+{
+    </span><span style="color: #2b91af;">GenericIterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; iterator = sequence.GetEnumerator();
+    </span><span style="color: blue;">try
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">while </span><span style="color: black;">(iterator.MoveNext())
+        {
+            </span><span style="color: #2b91af;">T </span><span style="color: black;">value = iterator.Current;
+            processNext(value);
+        }
+    }
+    </span><span style="color: blue;">finally
+    </span><span style="color: black;">{
+        (iterator </span><span style="color: blue;">as </span><span style="color: #2b91af;">IDisposable</span><span style="color: black;">)?.Dispose();
+    }
+}</span></pre>
+<p>So the foreach loops is syntactic sugar to make above imperative control flow declarative. The generic version is always preferred, becuase the non-generic Iterator’s Current property returns object, it has to be explicitly casted to the expected type specified in the foreach statement, which could be a chance of failure.</p>
+<p>To demonstrate the iterator pattern implementation, a sequence of values can be stored with a singly linked list, with one value in each node:</p>
+<pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">SinglyLinkedListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">internal </span><span style="color: black;">SinglyLinkedListNode(</span><span style="color: #2b91af;">T </span><span style="color: black;">value, </span><span style="color: #2b91af;">SinglyLinkedListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; next = </span><span style="color: blue;">null</span><span style="color: black;">)
+    {
+        </span><span style="color: blue;">this</span><span style="color: black;">.Value = value;
+        </span><span style="color: blue;">this</span><span style="color: black;">.Next = next;
+    }
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">T </span><span style="color: black;">Value { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+    </span><span style="color: blue;">public </span><span style="color: #2b91af;">SinglyLinkedListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; Next { </span><span style="color: blue;">get</span><span style="color: black;">; }
+}</span></pre>
+<p>Then iterator can be implemented to traverse along the linked list nodes. Iterator pattern is imperative, and iterator can change its state during the iteration. When MoveNext is called and returns true, it have Current to return a different next value:</p>
+<pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">LinkedListIterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">GenericIterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">private </span><span style="color: #2b91af;">SinglyLinkedListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; node; </span><span style="color: green;">// State.
+
+    </span><span style="color: blue;">internal </span><span style="color: black;">LinkedListIterator(</span><span style="color: #2b91af;">SinglyLinkedListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; head) =&gt;
+        </span><span style="color: blue;">this</span><span style="color: black;">.node = </span><span style="color: blue;">new </span><span style="color: #2b91af;">SinglyLinkedListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">default</span><span style="color: black;">, head);
+
+    </span><span style="color: blue;">public override bool </span><span style="color: black;">MoveNext()
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(</span><span style="color: blue;">this</span><span style="color: black;">.node.Next != </span><span style="color: blue;">null</span><span style="color: black;">)
+        {
+            </span><span style="color: blue;">this</span><span style="color: black;">.node = </span><span style="color: blue;">this</span><span style="color: black;">.node.Next; </span><span style="color: green;">// State change.
+            </span><span style="color: blue;">return true</span><span style="color: black;">;
+        }
+        </span><span style="color: blue;">return false</span><span style="color: black;">;
+    }
+
+    </span><span style="color: blue;">public override </span><span style="color: #2b91af;">T </span><span style="color: black;">Current =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.node.Value;
+}</span></pre>
+<p>And the sequence can be simply implemented as a iterator factory:</p>
+<pre class="code"><span style="color: blue;">internal class </span><span style="color: #2b91af;">LinkedListSequence</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">GenericSequence</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;
+{
+    </span><span style="color: blue;">private readonly </span><span style="color: #2b91af;">SinglyLinkedListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; head;
+
+    </span><span style="color: blue;">internal </span><span style="color: black;">LinkedListSequence(</span><span style="color: #2b91af;">SinglyLinkedListNode</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; head) =&gt; </span><span style="color: blue;">this</span><span style="color: black;">.head = head;
+
+    </span><span style="color: blue;">public override </span><span style="color: #2b91af;">GenericIterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; GetEnumerator() =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">LinkedListIterator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: blue;">this</span><span style="color: black;">.head);
+}</span></pre>
+<p>Now the values in the linked list sequence can be sequentially pulled with the foreach syntactic sugar:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ForEach(</span><span style="color: #2b91af;">SinglyLinkedListNode</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; head)
+{
+    </span><span style="color: #2b91af;">LinkedListSequence</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; sequence = </span><span style="color: blue;">new </span><span style="color: #2b91af;">LinkedListSequence</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(head);
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">sequence)
+    {
+        </span><span style="color: black;">value.WriteLine();
+    }
+}</span></pre>
+<p>A general implementation of iterator pattern will be discussed later in this chapter.</p>
+<h1>IEnumerable&lt;T&gt; and IEnumerator&lt;T&gt;</h1>
+<p>Initially, .NET Framework 1.0 provides IEnumerable and IEnumerator interfaces to represent iterator pattern:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Collections
+{
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IEnumerable </span><span style="color: green;">// Sequence.
+    </span><span style="color: black;">{
+        </span><span style="color: #2b91af;">IEnumerator </span><span style="color: black;">GetEnumerator();
+    }
+
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IEnumerator </span><span style="color: green;">// Iterator.
+    </span><span style="color: black;">{
+        </span><span style="color: blue;">object </span><span style="color: black;">Current { </span><span style="color: blue;">get</span><span style="color: black;">; }
+
+        </span><span style="color: blue;">bool </span><span style="color: black;">MoveNext();
+
+        </span><span style="color: blue;">void </span><span style="color: black;">Reset(); </span><span style="color: green;">// For COM interoperability.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>Many sequence and collection types implement IEnumerable so that they can be used with foreach, like ArrayList, Queue, Stack, etc. Then .NET Framework 2.0 supports generics, where the generic version, IEnumerable&lt;T&gt; and IEnumerator&lt;T&gt;, are provided:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Collections.Generic
+{
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IEnumerable </span><span style="color: green;">// Sequence.
+    </span><span style="color: black;">{
+        </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; GetEnumerator();
+    }
+
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IDisposable</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerator </span><span style="color: green;">// Iterator.
+    </span><span style="color: black;">{
+        </span><span style="color: #2b91af;">T </span><span style="color: black;">Current { </span><span style="color: blue;">get</span><span style="color: black;">; }
+    }
+}</span></pre>
+<p>Since then the sequence and collection types are provided with IEnumerable&lt;T&gt; implemented by default, like List&lt;T&gt;, Queue&lt;T&gt;, Stack&lt;T&gt;, etc.</p>
+<p>Later, .NET Framework 4.0 introduces covariance and contravariance for generic interface. As discussed in the Functional Programming chapter,&nbsp; T is covariant for both IEnumerable&lt;T&gt; and IEnumerable&lt;T&gt;. So their definitions are updated to:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System.Collections.Generic
+{
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IEnumerable </span><span style="color: green;">// Sequence.
+    </span><span style="color: black;">{
+        </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; GetEnumerator();
+    }
+
+    </span><span style="color: blue;">public interface </span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: blue;">out </span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; : </span><span style="color: #2b91af;">IDisposable</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerator </span><span style="color: green;">// Iterator.
+    </span><span style="color: black;">{
+        </span><span style="color: #2b91af;">T </span><span style="color: black;">Current { </span><span style="color: blue;">get</span><span style="color: black;">; }
+    }
+}</span></pre>
+<h2>EnumerableAssert utility</h2>
+<p>In Microsoft’s unit test framework <a href="https://en.wikipedia.org/wiki/MSTest" target="_blank">MSTest</a>, there are <a href="https://msdn.microsoft.com/en-us/library/ms182530.aspx" target="_blank">built-in assertion utility types</a> provided:</p>
+<ul>
+<li>Assert to check general conditions, providing methods like IsTrue, IsNotNull, AreEqual, etc.</li>
+<li>StringAssert to check conditions for string, providing methods like Contains, StartsWith, EndsWith, etc.</li>
+<li>CollectionAssert to check conditions for ICollection, providing methods like AllItemsAreInstancesOfType, AllItemsAreNotNull, IsSubsetOf, etc.</li>
+</ul>
+<p>To demonstrate how to consume IEnumerator&lt;T&gt; and IEnumerator&lt;T&gt; with the iterator pattern, an EnumerableAssert utility type can be defined to check conditions for sequence. For example, the following assertion methods check whether the specified sequence is not null and is empty/is not null and is not empty/is null or is empty:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">EnumerableAssert
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static void </span><span style="color: black;">IsEmpty&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; actual, </span><span style="color: blue;">string </span><span style="color: black;">message = </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: blue;">params object</span><span style="color: black;">[] parameters)
+    {
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsNotNull(actual, message, parameters);
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; iterator = actual.GetEnumerator())
+        {
+            </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsFalse(iterator.MoveNext(), message, parameters);
+        }
+    }
+
+    </span><span style="color: blue;">public static void </span><span style="color: black;">Any&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; actual, </span><span style="color: blue;">string </span><span style="color: black;">message = </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: blue;">params object</span><span style="color: black;">[] parameters)
+    {
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsNotNull(actual, message, parameters);
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; iterator = actual.GetEnumerator())
+        {
+            </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsTrue(iterator.MoveNext(), message, parameters);
+        }
+    }
+
+    </span><span style="color: blue;">public static void </span><span style="color: black;">IsNullOrEmpty&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(
+        </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; actual, </span><span style="color: blue;">string </span><span style="color: black;">message = </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: blue;">params object</span><span style="color: black;">[] parameters)
+    {
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; iterator = actual?.GetEnumerator())
+        {
+            </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsFalse(iterator?.MoveNext() ?? </span><span style="color: blue;">false</span><span style="color: black;">, message, parameters);
+        }
+    }
+}</span></pre>
+<p>The following methods check whether the specified sequence contains one single value/contains more then one values:</p>
+<pre class="code"><span style="color: blue;">public static void </span><span style="color: black;">Single&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; actual, </span><span style="color: blue;">string </span><span style="color: black;">message = </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: blue;">params object</span><span style="color: black;">[] parameters)
+{
+    </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsNotNull(actual, message, parameters);
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; iterator = actual.GetEnumerator())
+    {
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsTrue(iterator.MoveNext() &amp;&amp; !iterator.MoveNext(), message, parameters);
+    }
+}
+
+</span><span style="color: blue;">public static void </span><span style="color: black;">Multiple&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; actual, </span><span style="color: blue;">string </span><span style="color: black;">message = </span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: blue;">params object</span><span style="color: black;">[] parameters)
+{
+    </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsNotNull(actual, message, parameters);
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; iterator = actual.GetEnumerator())
+    {
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsTrue(iterator.MoveNext() &amp;&amp; iterator.MoveNext(), message, parameters);
+    }
+}</span></pre>
+<p>The following methods check whether the specified sequence contains/does not contain the specified value:</p>
+<pre class="code"><span style="color: blue;">public static void </span><span style="color: black;">Contains&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">T </span><span style="color: black;">expected,
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; actual,
+    </span><span style="color: #2b91af;">IEqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; comparer = </span><span style="color: blue;">null</span><span style="color: black;">,
+    </span><span style="color: blue;">string </span><span style="color: black;">message = </span><span style="color: blue;">null</span><span style="color: black;">,
+    </span><span style="color: blue;">params object</span><span style="color: black;">[] parameters)
+{
+    </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsNotNull(actual, message, parameters);
+    comparer = comparer ?? </span><span style="color: #2b91af;">EqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;.Default;
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">T </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">actual)
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(comparer.Equals(expected, value))
+        {
+            </span><span style="color: blue;">return</span><span style="color: black;">;
+        }
+    }
+    </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.Fail(message, parameters);
+}
+
+</span><span style="color: blue;">public static void </span><span style="color: black;">DoesNotContain&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">T </span><span style="color: black;">expected, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; actual,
+    </span><span style="color: #2b91af;">IEqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; comparer = </span><span style="color: blue;">null</span><span style="color: black;">,
+    </span><span style="color: blue;">string </span><span style="color: black;">message = </span><span style="color: blue;">null</span><span style="color: black;">,
+    </span><span style="color: blue;">params object</span><span style="color: black;">[] parameters)
+{
+    </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsNotNull(actual, message, parameters);
+    comparer = comparer ?? </span><span style="color: #2b91af;">EqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;.Default;
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">T </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">actual)
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(comparer.Equals(expected, value))
+        {
+            </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.Fail(message, parameters);
+        }
+    }
+}</span></pre>
+<p>The following AreSequentialEqual method checks whether 2 sequences’ values are sequentially equal:</p>
+<pre class="code"><span style="color: blue;">public static void </span><span style="color: black;">AreSequentialEqual&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; expected,
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; actual,
+    </span><span style="color: #2b91af;">IEqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; comparer = </span><span style="color: blue;">null</span><span style="color: black;">,
+    </span><span style="color: blue;">string </span><span style="color: black;">message = </span><span style="color: blue;">null</span><span style="color: black;">,
+    </span><span style="color: blue;">params object</span><span style="color: black;">[] parameters)
+{
+    </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsNotNull(expected, message ?? </span><span style="color: #a31515;">$"Expected sequence is null."</span><span style="color: black;">, parameters);
+    </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsNotNull(actual, message ?? </span><span style="color: #a31515;">$"Actual sequence is null."</span><span style="color: black;">, parameters);
+
+    comparer = comparer ?? </span><span style="color: #2b91af;">EqualityComparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;.Default;
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; expectedItorator = expected.GetEnumerator())
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; actualIterator = actual.GetEnumerator())
+    {
+        </span><span style="color: blue;">int </span><span style="color: black;">expectedIndex = 0;
+        </span><span style="color: blue;">for </span><span style="color: black;">(; expectedItorator.MoveNext(); expectedIndex++)
+        {
+            </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsTrue(
+                actualIterator.MoveNext(),
+                message ?? </span><span style="color: #a31515;">$"Expected sequence has more than </span><span style="color: black;">{expectedIndex} </span><span style="color: #a31515;">value(s), actual sequence has </span><span style="color: black;">{expectedIndex} </span><span style="color: #a31515;">value(s)."</span><span style="color: black;">,
+                parameters);
+            </span><span style="color: #2b91af;">T </span><span style="color: black;">expectedValue = expectedItorator.Current;
+            </span><span style="color: #2b91af;">T </span><span style="color: black;">actualValue = actualIterator.Current;
+            </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsTrue(
+                comparer.Equals(expectedValue, actualValue),
+                message ?? </span><span style="color: #a31515;">$"Expected and actual sequences' values are not equal at index </span><span style="color: black;">{expectedIndex}</span><span style="color: #a31515;">. Expected value is </span><span style="color: black;">{expectedValue}</span><span style="color: #a31515;">, actual value is </span><span style="color: black;">{actualValue}</span><span style="color: #a31515;">."</span><span style="color: black;">,
+                parameters);
+        }
+        </span><span style="color: #2b91af;">Assert</span><span style="color: black;">.IsFalse(
+            actualIterator.MoveNext(),
+            message ?? </span><span style="color: #a31515;">$"Expected sequence has </span><span style="color: black;">{expectedIndex} </span><span style="color: #a31515;">value(s), actual sequence has more than </span><span style="color: black;">{expectedIndex} </span><span style="color: #a31515;">value(s)."</span><span style="color: black;">,
+            parameters);
+    }
+}</span></pre>
+<h2>foreach loop vs. for loop</h2>
+<p>Array is a special type. A concrete array T[] inherits System.Array type, which does not implement IEnumerable&lt;T&gt; but IEnumerable:</p>
+<pre class="code"><span style="color: blue;">namespace </span><span style="color: black;">System
+{</span><span style="color: black;">
+    </span><span style="color: blue;">public abstract class </span><span style="color: #2b91af;">Array </span><span style="color: black;">: </span><span style="color: #2b91af;">ICollection</span><span style="color: black;">, </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">, </span><span style="color: #2b91af;">IList</span><span style="color: black;">, </span><span style="color: #2b91af;">IStructuralComparable</span><span style="color: black;">, </span><span style="color: #2b91af;">IStructuralEquatable
+    </span><span style="color: black;">{</span><span style="color: black;">
+    }
+}</span></pre>
+<p>Instead, T[] directly implements IEnumerable&lt;T&gt;, ICollection&lt;T&gt;, and IList&lt;T&gt;, as long as T[] is single dimensional, and zero–lower bound. So array T[] can be used with foreach loop:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ForEach&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T</span><span style="color: black;">[] array, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; action)
+{
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">T </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">array)
+    {
+        action(value);
+    }
+}</span></pre>
+<p>For better performance, it is compiled into a for loop, accessing each value with index. For array, this is cheaper than calling MoveNext method and Current getter:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">CompiledForEach&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt;(</span><span style="color: #2b91af;">T</span><span style="color: black;">[] array, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">T</span><span style="color: black;">&gt; action)
+{
+    </span><span style="color: blue;">for </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">index = 0; index &lt; array.Length; index++)
+    {
+        </span><span style="color: #2b91af;">T </span><span style="color: black;">value = array[index];
+        action(value);
+    }
+}</span></pre>
+<p>And so is string. Since string is a sequence of characters, it implements IEnumerable&lt;char&gt;. When string is used with foreach loop, it is also compiled to for loop for better performance:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ForEach(</span><span style="color: blue;">string </span><span style="color: black;">@string, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">char</span><span style="color: black;">&gt; action)
+{
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">char </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">@string)
+    {
+        action(value);
+    }
+}
+
+</span><span style="color: blue;">internal static void </span><span style="color: black;">CompiledForEach(</span><span style="color: blue;">string </span><span style="color: black;">@string, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: blue;">char</span><span style="color: black;">&gt; action)
+{
+    </span><span style="color: blue;">for </span><span style="color: black;">(</span><span style="color: blue;">int </span><span style="color: black;">index = 0; index &lt; @string.Length; index++)
+    {
+        </span><span style="color: blue;">char </span><span style="color: black;">value = @string[index];
+        action(value);
+    }
+}</span></pre>
+<h1>LINQ to Objects queryable types</h1>
+<p>Most of pull-based .NET sequence and collection types implements IEnumerable&lt;T&gt;, like T[], List&lt;T&gt;, Dictionary&lt;TKey, TValue&gt;, HashSet&lt;T&gt;, Collection&lt;T&gt;, Stack&lt;T&gt;, Queue&lt;T&gt;, etc. Here is a detailed list of .NET types implemented IEnumerable&lt;T&gt;:</p>
+<ul>
+<li>System.Collections.Generic.IEnumerable&lt;T&gt;</li>
+<ul>
+<li>Microsoft.Collections.Immutable.IImmutableQueue&lt;T&gt;
+<ul>
+<li>Microsoft.Collections.Immutable.ImmutableQueue&lt;T&gt;</li>
+</ul>
+</li>
+<li>Microsoft.Collections.Immutable.IImmutableStack&lt;T&gt;
+<ul>
+<li>Microsoft.Collections.Immutable.ImmutableStack&lt;T&gt;</li>
+</ul>
+</li>
+<li>Microsoft.Collections.Immutable.IOrderedCollection&lt;T&gt;
+<ul>
+<li>Microsoft.Collections.Immutable.ImmutableList&lt;T&gt;</li>
+</ul>
+</li>
+<li>System.Collections.Concurrent.IProducerConsumerCollection&lt;T&gt;
+<ul>
+<li>System.Collections.Concurrent.ConcurrentBag&lt;T&gt;</li>
+<li>System.Collections.Concurrent.ConcurrentQueue&lt;T&gt;</li>
+<li>System.Collections.Concurrent.ConcurrentStack&lt;T&gt;</li>
+</ul>
+</li>
+<li>System.Collections.Concurrent.BlockingCollection&lt;T&gt;</li>
+<li>System.Collections.Generic.ICollection&lt;T&gt;</li>
+<li>
+<ul>
+<li>System.Collections.Generic.IDictionary&lt;TKey, TValue&gt;
+<ul>
+<li>System.Collections.Concurrent.ConcurrentDictionary&lt;TKey, TValue&gt;</li>
+<li>System.Collections.Generic.Dictionary&lt;TKey, TValue&gt;</li>
+<li>System.Collections.ObjectModel.ReadOnlyDictionary&lt;TKey, TValue&gt;</li>
+<li>System.Dynamic.ExpandoObject</li>
+</ul>
+</li>
+<li>System.Collections.Generic.IList&lt;T&gt;</li>
+<li>
+<ul>
+<li>System.ArraySegment&lt;T&gt;</li>
+<li>System.Collections.Generic.List&lt;T&gt;</li>
+<li>System.Collections.ObjectModel.Collection&lt;T&gt;</li>
+<li>
+<ul>
+<li>System.Collections.ObjectModel.ObservableCollection&lt;T&gt;</li>
+<li>System.Collections.ObjectModel.KeyedCollection&lt;TKey, TItem&gt;</li>
+</ul>
+</li>
+<li>System.Collections.ObjectModel.ReadOnlyCollection&lt;T&gt;</li>
+</ul>
+</li>
+<li>System.Collections.Generic.ISet&lt;T&gt;
+<ul>
+<li>System.Collections.Generic.HashSet&lt;T&gt;</li>
+<li>System.Collections.Generic.SortedSet&lt;T&gt;</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>System.Collections.Generic.IReadOnlyCollection&lt;T&gt;
+<ul>
+<li>System.Collections.Generic.IReadOnlyDictionary&lt;TKey, TValue&gt;
+<ul>
+<li>System.Collections.Generic.Dictionary&lt;TKey, TValue&gt;</li>
+<li>System.Collections.ObjectModel.ReadOnlyDictionary&lt;TKey, TValue&gt;</li>
+<li>Microsoft.Collections.Immutable.IImmutableDictionary&lt;TKey, TValue&gt;</li>
+<li>
+<ul>
+<li>Microsoft.Collections.Immutable.ImmutableDictionary&lt;TKey, TValue&gt;</li>
+<li>Microsoft.Collections.Immutable.ImmutableSortedDictionary&lt;TKey, TValue&gt;</li>
+</ul>
+</li>
+<li>System.Collections.Generic.Dictionary&lt;TKey, TValue&gt;</li>
+<li>System.Collections.ObjectModel.ReadOnlyDictionary&lt;TKey, TValue&gt;</li>
+</ul>
+</li>
+<li>System.Collections.Generic.IReadOnlyList&lt;T&gt;
+<ul>
+<li>Microsoft.Collections.Immutable.IImmutableList&lt;T&gt;
+<ul>
+<li>Microsoft.Collections.Immutable.ImmutableList&lt;T&gt;</li>
+</ul>
+</li>
+<li>System.Collections.Generic.List&lt;T&gt;</li>
+<li>System.Collections.ObjectModel.Collection&lt;T&gt;</li>
+<li>System.Collections.ObjectModel.ReadOnlyCollection&lt;T&gt;</li>
+</ul>
+</li>
+<li>Microsoft.Collections.Immutable.IImmutableSet&lt;T&gt;
+<ul>
+<li>Microsoft.Collections.Immutable.IImmutableHashSet&lt;T&gt;
+<ul>
+<li>Microsoft.Collections.Immutable.ImmutableHashSet&lt;T&gt;</li>
+</ul>
+</li>
+<li>Microsoft.Collections.Immutable.IImmutableSortedSet&lt;T&gt;
+<ul>
+<li>Microsoft.Collections.Immutable.ImmutableSortedSet&lt;T&gt;</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>System.Collections.Generic.LinkedList&lt;T&gt;</li>
+<li>System.Collections.Generic.Queue&lt;T&gt;</li>
+<li>System.Collections.Generic.SortedList&lt;TKey, TValue&gt;</li>
+<li>System.Collections.Generic.Stack&lt;T&gt;</li>
+<li>System.Linq.IGrouping&lt;TKey, TElement&gt;</li>
+<li>System.Linq.ILookup&lt;TKey, TElement&gt;
+<ul>
+<li>System.Linq.Lookup&lt;TKey, TElement&gt;</li>
+</ul>
+</li>
+<li>System.Linq.IOrderedEnumerable&lt;TElement&gt;</li>
+<li>System.Linq.ParallelQuery&lt;TSource&gt;*
+<ul>
+<li>System.Linq.OrderedParallelQuery&lt;TSource&gt;</li>
+</ul>
+</li>
+<li>System.Linq.IQueryable&lt;T&gt;*</li>
+<li>
+<ul>
+<li>System.Linq.IOrderedQueryable&lt;T&gt;
+<ul>
+<li>System.Linq.EnumerableQuery&lt;T&gt;</li>
+<li>System.Data.Objects.ObjectQuery&lt;T&gt;</li>
+<li>System.Data.Entity.Core.Objects.ObjectQuery&lt;T&gt;
+<ul>
+<li>System.Data.Entity.Core.Objects.ObjectSet&lt;TEntity&gt;</li>
+</ul>
+</li>
+<li>System.Data.Entity.Infrastructure.DbQuery&lt;TResult&gt;</li>
+<li>
+<ul>
+<li>System.Data.Entity.DbSet&lt;TEntity&gt;</li>
+</ul>
+</li>
+<li>Microsoft.EntityFrameworkCore.Query.Internal.EntityQueryable&lt;TResult&gt;</li>
+</ul>
+</li>
+<li>System.Data.Linq.ITable&lt;TEntity&gt;</li>
+<li>
+<ul>
+<li>System.Data.Linq.Table&lt;TEntity&gt;</li>
+</ul>
+</li>
+<li>Microsoft.EntityFrameworkCore.DbSet&lt;TEntity&gt;</li>
+</ul>
+</li>
+<li>T[] (not System.Array)</li>
+</ul>
+</ul>
+<p>So the LINQ to Objects query methods and query expression are available for to all the above types. Please notice ParallelQuery&lt;T&gt; represents local sequence where values can be pulled in parallel. It implements IEnumerable&lt;T&gt;, so it also supports pulling values sequentially. IQueryable&lt;T&gt; represents remote sequence of values. It also implements IEnumerable&lt;T&gt;, which its values can be loaded to local memory of current .NET application or service, and be queried locally and sequentially. This chapter covers LINQ to Objects queries for IEnumerable&lt;T&gt;. ParallelQuery&lt;T&gt; is covered in the Parallel LINQ chapter, and IQueryable&lt;T&gt; is covered in the LINQ to Entities chapter.</p>
+<h2>Non-generic sequence</h2>
+<p>For historical reason, there are a number of .NET early built-in types only implement IEnumerable. The following example queries these types from the core library:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">NonGenericSequences()
+{
+    </span><span style="color: #2b91af;">Type </span><span style="color: black;">nonGenericEnumerable = </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">Type </span><span style="color: black;">genericEnumerable = </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;&gt;);
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Type</span><span style="color: black;">&gt; nonGenericSequences = </span><span style="color: blue;">typeof</span><span style="color: black;">(</span><span style="color: blue;">object</span><span style="color: black;">).Assembly </span><span style="color: green;">// Core library.
+        </span><span style="color: black;">.GetExportedTypes()
+        .Where(type =&gt;
+        {
+            </span><span style="color: blue;">if </span><span style="color: black;">(type == nonGenericEnumerable || type == genericEnumerable)
+            {
+                </span><span style="color: blue;">return false</span><span style="color: black;">;
+            }
+            </span><span style="color: #2b91af;">Type</span><span style="color: black;">[] interfaces = type.GetInterfaces();
+            </span><span style="color: blue;">return </span><span style="color: black;">interfaces.Any(@interface =&gt; @interface == nonGenericEnumerable)
+                &amp;&amp; !interfaces.Any(@interface =&gt;
+                    @interface.IsGenericType
+                    &amp;&amp; @interface.GetGenericTypeDefinition() == genericEnumerable);
+        })
+        .OrderBy(type =&gt; type.FullName); </span><span style="color: green;">// Define query.
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">Type </span><span style="color: black;">nonGenericSequence </span><span style="color: blue;">in </span><span style="color: black;">nonGenericSequences) </span><span style="color: green;">// Execute query.
+    </span><span style="color: black;">{
+        nonGenericSequence.FullName.WriteLine();
+    }
+</span><span style="color: gray;">#if </span><span style="color: black;">NETFX
+    </span><span style="color: green;">// System.Array
+    // System.Collections.ArrayList
+    // System.Collections.BitArray
+    // System.Collections.CollectionBase
+    // System.Collections.DictionaryBase
+    // System.Collections.Hashtable
+    // System.Collections.ICollection
+    // System.Collections.IDictionary
+    // System.Collections.IList
+    // System.Collections.Queue
+    // System.Collections.ReadOnlyCollectionBase
+    // System.Collections.SortedList
+    // System.Collections.Stack
+    // System.Resources.IResourceReader
+    // System.Resources.ResourceReader
+    // System.Resources.ResourceSet
+    // System.Runtime.Remoting.Channels.BaseChannelObjectWithProperties
+    // System.Runtime.Remoting.Channels.BaseChannelSinkWithProperties
+    // System.Runtime.Remoting.Channels.BaseChannelWithProperties
+    // System.Security.AccessControl.AuthorizationRuleCollection
+    // System.Security.AccessControl.CommonAcl
+    // System.Security.AccessControl.DiscretionaryAcl
+    // System.Security.AccessControl.GenericAcl
+    // System.Security.AccessControl.RawAcl
+    // System.Security.AccessControl.SystemAcl
+    // System.Security.NamedPermissionSet
+    // System.Security.Permissions.KeyContainerPermissionAccessEntryCollection
+    // System.Security.PermissionSet
+    // System.Security.Policy.ApplicationTrustCollection
+    // System.Security.Policy.Evidence
+    // System.Security.ReadOnlyPermissionSet
+</span><span style="color: gray;">#else
+    // System.Array
+    // System.Collections.BitArray
+    // System.Collections.CollectionBase
+    // System.Collections.ICollection
+    // System.Collections.IDictionary
+    // System.Collections.IList
+    // System.Resources.IResourceReader
+    // System.Resources.ResourceSet
+#endif
+</span><span style="color: black;">}</span></pre>
+<p>.NET Core’s core library has less types, because many types are moved to separate NuGet packages. For example, in .NET Core, ArrayList, DictionaryBase, Hashtable, Queue, ReadOnlyCollectionBase, SortedList, Stack are moved to NuGet package System.Collections.NonGeneric. A Cast query method is provided to cast non-generic sequence can be casted to generic sequence for further LINQ to Objects query, which will be discussed later.</p>
+
+
+</div>
+</body>
+</html>

@@ -1,0 +1,543 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+<h1>Functional Programming and LINQ Paradigm (2) LINQ Overview</h1>
+
+<p>As fore mentioned, LINQ consists of syntax in languages and APIs in libraries:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Introducing-LINQ-3-Infrastructure_F6C4/image_5.png"><img title="image" style="border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Introducing-LINQ-3-Infrastructure_F6C4/image_thumb_1.png" width="1285" height="943" border="0"></a></p>
+<p>For a certain language, like C#, there is only 1 set of LINQ query syntax, which works with many LINQ API sets, and each API set works with a specific data domain. Here are examples of these API sets:</p>
+<ul>
+<li>In .NET Standard, Microsoft provides:</li>
+<ul>
+<li>LINQ to Objects: a set of LINQ APIs for .NET objects in memory</li>
+<li>Parallel LINQ: another set of LINQ APIs also for .NET objects in memory, but in parallel</li>
+<li>LINQ to XML: a set of LINQ APIs for XML data objects in memory</li>
+</ul>
+<li>Microsoft also provides other libraries based on .NET Standard:</li>
+<ul>
+<li>LINQ to Entities: a set of LINQ APIs in Entity Framework (EF) and Entity Framework Core (EF Core) NuGet packages for relational databases, including Microsoft SQL Server, Microsoft Azure SQL Database (aka SQL Azure), as well as SQLite, Oracle, MySQL, PostgreSQL, etc.</li>
+<li>LINQ to NoSQL: a set of LINQ APIs for Azure CosmosDB, the Microsoft NoSQL database service</li>
+</ul>
+<li>In .NET Framework for Windows, Microsoft provides:</li>
+<ul>
+<li>LINQ to DataSets: a set of LINQ APIs for data cached in data sets</li>
+<li>LINQ to SQL: a set of LINQ APIs for relational data in Microsoft SQL Server</li>
+</ul>
+<li>There are also also third party LINQ libraries/APIs:</li>
+<ul>
+<li>LINQ to JSON, s set of LINQ APIs for JSON data in memory</li>
+<li>LINQ to Twitter, a set of LINQ APIs for Twitter data in Twitter’s services</li>
+<li>etc.</li>
+</ul>
+</ul>
+<table width="849" cellspacing="0" cellpadding="2" border="0">
+<tbody>
+<tr>
+<td width="131" valign="top">LINQ APIs</td>
+<td width="222" valign="top">.NET Framework: Nuget package or .dll assembly</td>
+<td width="223" valign="top">.NET Standard: Nuget package</td>
+<td width="271" valign="top">Namespace</td>
+</tr>
+<tr>
+<td width="131" valign="top">LINQ to Objects</td>
+<td width="222" valign="top">System.Core.dll</td>
+<td width="223" valign="top">NETStandard.Library</td>
+<td width="271" valign="top">System.Linq</td>
+</tr>
+<tr>
+<td width="131" valign="top">LINQ to Objects Interactive Extension (Ix)</td>
+<td width="222" valign="top">System.Interactive</td>
+<td width="223" valign="top">System.Interactive</td>
+<td width="271" valign="top">System.Linq</td>
+</tr>
+<tr>
+<td width="131" valign="top">Parallel LINQ</td>
+<td width="222" valign="top">System.Core.dll</td>
+<td width="223" valign="top">NETStandard.Library</td>
+<td width="271" valign="top">System.Linq</td>
+</tr>
+<tr>
+<td width="131" valign="top">LINQ to XML</td>
+<td width="222" valign="top">System.Xml.Linq.dll</td>
+<td width="223" valign="top">NETStandard.Library</td>
+<td width="271" valign="top">System.Xml.Linq</td>
+</tr>
+<tr>
+<td width="131" valign="top">LINQ to Entities</td>
+<td width="222" valign="top">EntityFramework, Microsoft.EntityFrameworkCore</td>
+<td width="223" valign="top">Microsoft.EntityFrameworkCore</td>
+<td width="271" valign="top">System.Data.Entity (EF), Microsoft.EntityFrameworkCore (EF Core)</td>
+</tr>
+<tr>
+<td width="131" valign="top">LINQ to NoSQL</td>
+<td width="222" valign="top">Microsoft.Azure.DocumentDB</td>
+<td width="223" valign="top">Microsoft.Azure.DocumentDB.Core</td>
+<td width="271" valign="top">Microsoft.Azure.Documents.Client</td>
+</tr>
+<tr>
+<td width="131" valign="top">LINQ to SQL</td>
+<td width="222" valign="top">System.Data.Linq.dll</td>
+<td width="223" valign="top">Not available</td>
+<td width="271" valign="top">System.Data.Linq</td>
+</tr>
+<tr>
+<td width="131" valign="top">LINQ to DataSets</td>
+<td width="222" valign="top">System.Data.DataSetExtensions.dll</td>
+<td width="223" valign="top">Not available</td>
+<td width="271" valign="top">System.Data</td>
+</tr>
+<tr>
+<td width="131" valign="top">LINQ to JSON</td>
+<td width="222" valign="top">Newtonsoft.Json</td>
+<td width="223" valign="top">Newtonsoft.Json</td>
+<td width="271" valign="top">Newtonsoft.Json.Linq</td>
+</tr>
+<tr>
+<td width="131" valign="top">LINQ to Twitter</td>
+<td width="222" valign="top">linqtotwitter</td>
+<td width="223" valign="top">linqtotwitter</td>
+<td width="271" valign="top">LinqToTwitter</td>
+</tr>
+</tbody>
+</table>
+<h1>One language for different data domains</h1>
+<p>C# developer can use a single LINQ language syntax to work with different data. At compile time, the LINQ syntax can be compiled to different API calls according to different contexts. At runtime, these specific API calls work with specific data domains.</p>
+<h2>LINQ to Objects</h2>
+<p>When using any LINQ technology to work with data, there are usually 3 steps:</p>
+<ol>
+<li>Get the data source for LINQ query</li>
+<li>Define the LINQ query</li>
+<li>Execute the LINQ query</li>
+</ol>
+<p>LINQ to Objects queries .NET objects in memory. The following example queries positive integers from the integer array in memory, and get the integers’ square roots in ascending order:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Linq
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">LinqToObjectsQueryExpression()
+    {
+        </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source = </span><span style="color: blue;">new int</span><span style="color: black;">[] { 4, 3, 2, 1, 0, -1 }; </span><span style="color: green;">// Get source.
+        </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">&gt; query =
+            </span><span style="color: blue;">from </span><span style="color: black;">int32 </span><span style="color: blue;">in </span><span style="color: black;">source
+            </span><span style="color: blue;">where </span><span style="color: black;">int32 &gt; 0
+            </span><span style="color: blue;">orderby </span><span style="color: black;">int32
+            </span><span style="color: blue;">select </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(int32); </span><span style="color: green;">// Define query.
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">double </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">query) </span><span style="color: green;">// Execute query.
+        </span><span style="color: black;">{
+            </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(result);
+        }
+    }
+}</span></pre>
+<p>Here the data source is a sequence of integers in memory. The query is created declaratively in native C# language keywords (where, orderby, select, etc.), which is called query expression:</p>
+<ul>
+<li>The from clause specifies data source</li>
+<li>The where clause filters the data source and keeps the integers greater than 0,</li>
+<li>The orderby clause sort the filtered integers in ascending order</li>
+<li>The select clause maps the sorted integers to their square roots.</li>
+</ul>
+<p>Creating the query is only building the filter-sort-map query flow without executing it. Later, when pulling the results from the query with a foreach loop, the query is executed.</p>
+<p>Besides above query expression syntax. There is another query method call syntax to create LINQ query:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">LinqToObjectsQueryMethods()
+{
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source = </span><span style="color: blue;">new int</span><span style="color: black;">[] { 4, 3, 2, 1, 0, -1 }; </span><span style="color: green;">// Get source.
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">&gt; query = source
+        .Where(int32 =&gt; int32 &gt; 0)
+        .OrderBy(int32 =&gt; int32)
+        .Select(int32 =&gt; </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(int32)); </span><span style="color: green;">// Define query.
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">double </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">query) </span><span style="color: green;">// Execute query.
+    </span><span style="color: black;">{
+        </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(result);
+    }
+}</span></pre>
+<p>This time, the query is built by calling <strong>Where</strong>, <strong>OrderBy</strong>, <strong>Select</strong> methods. These 2 versions of query are identical. The query expression is compiled to query method calls, which will be discussed in detail in the Functional Programming and LINQ to Objects chapters.</p>
+<h2>Parallel LINQ</h2>
+<p>The above LINQ to Object queries execute sequentially. The filter-sort-map computation are executed for all integers with a single thread, and the query results are produced one by one in a deterministic order. Parallel LINQ (to Objects) is the parallel version of the LINQ to Objects APIs. It also work with objects in memory, but can execute the query in parallel with multiple threads, in order to utilize all processor cores and improve the LINQ query performance. The following are the parallel version of the above queries:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">ParallelLinq()
+{
+    </span><span style="color: blue;">int</span><span style="color: black;">[] values = { 4, 3, 2, 1, 0, -1 };
+    </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source = values.AsParallel(); </span><span style="color: green;">// Get source.
+    </span><span style="color: #2b91af;">ParallelQuery</span><span style="color: black;">&lt;</span><span style="color: blue;">double</span><span style="color: black;">&gt; query =
+        </span><span style="color: blue;">from </span><span style="color: black;">int32 </span><span style="color: blue;">in </span><span style="color: black;">source
+        </span><span style="color: blue;">where </span><span style="color: black;">int32 &gt; 0
+        </span><span style="color: blue;">orderby </span><span style="color: black;">int32
+        </span><span style="color: blue;">select </span><span style="color: #2b91af;">Math</span><span style="color: black;">.Sqrt(int32); </span><span style="color: green;">// Define query.
+    // Equivalent to:
+    // ParallelQuery&lt;double&gt; query = source
+    //    .Where(int32 =&gt; int32 &gt; 0)
+    //    .OrderBy(int32 =&gt; int32)
+    //    .Select(int32 =&gt; Math.Sqrt(int32));
+    </span><span style="color: black;">query.ForAll(result =&gt; </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(result)); </span><span style="color: green;">// Execute query.
+</span><span style="color: black;">}</span></pre>
+<p>The query creation syntax is exactly the same as sequential LINQ to Objects. The query execution syntax is different. In the previous LINQ to Objects query execution, a foreach loop is used to pull the results one by one sequentially. Here Parallel LINQ provides a special ForAll method to execute the pulling in parallel.&nbsp; Since the results are computed in parallel, the query results can be produced in nondeterministic order.</p>
+<h2>LINQ to XML</h2>
+<p>LINQ to XML queries XML data. Take an ASP.NET blog RSS feed <a title="https://weblogs.asp.net/dixin/rss" href="https://weblogs.asp.net/dixin/rss">https://weblogs.asp.net/dixin/rss</a> as example:</p>
+<pre class="code"><span style="color: blue;">&lt;?</span><span style="color: #a31515;">xml </span><span style="color: red;">version</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">1.0</span><span style="color: black;">" </span><span style="color: red;">encoding</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">utf-8</span><span style="color: black;">"</span><span style="color: blue;">?&gt;
+&lt;</span><span style="color: #a31515;">rss </span><span style="color: red;">version</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">2.0</span><span style="color: black;">"</span><span style="color: blue;">&gt;
+  &lt;</span><span style="color: #a31515;">channel</span><span style="color: blue;">&gt;
+    &lt;</span><span style="color: #a31515;">title</span><span style="color: blue;">&gt;</span><span style="color: black;">Dixin's Blog</span><span style="color: blue;">&lt;/</span><span style="color: #a31515;">title</span><span style="color: blue;">&gt;
+    &lt;</span><span style="color: #a31515;">link</span><span style="color: blue;">&gt;</span><span style="color: black;">https://weblogs.asp.net:443/dixin/</span><span style="color: blue;">&lt;/</span><span style="color: #a31515;">link</span><span style="color: blue;">&gt;
+    &lt;</span><span style="color: #a31515;">description</span><span style="color: blue;">&gt;</span><span style="color: black;">https://weblogs.asp.net:443/dixin/</span><span style="color: blue;">&lt;/</span><span style="color: #a31515;">description</span><span style="color: blue;">&gt;
+    &lt;</span><span style="color: #a31515;">item</span><span style="color: blue;">&gt;
+      &lt;</span><span style="color: #a31515;">title</span><span style="color: blue;">&gt;</span><span style="color: black;">EntityFramework.Functions: Code First Functions for Entity Framework</span><span style="color: blue;">&lt;/</span><span style="color: #a31515;">title</span><span style="color: blue;">&gt;
+      &lt;</span><span style="color: #a31515;">link</span><span style="color: blue;">&gt;</span><span style="color: black;">https://weblogs.asp.net/dixin/entityframework.functions</span><span style="color: blue;">&lt;/</span><span style="color: #a31515;">link</span><span style="color: blue;">&gt;
+      &lt;</span><span style="color: #a31515;">description</span><span style="color: blue;">&gt;&lt;!-- </span><span style="color: green;">Description. </span><span style="color: blue;">--&gt;&lt;/</span><span style="color: #a31515;">description</span><span style="color: blue;">&gt;
+      &lt;</span><span style="color: #a31515;">pubDate</span><span style="color: blue;">&gt;</span><span style="color: black;">Mon Dec 17, 2015 06:27:56 GMT</span><span style="color: blue;">&lt;/</span><span style="color: #a31515;">pubDate</span><span style="color: blue;">&gt;
+      &lt;</span><span style="color: #a31515;">guid </span><span style="color: red;">isPermaLink</span><span style="color: blue;">=</span><span style="color: black;">"</span><span style="color: blue;">true</span><span style="color: black;">"</span><span style="color: blue;">&gt;</span><span style="color: black;">https://weblogs.asp.net/dixin/entityframework.functions</span><span style="color: blue;">&lt;/</span><span style="color: #a31515;">guid</span><span style="color: blue;">&gt;
+      &lt;</span><span style="color: #a31515;">category</span><span style="color: blue;">&gt;</span><span style="color: black;">.NET</span><span style="color: blue;">&lt;/</span><span style="color: #a31515;">category</span><span style="color: blue;">&gt;
+      &lt;</span><span style="color: #a31515;">category</span><span style="color: blue;">&gt;</span><span style="color: black;">LINQ</span><span style="color: blue;">&lt;/</span><span style="color: #a31515;">category</span><span style="color: blue;">&gt;
+      &lt;</span><span style="color: #a31515;">category</span><span style="color: blue;">&gt;</span><span style="color: black;">Entity Framework</span><span style="color: blue;">&lt;/</span><span style="color: #a31515;">category</span><span style="color: blue;">&gt;
+      &lt;</span><span style="color: #a31515;">category</span><span style="color: blue;">&gt;</span><span style="color: black;">LINQ to Entities</span><span style="color: blue;">&lt;/</span><span style="color: #a31515;">category</span><span style="color: blue;">&gt;
+      &lt;</span><span style="color: #a31515;">category</span><span style="color: blue;">&gt;</span><span style="color: black;">Code First</span><span style="color: blue;">&lt;/</span><span style="color: #a31515;">category</span><span style="color: blue;">&gt;
+    &lt;/</span><span style="color: #a31515;">item</span><span style="color: blue;">&gt;
+    &lt;!-- </span><span style="color: green;">More items. </span><span style="color: blue;">--&gt;
+  &lt;/</span><span style="color: #a31515;">channel</span><span style="color: blue;">&gt;
+&lt;/</span><span style="color: #a31515;">rss</span><span style="color: blue;">&gt;</span></pre>
+<p>It is a XML document, and can be the source of LINQ to XML. This following example queries the items with permalink from the feed, and get the items’ titles. in ascending order of the items’ publish dates:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">LinqToXml()
+{
+    </span><span style="color: #2b91af;">XDocument </span><span style="color: black;">feed = </span><span style="color: #2b91af;">XDocument</span><span style="color: black;">.Load(</span><span style="color: #a31515;">"https://weblogs.asp.net/dixin/rss"</span><span style="color: black;">);
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">XElement</span><span style="color: black;">&gt; source = feed.Descendants(</span><span style="color: #a31515;">"item"</span><span style="color: black;">); </span><span style="color: green;">// Get source.
+    </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; query =
+        </span><span style="color: blue;">from </span><span style="color: black;">item </span><span style="color: blue;">in </span><span style="color: black;">source
+        </span><span style="color: blue;">where </span><span style="color: black;">(</span><span style="color: blue;">bool</span><span style="color: black;">)item.Element(</span><span style="color: #a31515;">"guid"</span><span style="color: black;">).Attribute(</span><span style="color: #a31515;">"isPermaLink"</span><span style="color: black;">)
+        </span><span style="color: blue;">orderby </span><span style="color: black;">(</span><span style="color: #2b91af;">DateTime</span><span style="color: black;">)item.Element(</span><span style="color: #a31515;">"pubDate"</span><span style="color: black;">)
+        </span><span style="color: blue;">select </span><span style="color: black;">(</span><span style="color: blue;">string</span><span style="color: black;">)item.Element(</span><span style="color: #a31515;">"title"</span><span style="color: black;">); </span><span style="color: green;">// Define query.
+    // Equivalent to:
+    // IEnumerable&lt;string&gt; query = source
+    //    .Where(item =&gt; (bool)item.Element("guid").Attribute("isPermaLink"))
+    //    .OrderBy(item =&gt; (DateTime)item.Element("pubDate"))
+    //    .Select(item =&gt; (string)item.Element("title"));
+    </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">string </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">query) </span><span style="color: green;">// Execute query.
+    </span><span style="color: black;">{
+        </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(result);
+    }
+}</span></pre>
+<p>In this example, the data source is XML data loaded in memory. It queries all &lt;item&gt; elements in the XML document, filter them and only keep the &lt;item&gt; elements with child &lt;guid&gt; elements, whose isPermaLink attributes have the value true, then sort the &lt;item&gt; element by the time represented by the child &lt;pubDate&gt; elements in descending order; then get &lt;item&gt; elements’ child &lt;title&gt; elements’ values. Again, later when pulling the results from the query with a foreach loop, the query is executed.</p>
+<h2>LINQ to DataSets</h2>
+<p>.NET Framework provides <strong>System.Data.DataSet</strong> type to cache data in memory. Each <strong>DataSet</strong> instance contains <strong>System.Data.DataTable</strong> instances, and each <strong>DataTable</strong> instance contains <strong>System.Data.DataRow</strong> instances. <strong>DataSet</strong>s are frequently used to cache tabular data from relational database. When working with relational database, this tutorial uses Microsoft SQL database and Microsoft AdventureWorks sample database for demonstration. In the following example, data is read from the <strong>AdventureWorks</strong> database’s <strong>Production.Product</strong> table, and cached in a <strong>DataSet</strong> instance. This LINQ query use this cached data in memory (not the data stored in database) as data source, and queries the products in the specified subcategory, and get the products’ names, in ascending order of products’ list prices.</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">LinqToDataSets(</span><span style="color: blue;">string </span><span style="color: black;">connectionString)
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">DataSet </span><span style="color: black;">dataSet = </span><span style="color: blue;">new </span><span style="color: #2b91af;">DataSet</span><span style="color: black;">())
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">DataAdapter </span><span style="color: black;">dataAdapter = </span><span style="color: blue;">new </span><span style="color: #2b91af;">SqlDataAdapter</span><span style="color: black;">(
+        </span><span style="color: maroon;">@"SELECT [Name], [ListPrice], [ProductSubcategoryID] FROM [Production].[Product]"</span><span style="color: black;">, connectionString))
+    {
+        dataAdapter.Fill(dataSet);
+        </span><span style="color: #2b91af;">EnumerableRowCollection</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">DataRow</span><span style="color: black;">&gt; source = dataSet.Tables[0].AsEnumerable(); </span><span style="color: green;">// Get source.
+        </span><span style="color: #2b91af;">EnumerableRowCollection</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; query =
+            </span><span style="color: blue;">from </span><span style="color: black;">product </span><span style="color: blue;">in </span><span style="color: black;">source
+            </span><span style="color: blue;">where </span><span style="color: black;">product.Field&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt;(</span><span style="color: #a31515;">"ProductSubcategoryID"</span><span style="color: black;">) == 1
+            </span><span style="color: blue;">orderby </span><span style="color: black;">product.Field&lt;</span><span style="color: blue;">decimal</span><span style="color: black;">&gt;(</span><span style="color: #a31515;">"ListPrice"</span><span style="color: black;">)
+            </span><span style="color: blue;">select </span><span style="color: black;">product.Field&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt;(</span><span style="color: #a31515;">"Name"</span><span style="color: black;">); </span><span style="color: green;">// Define query.
+        // Equivalent to:
+        // EnumerableRowCollection&lt;string&gt; query = source
+        //    .Where(product =&gt; product.Field&lt;int&gt;("ProductSubcategoryID") == 1)
+        //    .OrderBy(product =&gt; product.Field&lt;decimal&gt;("ListPrice"))
+        //    .Select(product =&gt; product.Field&lt;string&gt;("Name"));
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">string </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">query) </span><span style="color: green;">// Execute query.
+        </span><span style="color: black;">{
+            </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(result);
+        }
+    }
+}</span></pre>
+<p>Here the query is created to filter the products in the <strong>DataSet</strong> object, and only keeps the products under the specified subcategory, then sort the products by their list price fields, then get the products’ name fields. Later, when pulling the results from the query with a foreach loop, the query is executed.</p>
+<h2>LINQ to Entities</h2>
+<p>Microsoft EF/Core providesLINQ to Entities enables LINQ queries directly working with data in relational databases.&nbsp; The AdventureWorks sample database includes the following 3 related tables:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Introducing-LINQ-3-Infrastructure_F6C4/image_thumb3%5B1%5D.png"><img title="image_thumb3[1]" style="border: 0px currentcolor; display: inline; background-image: none;" alt="image_thumb3[1]" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Introducing-LINQ-3-Infrastructure_F6C4/image_thumb3%5B1%5D_thumb.png" width="991" height="288" border="0"></a></p>
+<p>The following example queries <strong>Production.Product</strong> table for the products under the specified category, and get the products’ names in the order of their list prices:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">LinqToEntities()
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+    {
+        </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; source = adventureWorks.Products; </span><span style="color: green;">// Get source.
+        </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; query =
+            </span><span style="color: blue;">from </span><span style="color: black;">product </span><span style="color: blue;">in </span><span style="color: black;">source
+            </span><span style="color: blue;">where </span><span style="color: black;">product.ProductSubcategory.ProductCategory.Name == </span><span style="color: #a31515;">"Bikes"
+            </span><span style="color: blue;">orderby </span><span style="color: black;">product.ListPrice
+            </span><span style="color: blue;">select </span><span style="color: black;">product.Name; </span><span style="color: green;">// Define query.
+        // Equivalent to:
+        // IQueryable&lt;string&gt; query = source
+        //    .Where(product =&gt; product.ProductSubcategory.ProductCategory.Name == "Bikes")
+        //    .OrderBy(product =&gt; product.ListPrice)
+        //    .Select(product =&gt; product.Name);
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">string </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">query) </span><span style="color: green;">// Execute query.
+        </span><span style="color: black;">{
+            </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(result);
+        }
+    }
+}</span></pre>
+<p>Here the data source is the relational data stored in the remote database table, not local .NET objects in memory. The above <strong>AdventureWorks</strong> type is the LINQ to Entities data context and represents the database, and its <strong>Products</strong> property represents the table. The query is created to filter the products in the table, and only keeps the products under the specified category, then sort the products by their list prices, and get the products’ names. Later, when pulling the results from the query with a foreach loop, the query is executed to read from the database.</p>
+<h2>LINQ to SQL</h2>
+<p>LINQ to SQL is a lightweight database access technology provided by .NET Framework. As the name suggests, LINQ to SQL only works with Microsoft SQL Server. Its APIs are similar to LINQ to Entities APIs. So if the above queries are implemented by LINQ to SQL, the code can have the same looking:</p>
+<pre class="code"><span style="color: gray;">#if </span><span style="color: black;">NETFX
+</span><span style="color: blue;">internal static void </span><span style="color: black;">LinqToSql()
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">AdventureWorks </span><span style="color: black;">adventureWorks = </span><span style="color: blue;">new </span><span style="color: #2b91af;">AdventureWorks</span><span style="color: black;">())
+    {
+        </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Product</span><span style="color: black;">&gt; source = adventureWorks.Products; </span><span style="color: green;">// Get source.
+        </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; query =
+            </span><span style="color: blue;">from </span><span style="color: black;">product </span><span style="color: blue;">in </span><span style="color: black;">source
+            </span><span style="color: blue;">where </span><span style="color: black;">product.ProductSubcategory.ProductCategory.Name == </span><span style="color: #a31515;">"Bikes"
+            </span><span style="color: blue;">orderby </span><span style="color: black;">product.ListPrice
+            </span><span style="color: blue;">select </span><span style="color: black;">product.Name; </span><span style="color: green;">// Define query.
+        // Equivalent to:
+        // IQueryable&lt;string&gt; query = source
+        //    .Where(product =&gt; product.ProductSubcategory.ProductCategory.Name == "Bikes")
+        //    .OrderBy(product =&gt; product.ListPrice)
+        //    .Select(product =&gt; product.Name);
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">string </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">query) </span><span style="color: green;">// Execute query.
+        </span><span style="color: black;">{
+            </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(result);
+        }
+    }
+}
+</span><span style="color: gray;">#endif</span></pre>
+<p>Here the <strong>AdventureWorks</strong> type is a LINQ to SQL data context, which is different from the LINQ&nbsp; to Entities data context. So the pulling execution on the query triggers LINQ to SQL API calls, which read data from the database.</p>
+<h2>LINQ to NoSQL (LINQ to CosmosDB)</h2>
+<p>LINQ can also work with non relational database (aka NoSQL database). Microsoft Azure CosmosDB is such a NoSQL database service, and it provides client library to enable LINQ queries. To setup a data source for LINQ, <a href="https://azure.microsoft.com/en-us/free/" target="_blank">create a free account</a>, then follow the Microsoft documents to import some JSON documents representing some stores with addresses:</p>
+<pre class="code"><span style="color: black;">[
+    {
+        </span><span style="color: #2e75b6;">"id"</span><span style="color: black;">: </span><span style="color: #a31515;">"1424"</span><span style="color: black;">,
+        </span><span style="color: #2e75b6;">"Name"</span><span style="color: black;">: </span><span style="color: #a31515;">"Closeout Boutique"</span><span style="color: black;">,
+        </span><span style="color: #2e75b6;">"Address"</span><span style="color: black;">: {
+            </span><span style="color: #2e75b6;">"AddressType"</span><span style="color: black;">: </span><span style="color: #a31515;">"Main Office"</span><span style="color: black;">,
+            </span><span style="color: #2e75b6;">"AddressLine1"</span><span style="color: black;">: </span><span style="color: #a31515;">"1050 Oak Street"</span><span style="color: black;">,
+            </span><span style="color: #2e75b6;">"Location"</span><span style="color: black;">: {
+                </span><span style="color: #2e75b6;">"City"</span><span style="color: black;">: </span><span style="color: #a31515;">"Seattle"</span><span style="color: black;">,
+                </span><span style="color: #2e75b6;">"StateProvinceName"</span><span style="color: black;">: </span><span style="color: #a31515;">"Washington"
+            </span><span style="color: black;">},
+            </span><span style="color: #2e75b6;">"PostalCode"</span><span style="color: black;">: </span><span style="color: #a31515;">"98104"</span><span style="color: black;">,
+            </span><span style="color: #2e75b6;">"CountryRegionName"</span><span style="color: black;">: </span><span style="color: #a31515;">"United States"
+        </span><span style="color: black;">}
+    },
+    </span><span style="color: green;">// More documents.
+</span><span style="color: black;">]</span></pre>
+<p>Here the source is the database’s Store collection. The following example queries the stores in the specified city, and get their names in the alphabetic order:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">LinqToNoSql(</span><span style="color: blue;">string </span><span style="color: black;">key)
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">DocumentClient </span><span style="color: black;">client = </span><span style="color: blue;">new </span><span style="color: #2b91af;">DocumentClient</span><span style="color: black;">(
+        </span><span style="color: blue;">new </span><span style="color: #2b91af;">Uri</span><span style="color: black;">(</span><span style="color: #a31515;">"https://dixin.documents.azure.com:443/"</span><span style="color: black;">), key))
+    {
+        </span><span style="color: #2b91af;">IOrderedQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Store</span><span style="color: black;">&gt; source = client.CreateDocumentQuery&lt;</span><span style="color: #2b91af;">Store</span><span style="color: black;">&gt;(
+            </span><span style="color: #2b91af;">UriFactory</span><span style="color: black;">.CreateDocumentCollectionUri(</span><span style="color: #a31515;">"dixin"</span><span style="color: black;">, </span><span style="color: #a31515;">"Store"</span><span style="color: black;">)); </span><span style="color: green;">// Get source.
+        </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; query = </span><span style="color: blue;">from </span><span style="color: black;">store </span><span style="color: blue;">in </span><span style="color: black;">source
+                                    </span><span style="color: blue;">where </span><span style="color: black;">store.Address.Location.City == </span><span style="color: #a31515;">"Seattle"
+                                    </span><span style="color: blue;">orderby </span><span style="color: black;">store.Name
+                                    </span><span style="color: blue;">select </span><span style="color: black;">store.Name; </span><span style="color: green;">// Define query.
+        // Equivalent to:
+        // IQueryable&lt;string&gt; query = source
+        //    .Where(store =&gt; store.Address.CountryRegionName == "United States")
+        //    .OrderBy(store =&gt; store.Address.PostalCode)
+        //    .Select(store =&gt; store.Name);
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">string </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">query) </span><span style="color: green;">// Execute query.
+        </span><span style="color: black;">{
+            </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(result);
+        }
+    }
+}</span></pre>
+<p>The query is created to filter the products in the collection, and only keeps the stores in the specified city, then sort the stores by their names, then get the the stores’ names.</p>
+<h2>LINQ to JSON</h2>
+<p>LINQ to JSON is a third party set of APIs enabling LINQ for JSON data. Tumblr provides APIs returning JSON data, which can be a data source:</p>
+<pre class="code"><span style="color: black;">{
+  </span><span style="color: #2e75b6;">"meta"</span><span style="color: black;">: {
+    </span><span style="color: #2e75b6;">"status"</span><span style="color: black;">: 200,
+    </span><span style="color: #2e75b6;">"msg"</span><span style="color: black;">: </span><span style="color: #a31515;">"OK"
+  </span><span style="color: black;">},
+  </span><span style="color: #2e75b6;">"response"</span><span style="color: black;">: {
+    </span><span style="color: #2e75b6;">"blog"</span><span style="color: black;">: {
+      </span><span style="color: #2e75b6;">"title"</span><span style="color: black;">: </span><span style="color: #a31515;">"Dixin Yan"</span><span style="color: black;">,
+      </span><span style="color: #2e75b6;">"name"</span><span style="color: black;">: </span><span style="color: #a31515;">"dixinyan"</span><span style="color: black;">,
+      </span><span style="color: #2e75b6;">"total_posts"</span><span style="color: black;">: 20,
+      </span><span style="color: #2e75b6;">"posts"</span><span style="color: black;">: 20,
+      </span><span style="color: #2e75b6;">"url"</span><span style="color: black;">: </span><span style="color: #a31515;">"http://dixinyan.tumblr.com/"</span><span style="color: black;">,
+      </span><span style="color: #2e75b6;">"updated"</span><span style="color: black;">: 1487649099,
+      </span><span style="color: #2e75b6;">"description"</span><span style="color: black;">: </span><span style="color: #a31515;">"Blog - https://weblog.asp.net/dixin"</span><span style="color: black;">,
+      </span><span style="color: #2e75b6;">"is_nsfw"</span><span style="color: black;">: </span><span style="color: blue;">false</span><span style="color: black;">,
+      </span><span style="color: #2e75b6;">"ask"</span><span style="color: black;">: </span><span style="color: blue;">true</span><span style="color: black;">,
+      </span><span style="color: #2e75b6;">"ask_page_title"</span><span style="color: black;">: </span><span style="color: #a31515;">"Ask me anything"</span><span style="color: black;">,
+      </span><span style="color: #2e75b6;">"ask_anon"</span><span style="color: black;">: </span><span style="color: blue;">true</span><span style="color: black;">,
+      </span><span style="color: #2e75b6;">"share_likes"</span><span style="color: black;">: </span><span style="color: blue;">false
+    </span><span style="color: black;">},
+    </span><span style="color: #2e75b6;">"posts"</span><span style="color: black;">: [
+      {
+        </span><span style="color: #2e75b6;">"type"</span><span style="color: black;">: </span><span style="color: #a31515;">"photo"</span><span style="color: black;">,
+        </span><span style="color: #2e75b6;">"blog_name"</span><span style="color: black;">: </span><span style="color: #a31515;">"dixinyan"</span><span style="color: black;">,
+        </span><span style="color: #2e75b6;">"id"</span><span style="color: black;">: 94086491678,
+        </span><span style="color: #2e75b6;">"post_url"</span><span style="color: black;">: </span><span style="color: #a31515;">"http://dixinyan.tumblr.com/post/94086491678/microsoft-way-microsoft-campus-microsoft-campus"</span><span style="color: black;">,
+        </span><span style="color: #2e75b6;">"slug"</span><span style="color: black;">: </span><span style="color: #a31515;">"microsoft-way-microsoft-campus-microsoft-campus"</span><span style="color: black;">,
+        </span><span style="color: #2e75b6;">"date"</span><span style="color: black;">: </span><span style="color: #a31515;">"2014-08-07 19:11:43 GMT"</span><span style="color: black;">,
+        </span><span style="color: #2e75b6;">"timestamp"</span><span style="color: black;">: 1407438703,
+        </span><span style="color: #2e75b6;">"state"</span><span style="color: black;">: </span><span style="color: #a31515;">"published"</span><span style="color: black;">,
+        </span><span style="color: #2e75b6;">"format"</span><span style="color: black;">: </span><span style="color: #a31515;">"html"</span><span style="color: black;">,
+        </span><span style="color: #2e75b6;">"reblog_key"</span><span style="color: black;">: </span><span style="color: #a31515;">"FZQVzcFD"</span><span style="color: black;">,
+        </span><span style="color: #2e75b6;">"tags"</span><span style="color: black;">: [ </span><span style="color: #a31515;">"Microsoft" </span><span style="color: black;">],
+        </span><span style="color: #2e75b6;">"short_url"</span><span style="color: black;">: </span><span style="color: #a31515;">"https://tmblr.co/Z_W6Et1Nd-UuU"</span><span style="color: black;">,
+        </span><span style="color: #2e75b6;">"summary"</span><span style="color: black;">: </span><span style="color: #a31515;">"Microsoft Way, Microsoft Campus  Microsoft Campus is the informal name of Microsoft's corporate headquarters, located at One..."</span><span style="color: black;">,
+        </span><span style="color: #2e75b6;">"recommended_source"</span><span style="color: black;">: </span><span style="color: blue;">null</span><span style="color: black;">,
+        </span><span style="color: #2e75b6;">"recommended_color"</span><span style="color: black;">: </span><span style="color: blue;">null</span><span style="color: black;">,
+        </span><span style="color: #2e75b6;">"note_count"</span><span style="color: black;">: 4,
+        </span><span style="color: #2e75b6;">"caption"</span><span style="color: black;">: </span><span style="color: #a31515;">"&lt;h2&gt;Microsoft Way, Microsoft Campus &lt;/h2&gt;&lt;p&gt;Microsoft Campus is the informal name of Microsoft&amp;rsquo;s corporate headquarters, located at One Microsoft Way in Redmond, Washington. Microsoft initially moved onto the grounds of the campus on February 26, 1986. &lt;a href=\"http://en.wikipedia.org/wiki/Microsoft_Redmond_Campus\" target=\"_blank\"&gt;en.wikipedia.org/wiki/Microsoft_Redmond_Campus&lt;/a&gt;\n\n&lt;a href=\"https://www.flickr.com/dixin\" target=\"_blank\"&gt;&lt;/a&gt;&lt;/p&gt;"</span><span style="color: black;">,
+        </span><span style="color: #2e75b6;">"image_permalink"</span><span style="color: black;">: </span><span style="color: #a31515;">"http://dixinyan.tumblr.com/image/94086491678"</span><span style="color: black;">,
+        </span><span style="color: #2e75b6;">"can_like"</span><span style="color: black;">: </span><span style="color: blue;">true</span><span style="color: black;">,
+        </span><span style="color: #2e75b6;">"can_reblog"</span><span style="color: black;">: </span><span style="color: blue;">true</span><span style="color: black;">,
+        </span><span style="color: #2e75b6;">"can_send_in_message"</span><span style="color: black;">: </span><span style="color: blue;">true</span><span style="color: black;">,
+        </span><span style="color: #2e75b6;">"can_reply"</span><span style="color: black;">: </span><span style="color: blue;">false</span><span style="color: black;">,
+        </span><span style="color: #2e75b6;">"display_avatar"</span><span style="color: black;">: </span><span style="color: blue;">true
+        </span><span style="color: green;">// More post info.
+      </span><span style="color: black;">},
+      </span><span style="color: green;">// More posts.
+    </span><span style="color: black;">],
+    </span><span style="color: #2e75b6;">"total_posts"</span><span style="color: black;">: 20
+  }
+}</span></pre>
+<p>The following example queries the posts with specified tag, and get their summary in the order of items’ publish date:</p>
+<pre class="code"><span style="color: blue;">internal static async </span><span style="color: #2b91af;">Task </span><span style="color: black;">LinqToJson(</span><span style="color: blue;">string </span><span style="color: black;">apiKey)
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">HttpClient </span><span style="color: black;">httpClient = </span><span style="color: blue;">new </span><span style="color: #2b91af;">HttpClient</span><span style="color: black;">())
+    {
+        </span><span style="color: blue;">string </span><span style="color: black;">feedUri = </span><span style="color: #a31515;">$"https://api.tumblr.com/v2/blog/dixinyan.tumblr.com/posts/photo?api_key=</span><span style="color: black;">{apiKey}</span><span style="color: #a31515;">"</span><span style="color: black;">;
+        </span><span style="color: #2b91af;">JObject </span><span style="color: black;">feed = </span><span style="color: #2b91af;">JObject</span><span style="color: black;">.Parse((</span><span style="color: blue;">await </span><span style="color: black;">httpClient.GetStringAsync(feedUri)));
+        </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">JToken</span><span style="color: black;">&gt; source = feed[</span><span style="color: #a31515;">"response"</span><span style="color: black;">][</span><span style="color: #a31515;">"posts"</span><span style="color: black;">]; </span><span style="color: green;">// Get source.
+        </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">string</span><span style="color: black;">&gt; query =
+            </span><span style="color: blue;">from </span><span style="color: black;">post </span><span style="color: blue;">in </span><span style="color: black;">source
+            </span><span style="color: blue;">where </span><span style="color: black;">post[</span><span style="color: #a31515;">"tags"</span><span style="color: black;">].Any(tag =&gt; </span><span style="color: #a31515;">"Microsoft"</span><span style="color: black;">.Equals((</span><span style="color: blue;">string</span><span style="color: black;">)tag, </span><span style="color: #2b91af;">StringComparison</span><span style="color: black;">.OrdinalIgnoreCase))
+            </span><span style="color: blue;">orderby </span><span style="color: black;">(</span><span style="color: #2b91af;">DateTime</span><span style="color: black;">)post[</span><span style="color: #a31515;">"date"</span><span style="color: black;">]
+            </span><span style="color: blue;">select </span><span style="color: black;">(</span><span style="color: blue;">string</span><span style="color: black;">)post[</span><span style="color: #a31515;">"summary"</span><span style="color: black;">]; </span><span style="color: green;">// Define query.
+        // Equivalent to:
+        // IEnumerable&lt;string&gt; query = source
+        //    .Where(post =&gt; post["tags"].Any(tag =&gt;
+        //        "Microsoft".Equals((string)tag, StringComparison.OrdinalIgnoreCase)))
+        //    .OrderBy(post =&gt; (DateTime)post["date"])
+        //    .Select(post =&gt; (string)post["summary"]);
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">string </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">query) </span><span style="color: green;">// Execute query.
+        </span><span style="color: black;">{
+            </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(result);
+        }
+    }
+}</span></pre>
+<p>It queries all posts in the JSON document, filter them and only keep the items with the specified tag, then sort the posts by their publish dates, then get the items’ titles.</p>
+<h2>LINQ to Twitter</h2>
+<p>LINQ to Twitter is another third party library enabling LINQ queries for Twitter data. To access Twitter as a data source, <a href="https://apps.twitter.com/" target="_blank">registering an app with Twitter</a> to get the consumer key, consumer secrete, OAuth token, and OAuth token secrete. The following example queries the tweets with specified search keyword:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">LinqToTwitter(
+    </span><span style="color: blue;">string </span><span style="color: black;">consumerKey, </span><span style="color: blue;">string </span><span style="color: black;">consumerSecret, </span><span style="color: blue;">string </span><span style="color: black;">oAuthToken, </span><span style="color: blue;">string </span><span style="color: black;">oAuthTokenSecret)
+{
+    </span><span style="color: #2b91af;">SingleUserAuthorizer </span><span style="color: black;">credentials = </span><span style="color: blue;">new </span><span style="color: #2b91af;">SingleUserAuthorizer</span><span style="color: black;">()
+    {
+        CredentialStore = </span><span style="color: blue;">new </span><span style="color: #2b91af;">InMemoryCredentialStore</span><span style="color: black;">()
+        {
+            ConsumerKey = consumerKey,
+            ConsumerSecret = consumerSecret,
+            OAuthToken = oAuthToken,
+            OAuthTokenSecret = oAuthTokenSecret
+        }
+    };
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">TwitterContext </span><span style="color: black;">twitter = </span><span style="color: blue;">new </span><span style="color: #2b91af;">TwitterContext</span><span style="color: black;">(credentials))
+    {
+        </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Search</span><span style="color: black;">&gt; source = twitter.Search; </span><span style="color: green;">// Get source.
+        </span><span style="color: #2b91af;">IQueryable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Status</span><span style="color: black;">&gt;&gt; query =
+            </span><span style="color: blue;">from </span><span style="color: black;">search </span><span style="color: blue;">in </span><span style="color: black;">source
+            </span><span style="color: blue;">where </span><span style="color: black;">search.Type == </span><span style="color: #2b91af;">SearchType</span><span style="color: black;">.Search &amp;&amp; search.Query == </span><span style="color: #a31515;">"LINQ"
+            </span><span style="color: blue;">orderby </span><span style="color: black;">search.SearchMetaData.Count
+            </span><span style="color: blue;">select </span><span style="color: black;">search.Statuses; </span><span style="color: green;">// Define query.
+        // Equivalent to:
+        // IQueryable&lt;List&lt;Status&gt;&gt; query = source
+        //    .Where(search =&gt; search.Type == SearchType.Search &amp;&amp; search.Query == "LINQ")
+        //    .OrderBy(search =&gt; search.SearchMetaData.Count)
+        //    .Select(search =&gt; search.Statuses);
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">List</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">Status</span><span style="color: black;">&gt; search </span><span style="color: blue;">in </span><span style="color: black;">query) </span><span style="color: green;">// Execute query.
+        </span><span style="color: black;">{
+            </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: #2b91af;">Status </span><span style="color: black;">status </span><span style="color: blue;">in </span><span style="color: black;">search)
+            {
+                </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(status.Text);
+            }
+        }
+    }
+}</span></pre>
+<p>Sometimes the query result could be <a href="https://twitter.com/LinQ_official" target="_blank">funny</a>, because a Japanese idol girl music group is also named LinQ (Love in Qshu):</p>
+<p><a href="https://www.facebook.com/loveinq" target="_blank"><img title="71aaD4GcBeL._SL1416_" style="border-width: 0px; padding-top: 0px; padding-right: 0px; padding-left: 0px; display: inline; background-image: none;" alt="71aaD4GcBeL._SL1416_" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Introducing-LINQ-1-What-Is-LINQ_10D64/71aaD4GcBeL._SL1416__3.jpg" width="480" height="480" border="0"></a></p>
+<h1>Productivity</h1>
+<p>When LINQ was first released with .NET Framework 3.5, <a href="http://msdn.microsoft.com/en-us/netframework/aa904594.aspx" target="_blank" mce_href="http://msdn.microsoft.com/en-us/netframework/aa904594.aspx">MSDN</a> describes it as:</p>
+<blockquote>
+<p>LINQ is one of Microsoft’s most exciting, powerful new development technologies.</p>
+</blockquote>
+<p>Traditionally, to work with a specific data domain, a domain specific language and a set of domain specific APIs are used. For example, the following example is equivalent to above LINQ to XML query logic, implemented in traditional programming model, which calls XML APIs to execute query expression in XPath language:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Imperative
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Xml()
+    {
+        </span><span style="color: #2b91af;">XPathDocument </span><span style="color: black;">feed = </span><span style="color: blue;">new </span><span style="color: #2b91af;">XPathDocument</span><span style="color: black;">(</span><span style="color: #a31515;">"https://weblogs.asp.net/dixin/rss"</span><span style="color: black;">);
+        </span><span style="color: #2b91af;">XPathNavigator </span><span style="color: black;">navigator = feed.CreateNavigator();
+        </span><span style="color: #2b91af;">XPathExpression </span><span style="color: black;">selectExpression = navigator.Compile(</span><span style="color: #a31515;">"//item[guid/@isPermaLink='true']/title/text()"</span><span style="color: black;">);
+        </span><span style="color: #2b91af;">XPathExpression </span><span style="color: black;">sortExpression = navigator.Compile(</span><span style="color: #a31515;">"../../pubDate/text()"</span><span style="color: black;">);
+        selectExpression.AddSort(sortExpression, </span><span style="color: #2b91af;">Comparer</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">DateTime</span><span style="color: black;">&gt;.Default);
+        </span><span style="color: #2b91af;">XPathNodeIterator </span><span style="color: black;">nodes = navigator.Select(selectExpression);
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">object </span><span style="color: black;">node </span><span style="color: blue;">in </span><span style="color: black;">nodes)
+        {
+            </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(node);
+        }
+    }
+}</span></pre>
+<p>For SQL database, the traditional programming model implements the above LINQ to Entities query logic by calling ADO.NET data access APIs to execute query statement in SQL language:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">Sql(</span><span style="color: blue;">string </span><span style="color: black;">connectionString)
+{
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">DbConnection </span><span style="color: black;">connection = </span><span style="color: blue;">new </span><span style="color: #2b91af;">SqlConnection</span><span style="color: black;">(connectionString))
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">DbCommand </span><span style="color: black;">command = connection.CreateCommand())
+    {
+        command.CommandText =
+            </span><span style="color: maroon;">@"SELECT [Product].[Name]
+            FROM [Production].[Product] AS [Product]
+            LEFT OUTER JOIN [Production].[ProductSubcategory] AS [Subcategory]
+                ON [Subcategory].[ProductSubcategoryID] = [Product].[ProductSubcategoryID]
+            LEFT OUTER JOIN [Production].[ProductCategory] AS [Category]
+                ON [Category].[ProductCategoryID] = [Subcategory].[ProductCategoryID]
+            WHERE [Category].[Name] = @categoryName
+            ORDER BY [Product].[ListPrice] DESC"</span><span style="color: black;">;
+        </span><span style="color: #2b91af;">DbParameter </span><span style="color: black;">parameter = command.CreateParameter();
+        parameter.ParameterName = </span><span style="color: #a31515;">"@categoryName"</span><span style="color: black;">;
+        parameter.Value = </span><span style="color: #a31515;">"Bikes"</span><span style="color: black;">;
+        command.Parameters.Add(parameter);
+        connection.Open();
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">DbDataReader </span><span style="color: black;">reader = command.ExecuteReader())
+        {
+            </span><span style="color: blue;">while </span><span style="color: black;">(reader.Read())
+            {
+                </span><span style="color: blue;">string </span><span style="color: black;">productName = (</span><span style="color: blue;">string</span><span style="color: black;">)reader[</span><span style="color: #a31515;">"Name"</span><span style="color: black;">];
+                </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(productName);
+            }
+        }
+    }
+}</span></pre>
+<p>Similarly, for Twitter data, there are network APIs to query Twitter’s REST endpoints, etc. LINQ implements an unified and consistent language syntax and programming model for many different data domains. Above examples demonstrated the same C# syntax builds filter-sort-map query flows for CLR objects, XML data, cached tabular data, SQL database, NoSQL database, JSON, Twitter data. This capability makes LINQ a powerful and productive solution for working with data.</p>
+<p>C# is a strongly typed language. In C#, any value has a type, including any value in LINQ query. And any expression is evaluated to a type, including LINQ query expressions. Any method has a type for each parameter and a type for return value, including LINQ query methods. So LINQ queries are checked by compiler and CLR for type safety, which is great help for productivity, unless <strong>dynamic</strong> typing is used to bypass the compiler check:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Linq
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static void </span><span style="color: black;">Dynamic()
+    {
+        </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">&gt; source = </span><span style="color: blue;">new int</span><span style="color: black;">[] { 4, 3, 2, 1, 0, -1 }; </span><span style="color: green;">// Get source.
+        </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: blue;">dynamic</span><span style="color: black;">&gt; query =
+            </span><span style="color: blue;">from dynamic </span><span style="color: black;">value </span><span style="color: blue;">in </span><span style="color: black;">source
+            </span><span style="color: blue;">where </span><span style="color: black;">value.ByPass.Compiler.Check &gt; 0
+            </span><span style="color: blue;">orderby </span><span style="color: black;">value.ByPass().Compiler().Check()
+            </span><span style="color: blue;">select </span><span style="color: black;">value &amp; </span><span style="color: blue;">new object</span><span style="color: black;">(); </span><span style="color: green;">// Define query.
+        </span><span style="color: blue;">foreach </span><span style="color: black;">(</span><span style="color: blue;">dynamic </span><span style="color: black;">result </span><span style="color: blue;">in </span><span style="color: black;">query) </span><span style="color: green;">// Execute query.
+        </span><span style="color: black;">{
+            </span><span style="color: #2b91af;">Trace</span><span style="color: black;">.WriteLine(result);
+        }
+    }
+}</span></pre>
+<p>Strong typing also enables IntelliSense for IDE, which also improves the productivity:</p>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Introducing-LINQ-3-Infrastructure_F6C4/image_9.png"><img title="image" style="border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Introducing-LINQ-3-Infrastructure_F6C4/image_thumb_3.png" width="821" height="359" border="0"></a></p>
+<p>LINQ also supports deferred execution. Usually, LINQ query is executed only when the results are pulled from the query. This enables creating query with arbitrary complexity. In above examples, during the composition of filter-sort-map, no execution is triggered. Later, when the results are pulled, the entire filter-sort-map query executes is triggered. This is also important for productivity. Take above LINQ to Entities query as example, when the query is executed against the SQL database, the entire filter-sort-map query logic is submitted to database as a single database query. Without deferred execution, this cannot be done.</p>
+<p>LINQ is not only about data query. Many LINQ libraries provide rich APIs to manipulate and change the data too, like LINQ to XML, LINQ to SQL, and EF/Core, and DocumentDB client, etc. Parallel LINQ is a special set of LINQ APIs, it can significantly improve the query performance for CLR objects, it also provides an simple programming model for general parallel computing.</p>
+<h1>Local query vs. remote query</h1>
+<p>Generally, there are 2 kinds of LINQ technologies:</p>
+<ul>
+<li>Local query: The data source for local query is .NET objects in local memory of current .NET application or service. Apparently, (sequential) LINQ to Objects queries, and Parallel LINQ (to Objects) queries are local queries. LINQ to XML have XML data loaded to memory as specialized .NET objects representing the XML data structure, then query these objects, so LINQ to XML queries are also local queries too. Similarly, LINQ to DataSets and LINQ to JSON queries are local queries too. As demonstrated above, the local sequential LINQ data source and query is represented by <strong>System.Collections.Generics.IEnumerable&lt;T&gt;</strong> interface, and the local parallel LINQ data source and query is represented by <strong>System.Linq.ParallelQuery&lt;T&gt;</strong> type.</li>
+<li>Remote query: The data source for remote query is not in the local memory. For example, LINQ to Entities queries the data stored in a relational database, apparently the data source is not available as .NET objects in the memory of current .NET application or service. So LINQ to Entities queries are remote queries. So are LINQ to SQL, LINQ to DocumentDB and LINQ to Twitter. As demonstrated above, the remote LINQ data source and query is represented by <strong>System.Linq.IQueryable&lt;T&gt;</strong> interface.</li>
+</ul>
+<p>There are so many LINQ technologies, it is infeasible and also unnecessary to have one tutorial for all of them. This tutorial covers C# language's LINQ features, and the most used LINQ APIs: LINQ to Object (sequential local queries), LINQ to XML (specialized local queries), Parallel LINQ (parallel local queries), as well as EF/Core (remote queries). With the unified and consistent LINQ programming model, mastering these LINQ knowledge enables developers working any other local or remote LINQ technologies, understanding the internal implementation of these LINQ technologies also enables developer to build custom LINQ APIs to for other local or remote data scenarios.</p>
+
+</div>
+</body>
+</html>

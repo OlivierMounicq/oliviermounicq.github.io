@@ -1,0 +1,186 @@
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="mainDiv">
+
+
+
+<h1>Parallel LINQ (4) Performance</h1>
+
+
+<p>Parallel LINQ is powerful, but also can be more complex. This part discusses Parallel LINQ query performance in different cases.</p>
+<h1>Sequential query vs. parallel query</h1>
+<p>Parallel LINQ query can be faster than the parity sequential LINQ to Objects query, but not always. Take OrderBy as example, the following method compares the query execution duration of sequential OrderBy and parallel OrderBy:</p>
+<pre class="code"><span style="color: blue;">private static void </span><span style="color: black;">OrderByTest(</span><span style="color: #2b91af;">Func</span><span style="color: black;">&lt;</span><span style="color: blue;">int</span><span style="color: black;">, </span><span style="color: blue;">int</span><span style="color: black;">&gt; keySelector, </span><span style="color: blue;">int </span><span style="color: black;">count, </span><span style="color: blue;">int </span><span style="color: black;">run)
+{
+    </span><span style="color: #a31515;">$"Sort </span><span style="color: black;">{count} </span><span style="color: #a31515;">values."</span><span style="color: black;">.WriteLine();
+    </span><span style="color: blue;">int</span><span style="color: black;">[] source = </span><span style="color: #2b91af;">EnumerableX</span><span style="color: black;">.RandomInt32(count: count).ToArray();
+    </span><span style="color: #2b91af;">Stopwatch </span><span style="color: black;">stopwatch = </span><span style="color: #2b91af;">Stopwatch</span><span style="color: black;">.StartNew();
+    </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, run).ForEach(_ =&gt;
+    {
+        </span><span style="color: blue;">int</span><span style="color: black;">[] sequential = source.OrderBy(keySelector).ToArray();
+    });
+    stopwatch.Stop();
+    </span><span style="color: #a31515;">$"Sequential:</span><span style="color: black;">{stopwatch.ElapsedMilliseconds}</span><span style="color: #a31515;">"</span><span style="color: black;">.WriteLine();
+
+    stopwatch.Restart();
+    </span><span style="color: #2b91af;">Enumerable</span><span style="color: black;">.Range(0, run).ForEach(_ =&gt;
+    {
+        </span><span style="color: blue;">int</span><span style="color: black;">[] parallel1 = source.AsParallel().OrderBy(keySelector).ToArray();
+    });
+    stopwatch.Stop();
+    </span><span style="color: #a31515;">$"Parallel:</span><span style="color: black;">{stopwatch.ElapsedMilliseconds}</span><span style="color: #a31515;">"</span><span style="color: black;">.WriteLine();
+}</span></pre>
+<p>It calls the RandomInt32 method, which was defined in the LINQ to Objects chapter, to generate an array of random int values with the specified length. Then it executes the sequential and parallel OrderBy methods for the specified times, so that the total execution time can be controlled, The following code compares the sequential/parallel OrderBy execution on small/medium/large size array, with the same simple key selector:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">OrderByTestForCount()
+{
+    OrderByTest(keySelector: value =&gt; value, count: 5, run: 10_000);
+    </span><span style="color: green;">// Sequential:11    Parallel:1422
+    </span><span style="color: black;">OrderByTest(keySelector: value =&gt; value, count: 5_000, run: 100);
+    </span><span style="color: green;">// Sequential:114   Parallel:107
+    </span><span style="color: black;">OrderByTest(keySelector: value =&gt; value, count: 500_000, run: 100);
+    </span><span style="color: green;">// Sequential:18210 Parallel:8204
+</span><span style="color: black;">}</span></pre>
+<p>The following method compares the sequential/parallel OrderBy execution on the same size array, with different key selector of light/medium/heavy workload:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">OrderByTestForKeySelector()
+{
+    OrderByTest(
+        keySelector: value =&gt; value + ComputingWorkload(iteration: 1),
+        count: </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount, run: 100_000);
+    </span><span style="color: green;">// Sequential:37   Parallel:2218
+    </span><span style="color: black;">OrderByTest(
+        keySelector: value =&gt; value + ComputingWorkload(iteration: 10_000),
+        count: </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount, run: 1_000);
+    </span><span style="color: green;">// Sequential:115  Parallel:125
+    </span><span style="color: black;">OrderByTest(
+        keySelector: value =&gt; value + ComputingWorkload(iteration: 100_000),
+        count: </span><span style="color: #2b91af;">Environment</span><span style="color: black;">.ProcessorCount, run: 100);
+    </span><span style="color: green;">// Sequential:1240 Parallel:555
+</span><span style="color: black;">}</span></pre>
+<p>It turns out sequential LINQ to Object can be faster than Parallel LINQ in some cases. Here, sequential OrderBy can execute faster for smaller source/lighter key selector, and parallel OrderBy can execute faster for larger source/more expensive key selector</p>
+<h1>CPU bound operation vs. I/O bound operation</h1>
+<p>So far, all the examples are CPU bound operations. In many cases, Parallel LINQ by default takes the logic processor count as the degree of parallelism. This makes sense for CPU bound operations, but may not for I/O bound operations. For example, when downloading files from Internet with parallel threads, it could be nice if the worker thread count can be controlled accurately, and independently from CPU core count. The following ForceParallel method can be implementation for this purpose:</p>
+<pre class="code"><span style="color: blue;">public static partial class </span><span style="color: #2b91af;">ParallelEnumerableX
+</span><span style="color: black;">{
+    </span><span style="color: blue;">public static void </span><span style="color: black;">ForceParallel&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;(
+        </span><span style="color: blue;">this </span><span style="color: #2b91af;">IEnumerable</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; source, </span><span style="color: #2b91af;">Action</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt; action, </span><span style="color: blue;">int </span><span style="color: black;">forcedDegreeOfParallelism)
+    {
+        </span><span style="color: blue;">if </span><span style="color: black;">(forcedDegreeOfParallelism &lt;= 0)
+        {
+            </span><span style="color: blue;">throw new </span><span style="color: #2b91af;">ArgumentOutOfRangeException</span><span style="color: black;">(</span><span style="color: blue;">nameof</span><span style="color: black;">(forcedDegreeOfParallelism));
+        }
+
+        </span><span style="color: #2b91af;">IList</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">IEnumerator</span><span style="color: black;">&lt;</span><span style="color: #2b91af;">TSource</span><span style="color: black;">&gt;&gt; partitions = </span><span style="color: #2b91af;">Partitioner
+            </span><span style="color: black;">.Create(source, </span><span style="color: #2b91af;">EnumerablePartitionerOptions</span><span style="color: black;">.NoBuffering) </span><span style="color: green;">// Stripped partitioning.
+            </span><span style="color: black;">.GetPartitions(forcedDegreeOfParallelism);
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">CountdownEvent </span><span style="color: black;">countdownEvent = </span><span style="color: blue;">new </span><span style="color: #2b91af;">CountdownEvent</span><span style="color: black;">(forcedDegreeOfParallelism))
+        {
+            partitions.ForEach(partition =&gt; </span><span style="color: blue;">new </span><span style="color: #2b91af;">Thread</span><span style="color: black;">(() =&gt;
+            {
+                </span><span style="color: blue;">try
+                </span><span style="color: black;">{
+                    </span><span style="color: blue;">using </span><span style="color: black;">(partition)
+                    {
+                        </span><span style="color: blue;">while </span><span style="color: black;">(partition.MoveNext())
+                        {
+                            action(partition.Current);
+                        }
+                    }
+                }
+                </span><span style="color: blue;">finally
+                </span><span style="color: black;">{
+                    countdownEvent.Signal();
+                }
+            }).Start());
+            countdownEvent.Wait();
+        }
+    }
+}</span></pre>
+<p>It creates the specified number of partitions from the source, then start one threads to work with each partition. Also, by calling Partitioner.Create with EnumerablePartitionerOptions.NoBuffering, stripped partitioning is enabled for better load balance.</p>
+<p>To demonstrate the I/O bound operation, define the following network I/O method to download file synchronously from the the specified URI:</p>
+<pre class="code"><span style="color: blue;">internal static partial class </span><span style="color: #2b91af;">Functions
+</span><span style="color: black;">{
+    </span><span style="color: blue;">internal static string </span><span style="color: black;">Download(</span><span style="color: blue;">string </span><span style="color: black;">uri)
+    {
+        </span><span style="color: #2b91af;">WebRequest </span><span style="color: black;">request = </span><span style="color: #2b91af;">WebRequest</span><span style="color: black;">.Create(uri);
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">WebResponse </span><span style="color: black;">response = request.EndGetResponse(request.BeginGetResponse(</span><span style="color: blue;">null</span><span style="color: black;">, </span><span style="color: blue;">null</span><span style="color: black;">)))
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">Stream </span><span style="color: black;">downloadStream = response.GetResponseStream())
+        </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">StreamReader </span><span style="color: black;">streamReader = </span><span style="color: blue;">new </span><span style="color: #2b91af;">StreamReader</span><span style="color: black;">(downloadStream))
+        {
+            </span><span style="color: blue;">return </span><span style="color: black;">streamReader.ReadToEnd();
+        }
+    }
+}</span></pre>
+<p>The following method compares and visualizes sequential download, parallel download with Parallel LINQ, and parallel download with above ForceParallel method:</p>
+<pre class="code"><span style="color: blue;">private static void </span><span style="color: black;">DownloadTest(</span><span style="color: blue;">string</span><span style="color: black;">[] uris)
+{
+    uris.Visualize(uri =&gt; </span><span style="color: #2b91af;">Functions</span><span style="color: black;">.Download(uri)); </span><span style="color: green;">// Sequential with no concurrency.
+
+    </span><span style="color: black;">uris.AsParallel()
+        .WithDegreeOfParallelism(10) </span><span style="color: green;">// Parallel with max concurrency.
+        </span><span style="color: black;">.Visualize(uri =&gt; </span><span style="color: #2b91af;">Functions</span><span style="color: black;">.Download(uri));
+
+    </span><span style="color: blue;">using </span><span style="color: black;">(</span><span style="color: #2b91af;">Markers</span><span style="color: black;">.EnterSpan(-3, </span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ParallelEnumerableX</span><span style="color: black;">.ForceParallel)))
+    {
+        </span><span style="color: #2b91af;">MarkerSeries </span><span style="color: black;">markerSeries = </span><span style="color: #2b91af;">Markers</span><span style="color: black;">.CreateMarkerSeries(</span><span style="color: blue;">nameof</span><span style="color: black;">(</span><span style="color: #2b91af;">ParallelEnumerableX</span><span style="color: black;">.ForceParallel));
+        uris.ForceParallel(
+            uri =&gt;
+            {
+                </span><span style="color: blue;">using </span><span style="color: black;">(markerSeries.EnterSpan(</span><span style="color: #2b91af;">Thread</span><span style="color: black;">.CurrentThread.ManagedThreadId, uri))
+                {
+                    </span><span style="color: #2b91af;">Functions</span><span style="color: black;">.Download(uri);
+                }
+            },
+            forcedDegreeOfParallelism: 10); </span><span style="color: green;">// Parallel with forced concurrency.
+    </span><span style="color: black;">}
+}</span></pre>
+<p>The following code queries some some thumbnail picture file URIs from the Flickr RSS feed with LINQ to XML, then compares the performance of downloading those small files:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">RunDownloadSmallFilesTest()
+{
+    </span><span style="color: blue;">string</span><span style="color: black;">[] thumbnails =
+        </span><span style="color: #2b91af;">XDocument</span><span style="color: black;">.Load(</span><span style="color: #a31515;">"https://www.flickr.com/services/feeds/photos_public.gne?id=64715861@N07&amp;format=rss2"</span><span style="color: black;">)
+        .Descendants((</span><span style="color: #2b91af;">XNamespace</span><span style="color: black;">)</span><span style="color: #a31515;">"http://search.yahoo.com/mrss/" </span><span style="color: black;">+ </span><span style="color: #a31515;">"thumbnail"</span><span style="color: black;">)
+        .Attributes(</span><span style="color: #a31515;">"url"</span><span style="color: black;">)
+        .Select(uri =&gt; (</span><span style="color: blue;">string</span><span style="color: black;">)uri)
+        .ToArray();
+    DownloadTest(thumbnails);
+}</span></pre>
+<blockquote>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-4-Performance_132BF/image_2.png"><img title="image" style="border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-4-Performance_132BF/image_thumb.png" width="800" height="852" border="0"></a></p>
+</blockquote>
+<p>Here sequential downloading takes longer time, which totally makes sense. The Parallel LINQ query is specified with a max degree of parallelism 10, but it decides to utilize 5 threads. ForceParallel starts 10 threads exactly as specified, and its execution time is about half of Parallel LINQ.</p>
+<p>The following code queries for the same Flickr RSS feed for large picture file URIs, and compares the performance of downloading those large files:</p>
+<pre class="code"><span style="color: blue;">internal static void </span><span style="color: black;">RunDownloadLargeFilesTest()
+{
+    </span><span style="color: blue;">string</span><span style="color: black;">[] contents =
+        </span><span style="color: #2b91af;">XDocument</span><span style="color: black;">.Load(</span><span style="color: #a31515;">"https://www.flickr.com/services/feeds/photos_public.gne?id=64715861@N07&amp;format=rss2"</span><span style="color: black;">)
+        .Descendants((</span><span style="color: #2b91af;">XNamespace</span><span style="color: black;">)</span><span style="color: #a31515;">"http://search.yahoo.com/mrss/" </span><span style="color: black;">+ </span><span style="color: #a31515;">"content"</span><span style="color: black;">)
+        .Attributes(</span><span style="color: #a31515;">"url"</span><span style="color: black;">)
+        .Select(uri =&gt; (</span><span style="color: blue;">string</span><span style="color: black;">)uri)
+        .ToArray();
+    DownloadTest(contents);
+}</span></pre>
+<blockquote>
+<p><a href="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-4-Performance_132BF/image_4.png"><img title="image" style="margin: 0px; border: 0px currentcolor; display: inline; background-image: none;" alt="image" src="https://aspblogs.blob.core.windows.net/media/dixin/Windows-Live-Writer/Parallel-LINQ-4-Performance_132BF/image_thumb_1.png" width="800" height="896" border="0"></a></p>
+</blockquote>
+<p>This time Parallel LINQ still utilizes 5 threads from the beginning, then decides to start 2 more threads a while later. ForceParallel simply start 10 threads since the beginning. However, the execution time of sequential download, Parallel LINQ download, and ForceParallel download are about the same. This is because when downloading larger files, the network bandwidth becomes the performance bottleneck, and the degree of parallelization does not make much difference.</p>
+<h1>Summary</h1>
+<p>This part and the previous parts has demonstrated many aspects that can have performance impact for Parallel LINQ, and here is a summary:</p>
+<ul>
+<li>The partitioning strategy can impact performance, because different partitioning algorithms introduce different synchronization and load balance.</li>
+<li>The degree of parallelism can impact performance, when degree of parallelism is set to 1, Parallel LINQ works like sequential LINQ to Object.</li>
+<li>The 2 execution modes, Default (sequential/parallel) and ForceParallel, can result different performance</li>
+<li>The merge option can also impact performance, smaller buffer size can have the early value results available faster, but can also make the query execute longer</li>
+<li>The order preservation can impact the performance, query as unordered can have better performance, but can also have incorrect results.</li>
+<li>The source size can impact performance, for source with smaller size, the&nbsp; overhead of parallelization can be more significant, and result even lower performance than sequential query</li>
+<li>The callback function provided to query methods can impact performance, more expensive callback functions can have better performance with parallel queries</li>
+<li>The type of operation can impact performance, utilize more CPU cores can improve the performance of compute bound operation, but I/O bound operations can depend on the I/O hardware.</li>
+</ul>
+<p>Parallel LINQ is provided for performance. In the real world, the performance of each Parallel LINQ query has to be measured and optimized accordingly.</p>
+
+
+</div>
+</body>
+</html>
