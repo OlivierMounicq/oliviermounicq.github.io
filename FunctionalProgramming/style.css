@@ -1,7 +1,21 @@
 body { counter-reset: h1counter; }
-p, li{
+p, li {
   font-family: wf_segoe-ui_normal, 'Segoe UI', Segoe, 'Segoe WP', Tahoma, Verdana, Arial, sans-serif;
   font-size: 14px;
+}
+
+table {
+  border-collapse: collapse;  
+}
+
+td {
+  font-family: wf_segoe-ui_normal, 'Segoe UI', Segoe, 'Segoe WP', Tahoma, Verdana, Arial, sans-serif;
+  font-size: 14px;
+  border: solid 1px;
+  padding-left:10px;
+  padding-right:10px;
+  padding-top:5px;
+  padding-bottom:5px;
 }
 
 pre{
