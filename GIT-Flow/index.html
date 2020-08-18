@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            #cloneRepo {                
+                position: -webkit-sticky;
+                position:sticky;
+                top: 5px;                
+                width: 150vh;
+                height: 90vh;
+                margin-left:-50px;
+                border: darkred solid 1px;
+                background-color: white;
+            }
+
+            #origin,
+            #AliceRepo,
+            #BobRepo{
+              fill:white;
+              stroke-width: 0.1;
+              stroke: black;
+            }
+
+            /** Other style **/
+            .cloneRepoEmptyDiv{
+                width:100%;
+                height: 1000px;
+                background-color: turquoise;
+            }
+
+            .myFooter{
+                width:100%;
+                height: 2000px;
+                background-color: darkmagenta;
+            }
+        </style>
+    </head>
+    <body translate="no">
+        <div>
+            <h2>Lorem ipsum dolor sit amet</h2>
+            <p>consectetur adipiscing elit</p>
+        </div>
+
+        <!-- 1st step : Alice and Bob clone the remote repo-->        
+        <div align="center">
+            <svg id="cloneRepo" viewBox="0 0 100 100">                
+                <path id="origin" d="M45,5 
+                                    A10,15 0 0,0 55,5  
+                                    A10,15 0 0,0 45,5 
+                                    L45,10 
+                                    A10,15 0 0,0 55,10
+                                    L55,5" />
+
+                <!-- Alice repo -->
+                <path id="AliceRepo" d="M20,20 
+                                    A10,15 0 0,0 30,20  
+                                    A10,15 0 0,0 20,20 
+                                    L20,25
+                                    A10,15 0 0,0 30,25
+                                    L30,20" />    
+                
+                <path id="drawCloneRepoAlice" fill="none" stroke="red" stroke-width="0.1" d="M43 7 L28 17" />
+
+                <text x="10" y="18" font-size="2px" visibility="hidden" id="gitCmdCloneAlice">git clone</text>
+
+                <!-- Bob repo -->    
+                <path id="BobRepo" d="M70, 20
+                                      A10,15 0 0,0 80,20
+                                      A10,15 0 0,0 70,20
+                                      L70,25
+                                      A10,15 0 0,0 80,25
+                                      L80,20" />        
+
+                <path id="drawCloneRepoBob" fill="none" stroke="red" stroke-width="0.1" d="M57 7 L73 17" />
+
+            </svg>
+            <div class="cloneRepoEmptyDiv"></div>
+        </div>
+
+
+        <div class="myFooter">
+
+        </div>
+
+        <script>
+            //1st triangle
+            var triangle = document.querySelector("#drawCloneRepoAlice");
+            var length = triangle.getTotalLength();
+            triangle.style.strokeDasharray = length;
+            triangle.style.strokeDashoffset = length;
+
+            var cloneBob = document.querySelector("#drawCloneRepoBob");
+            var cloneBobLength = cloneBob.getTotalLength();
+            cloneBob.style.strokeDasharray = cloneBobLength;
+            cloneBob.style.strokeDashoffset = cloneBobLength;
+
+            var gitCmdCloneAlice = document.querySelector("#gitCmdCloneAlice");
+
+            window.addEventListener("scroll", function(){                
+                var scrollpercent = document.documentElement.scrollTop / 480.0;
+
+                var draw = length * scrollpercent;
+                var cloneBobDraw = cloneBobLength * scrollpercent;
+                if(length - draw >= 0){
+                    triangle.style.strokeDashoffset = length - draw;
+                    cloneBob.style.strokeDashoffset = cloneBobLength - cloneBobDraw;
+                }
+                else{ 
+                    console.log(gitCmdCloneAlice.style)                   
+                    gitCmdCloneAlice.style.visibility = "visible";
+                }                                                
+            });                  
+
+            
+        </script>
+        
+    </body>
+</html>
